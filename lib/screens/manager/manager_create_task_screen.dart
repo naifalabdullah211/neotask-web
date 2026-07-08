@@ -5,7 +5,7 @@ import '../../models/task_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
-import '../../services/local_db_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 
 /// Task creation screen for the manager — exposes ALL recurrence options
@@ -114,7 +114,7 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final employees = LocalDbService.getAllEmployees()
+    final employees = FirestoreService.getAllEmployees()
         .where((u) => u.accountStatus == AccountStatus.active)
         .toList();
 

@@ -8,9 +8,9 @@ import 'task_review_detail_screen.dart';
 
 /// Manager review queue — shows tasks submitted by employees needing a
 /// live, real-time Approve / Reject / Request-Edit decision.
-/// Backed by TaskProvider, which listens to a Hive stream for near-instant
-/// updates the moment an employee submits (documented as the local-mode
-/// equivalent of Firestore's real-time .snapshots()).
+/// Backed by TaskProvider, which listens to Firestore's real-time
+/// .snapshots() for near-instant updates the moment an employee submits,
+/// synced live across devices.
 class ManagerReviewTab extends StatelessWidget {
   const ManagerReviewTab({super.key});
 

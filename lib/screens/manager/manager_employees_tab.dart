@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/invitation_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/local_db_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 
 /// Manager's Employees tab:
@@ -18,8 +18,8 @@ class ManagerEmployeesTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: StreamBuilder<List<AppUser>>(
-        stream: LocalDbService.watchEmployees(),
-        initialData: LocalDbService.getAllEmployees(),
+        stream: FirestoreService.watchEmployees(),
+        initialData: FirestoreService.getAllEmployees(),
         builder: (context, snapshot) {
           final employees = snapshot.data ?? [];
           final pending = employees

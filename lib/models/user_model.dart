@@ -13,10 +13,10 @@ class AppUser {
   final DateTime? approvedAt;
   final DateTime createdAt;
 
-  /// NOTE: plain-text password, ONLY acceptable because this is the
-  /// temporary local (Hive) backend used before Firebase Auth is connected.
-  /// This field will be removed entirely once real Firebase Authentication
-  /// replaces this placeholder mechanism.
+  /// NOTE: plain-text password stored in Firestore, ONLY acceptable as an
+  /// interim mechanism before real Firebase Authentication is connected.
+  /// This field will be removed entirely once Firebase Auth
+  /// (email/password) replaces this placeholder mechanism.
   final String passwordPlaceholder;
 
   AppUser({

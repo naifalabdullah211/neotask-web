@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/task_model.dart';
 import '../models/task_history_model.dart';
-import '../services/local_db_service.dart';
+import '../services/firestore_service.dart';
 import '../utils/recurrence_utils.dart';
 
 class TaskProvider extends ChangeNotifier {
@@ -16,7 +16,7 @@ class TaskProvider extends ChangeNotifier {
   }
 
   void _listenAll() {
-    LocalDbService.watchAllTasks().listen((tasks) {
+    FirestoreService.watchAllTasks().listen((tasks) {
       _allTasks = tasks;
       notifyListeners();
     });
@@ -96,7 +96,7 @@ class TaskProvider extends ChangeNotifier {
       createdAt: now,
       updatedAt: now,
     );
-    await LocalDbService.saveTask(task);
+    await FirestoreService.saveTask(task);
     await _logHistory(task.taskId, HistoryAction.statusChange, assignedBy,
         note: 'تم إنشاء المهمة وإسنادها');
     return task;
@@ -104,17 +104,17 @@ class TaskProvider extends ChangeNotifier {
 
   Future<void> updateStatus(
       String taskId, TaskStatus status, String actorUid) async {
-    final task = LocalDbService.getTask(taskId);
+    final task = FirestoreService.getTask(taskId);
     if (task == null) return;
     final updated = task.copyWith(status: status, updatedAt: DateTime.now());
-    await LocalDbService.saveTask(updated);
+    await FirestoreService.saveTask(updated);
     await _logHistory(taskId, HistoryAction.statusChange, actorUid,
         note: 'تغيير الحالة إلى ${status.name}');
   }
 
   Future<void> submitForReview(
       String taskId, String employeeUid, String? note) async {
-    final task = LocalDbService.getTask(taskId);
+    final task = FirestoreService.getTask(taskId);
     if (task == null) return;
     final updated = task.copyWith(
       status: TaskStatus.submitted,
@@ -122,7 +122,7 @@ class TaskProvider extends ChangeNotifier {
       submissionNote: note,
       updatedAt: DateTime.now(),
     );
-    await LocalDbService.saveTask(updated);
+    await FirestoreService.saveTask(updated);
     await _logHistory(taskId, HistoryAction.submit, employeeUid, note: note);
   }
 
@@ -138,7 +138,7 @@ class TaskProvider extends ChangeNotifier {
       throw ArgumentError('يجب إدخال سبب أو ملاحظة عند الرفض أو طلب التعديل');
     }
 
-    final task = LocalDbService.getTask(taskId);
+    final task = FirestoreService.getTask(taskId);
     if (task == null) return;
 
     TaskStatus newStatus;
@@ -171,7 +171,7 @@ class TaskProvider extends ChangeNotifier {
           : task.revisionCount + 1,
       updatedAt: DateTime.now(),
     );
-    await LocalDbService.saveTask(updated);
+    await FirestoreService.saveTask(updated);
     await _logHistory(taskId, action, managerUid, note: note);
 
     // Auto-create the next recurring instance once approved.
@@ -199,23 +199,23 @@ class TaskProvider extends ChangeNotifier {
   /// After rejection/edit-request, employee resumes work — status returns
   /// to inProgress so the cycle can repeat.
   Future<void> resumeAfterFeedback(String taskId, String employeeUid) async {
-    final task = LocalDbService.getTask(taskId);
+    final task = FirestoreService.getTask(taskId);
     if (task == null) return;
     final updated = task.copyWith(
       status: TaskStatus.inProgress,
       updatedAt: DateTime.now(),
     );
-    await LocalDbService.saveTask(updated);
+    await FirestoreService.saveTask(updated);
     await _logHistory(taskId, HistoryAction.statusChange, employeeUid,
         note: 'استئناف العمل بعد ملاحظات المدير');
   }
 
   Future<void> deleteTask(String taskId) async {
-    await LocalDbService.deleteTask(taskId);
+    await FirestoreService.deleteTask(taskId);
   }
 
   List<TaskHistoryEntry> historyForTask(String taskId) {
-    return LocalDbService.getHistoryForTask(taskId);
+    return FirestoreService.getHistoryForTask(taskId);
   }
 
   Future<void> _logHistory(
@@ -229,7 +229,7 @@ class TaskProvider extends ChangeNotifier {
       note: note,
       timestamp: DateTime.now(),
     );
-    await LocalDbService.addHistoryEntry(entry);
+    await FirestoreService.addHistoryEntry(entry);
   }
 
   // ---- Simple stats helpers for manager dashboard/reports ----

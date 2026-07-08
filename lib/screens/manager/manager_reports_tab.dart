@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/task_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/task_provider.dart';
-import '../../services/local_db_service.dart';
+import '../../services/firestore_service.dart';
 import '../../services/pdf_report_service.dart';
 import '../../theme/app_theme.dart';
 
@@ -50,7 +50,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
       case _ReportRange.month:
         return '${_anchor.year}/${_anchor.month.toString().padLeft(2, '0')}';
       case _ReportRange.employee:
-        final emp = LocalDbService.getAllEmployees()
+        final emp = FirestoreService.getAllEmployees()
             .where((e) => e.uid == _selectedEmployeeUid);
         return emp.isNotEmpty ? emp.first.name : 'اختر موظفًا';
     }
@@ -70,7 +70,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
     setState(() => _exporting = true);
     try {
       final stats = provider.statsForRange(tasks);
-      final employees = LocalDbService.getAllEmployees();
+      final employees = FirestoreService.getAllEmployees();
       final employeesById = {for (final e in employees) e.uid: e};
       final bytes = await PdfReportService.buildReport(
         title: _rangeTitleAr,
@@ -121,7 +121,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
     final tasks = _filteredTasks(provider);
-    final employees = LocalDbService.getAllEmployees()
+    final employees = FirestoreService.getAllEmployees()
         .where((u) => u.accountStatus == AccountStatus.active)
         .toList();
 

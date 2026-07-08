@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
-import '../../services/local_db_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../shared/splash_router.dart';
 import 'manager_dashboard_tab.dart';
@@ -92,8 +92,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             label: 'المراجعة',
           ),
           StreamBuilder<List<AppUser>>(
-            stream: LocalDbService.watchEmployees(),
-            initialData: LocalDbService.getAllEmployees(),
+            stream: FirestoreService.watchEmployees(),
+            initialData: FirestoreService.getAllEmployees(),
             builder: (context, snapshot) {
               final pendingEmployees = (snapshot.data ?? [])
                   .where((u) => u.accountStatus == AccountStatus.pendingApproval)

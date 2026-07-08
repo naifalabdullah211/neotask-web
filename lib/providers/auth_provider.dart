@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/invitation_model.dart';
-import '../services/local_db_service.dart';
+import '../services/firestore_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   AppUser? _currentUser;
@@ -19,9 +19,9 @@ class AuthProvider extends ChangeNotifier {
   static const _uuid = Uuid();
 
   Future<void> restoreSession() async {
-    final uid = LocalDbService.getCurrentUid();
+    final uid = FirestoreService.getCurrentUid();
     if (uid != null) {
-      _currentUser = LocalDbService.getUser(uid);
+      _currentUser = FirestoreService.getUser(uid);
       notifyListeners();
     }
   }
@@ -33,7 +33,7 @@ class AuthProvider extends ChangeNotifier {
     required String employeeNumber,
     String password = '',
   }) async {
-    final existingManager = LocalDbService.getManager();
+    final existingManager = FirestoreService.getManager();
     if (existingManager != null) return;
 
     final manager = AppUser(
@@ -46,22 +46,22 @@ class AuthProvider extends ChangeNotifier {
       createdAt: DateTime.now(),
       passwordPlaceholder: password,
     );
-    await LocalDbService.saveUser(manager);
+    await FirestoreService.saveUser(manager);
   }
 
-  bool get managerExists => LocalDbService.getManager() != null;
+  bool get managerExists => FirestoreService.getManager() != null;
 
   Future<bool> login(String email, String password) async {
     _isLoading = true;
     _authError = null;
     notifyListeners();
 
-    // NOTE: password verification is a placeholder in the local (Hive) mode.
-    // Once Firestore + Firebase Auth are connected, this will use real
-    // Firebase Authentication (email/password) instead.
+    // NOTE: password verification is currently a plain-text comparison
+    // against a value stored in Firestore (interim mechanism). This will be
+    // replaced by real Firebase Authentication (email/password) next.
     await Future.delayed(const Duration(milliseconds: 400));
 
-    final user = LocalDbService.getUserByEmail(email.trim());
+    final user = FirestoreService.getUserByEmail(email.trim());
     if (user == null) {
       _authError = 'البريد الإلكتروني غير مسجّل';
       _isLoading = false;
@@ -79,7 +79,7 @@ class AuthProvider extends ChangeNotifier {
 
     if (user.accountStatus == AccountStatus.pendingApproval) {
       _currentUser = user;
-      await LocalDbService.setCurrentUid(user.uid);
+      await FirestoreService.setCurrentUid(user.uid);
       _isLoading = false;
       notifyListeners();
       return true; // login succeeds but UI will route to pending screen
@@ -93,7 +93,7 @@ class AuthProvider extends ChangeNotifier {
     }
 
     _currentUser = user;
-    await LocalDbService.setCurrentUid(user.uid);
+    await FirestoreService.setCurrentUid(user.uid);
     _isLoading = false;
     notifyListeners();
     return true;
@@ -112,18 +112,22 @@ class AuthProvider extends ChangeNotifier {
       status: InvitationStatus.pending,
       expectedEmployeeName: expectedName,
     );
-    await LocalDbService.saveInvitation(invite);
+    await FirestoreService.saveInvitation(invite);
     return invite;
   }
 
   Invitation? validateInviteToken(String token) {
-    final invite = LocalDbService.getInvitationByToken(token);
+    final invite = FirestoreService.getInvitationByToken(token);
     if (invite == null) return null;
     if (invite.status == InvitationStatus.used) return null;
     return invite;
   }
 
   /// Employee self-registration via a valid single-use invite token.
+  ///
+  /// Uses an atomic Firestore transaction (see
+  /// FirestoreService.consumeInviteAndRegister) to guarantee the token
+  /// cannot be consumed twice under concurrent registration attempts.
   Future<bool> registerViaInvite({
     required String token,
     required String name,
@@ -135,22 +139,6 @@ class AuthProvider extends ChangeNotifier {
     _authError = null;
     notifyListeners();
 
-    final invite = validateInviteToken(token);
-    if (invite == null) {
-      _authError = 'رابط الدعوة غير صالح أو مُستخدم مسبقًا';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-
-    final existing = LocalDbService.getUserByEmail(email.trim());
-    if (existing != null) {
-      _authError = 'هذا البريد الإلكتروني مسجّل بالفعل';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-
     final newUser = AppUser(
       uid: _uuid.v4(),
       name: name,
@@ -161,32 +149,39 @@ class AuthProvider extends ChangeNotifier {
       createdAt: DateTime.now(),
       passwordPlaceholder: password,
     );
-    await LocalDbService.saveUser(newUser);
 
-    // Burn the invite token — single use enforced.
-    final updatedInvite = invite.copyWith(
-      status: InvitationStatus.used,
-      usedAt: DateTime.now(),
-      usedByUid: newUser.uid,
+    final result = await FirestoreService.consumeInviteAndRegister(
+      token: token,
+      newUser: newUser,
     );
-    await LocalDbService.saveInvitation(updatedInvite);
 
-    _currentUser = newUser;
-    await LocalDbService.setCurrentUid(newUser.uid);
+    if (result == null) {
+      // Distinguish the two failure causes for a clearer user-facing message.
+      final existing = FirestoreService.getUserByEmail(email.trim());
+      _authError = existing != null
+          ? 'هذا البريد الإلكتروني مسجّل بالفعل'
+          : 'رابط الدعوة غير صالح أو مُستخدم مسبقًا';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
+    _currentUser = result;
+    await FirestoreService.setCurrentUid(result.uid);
     _isLoading = false;
     notifyListeners();
     return true;
   }
 
   Future<void> approveEmployee(String employeeUid, String managerUid) async {
-    final user = LocalDbService.getUser(employeeUid);
+    final user = FirestoreService.getUser(employeeUid);
     if (user == null) return;
     final updated = user.copyWith(
       accountStatus: AccountStatus.active,
       approvedBy: managerUid,
       approvedAt: DateTime.now(),
     );
-    await LocalDbService.saveUser(updated);
+    await FirestoreService.saveUser(updated);
     if (_currentUser?.uid == employeeUid) {
       _currentUser = updated;
     }
@@ -194,26 +189,26 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> rejectEmployee(String employeeUid, String managerUid) async {
-    final user = LocalDbService.getUser(employeeUid);
+    final user = FirestoreService.getUser(employeeUid);
     if (user == null) return;
     final updated = user.copyWith(
       accountStatus: AccountStatus.rejected,
       approvedBy: managerUid,
       approvedAt: DateTime.now(),
     );
-    await LocalDbService.saveUser(updated);
+    await FirestoreService.saveUser(updated);
     notifyListeners();
   }
 
   Future<void> logout() async {
     _currentUser = null;
-    await LocalDbService.setCurrentUid(null);
+    await FirestoreService.setCurrentUid(null);
     notifyListeners();
   }
 
   void refreshCurrentUser() {
     if (_currentUser != null) {
-      final updated = LocalDbService.getUser(_currentUser!.uid);
+      final updated = FirestoreService.getUser(_currentUser!.uid);
       if (updated != null) {
         _currentUser = updated;
         notifyListeners();
