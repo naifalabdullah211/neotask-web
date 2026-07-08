@@ -87,11 +87,9 @@ class _NeoTaskLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 88,
-      height: 88,
+      width: 96,
+      height: 96,
       decoration: BoxDecoration(
-        gradient: AppColors.primaryGradient,
-        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: AppColors.deepBlue.withValues(alpha: 0.3),
@@ -100,7 +98,7 @@ class _NeoTaskLogo extends StatelessWidget {
           ),
         ],
       ),
-      child: const Icon(Icons.task_alt_rounded, color: Colors.white, size: 44),
+      child: Image.asset('assets/images/neotask_logo.png', fit: BoxFit.contain),
     );
   }
 }

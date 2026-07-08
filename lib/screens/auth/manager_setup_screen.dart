@@ -68,14 +68,15 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                 child: Column(
                   children: [
                     Container(
-                      width: 84,
-                      height: 84,
+                      width: 96,
+                      height: 96,
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(22),
                       ),
-                      child: const Icon(Icons.task_alt_rounded,
-                          color: Colors.white, size: 44),
+                      child: Image.asset('assets/images/neotask_logo.png',
+                          fit: BoxFit.contain),
                     ),
                     const SizedBox(height: 16),
                     const Text(
