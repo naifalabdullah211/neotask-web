@@ -1,0 +1,222 @@
+enum TaskStatus {
+  assigned,
+  inProgress,
+  submitted,
+  approved,
+  rejected,
+  editRequested,
+}
+
+enum TaskPriority { low, medium, high }
+
+enum RecurrenceType {
+  none,
+  daily,
+  weekly,
+  monthlyFixedDate,
+  monthlyWeekdayPattern,
+}
+
+enum WeekOrdinal { first, second, third, fourth, last }
+
+enum Weekday {
+  monday,
+  tuesday,
+  wednesday,
+  thursday,
+  friday,
+  saturday,
+  sunday,
+}
+
+class AppTask {
+  final String taskId;
+  final String title;
+  final String description;
+  final String assignedTo; // employee uid
+  final String assignedBy; // manager uid
+  final DateTime dueDate;
+  final TaskPriority priority;
+  final TaskStatus status;
+  final String category;
+
+  final RecurrenceType recurrenceType;
+  final int? recurrenceDayOfMonth; // for monthlyFixedDate
+  final WeekOrdinal? recurrenceWeekOrdinal; // for monthlyWeekdayPattern
+  final Weekday? recurrenceWeekday; // for monthlyWeekdayPattern
+  final DateTime? recurrenceEndDate;
+
+  final DateTime? submittedAt;
+  final String? submissionNote;
+  final DateTime? reviewedAt;
+  final String? reviewedBy;
+  final String? reviewDecision; // approve | reject | edit_request
+  final String? reviewNote;
+  final int revisionCount;
+
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  AppTask({
+    required this.taskId,
+    required this.title,
+    required this.description,
+    required this.assignedTo,
+    required this.assignedBy,
+    required this.dueDate,
+    required this.priority,
+    required this.status,
+    required this.category,
+    this.recurrenceType = RecurrenceType.none,
+    this.recurrenceDayOfMonth,
+    this.recurrenceWeekOrdinal,
+    this.recurrenceWeekday,
+    this.recurrenceEndDate,
+    this.submittedAt,
+    this.submissionNote,
+    this.reviewedAt,
+    this.reviewedBy,
+    this.reviewDecision,
+    this.reviewNote,
+    this.revisionCount = 0,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  AppTask copyWith({
+    String? title,
+    String? description,
+    String? assignedTo,
+    DateTime? dueDate,
+    TaskPriority? priority,
+    TaskStatus? status,
+    String? category,
+    RecurrenceType? recurrenceType,
+    int? recurrenceDayOfMonth,
+    WeekOrdinal? recurrenceWeekOrdinal,
+    Weekday? recurrenceWeekday,
+    DateTime? recurrenceEndDate,
+    DateTime? submittedAt,
+    String? submissionNote,
+    DateTime? reviewedAt,
+    String? reviewedBy,
+    String? reviewDecision,
+    String? reviewNote,
+    int? revisionCount,
+    DateTime? updatedAt,
+  }) {
+    return AppTask(
+      taskId: taskId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      assignedTo: assignedTo ?? this.assignedTo,
+      assignedBy: assignedBy,
+      dueDate: dueDate ?? this.dueDate,
+      priority: priority ?? this.priority,
+      status: status ?? this.status,
+      category: category ?? this.category,
+      recurrenceType: recurrenceType ?? this.recurrenceType,
+      recurrenceDayOfMonth: recurrenceDayOfMonth ?? this.recurrenceDayOfMonth,
+      recurrenceWeekOrdinal:
+          recurrenceWeekOrdinal ?? this.recurrenceWeekOrdinal,
+      recurrenceWeekday: recurrenceWeekday ?? this.recurrenceWeekday,
+      recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
+      submittedAt: submittedAt ?? this.submittedAt,
+      submissionNote: submissionNote ?? this.submissionNote,
+      reviewedAt: reviewedAt ?? this.reviewedAt,
+      reviewedBy: reviewedBy ?? this.reviewedBy,
+      reviewDecision: reviewDecision ?? this.reviewDecision,
+      reviewNote: reviewNote ?? this.reviewNote,
+      revisionCount: revisionCount ?? this.revisionCount,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'taskId': taskId,
+      'title': title,
+      'description': description,
+      'assignedTo': assignedTo,
+      'assignedBy': assignedBy,
+      'dueDate': dueDate.toIso8601String(),
+      'priority': priority.name,
+      'status': status.name,
+      'category': category,
+      'recurrenceType': recurrenceType.name,
+      'recurrenceDayOfMonth': recurrenceDayOfMonth,
+      'recurrenceWeekOrdinal': recurrenceWeekOrdinal?.name,
+      'recurrenceWeekday': recurrenceWeekday?.name,
+      'recurrenceEndDate': recurrenceEndDate?.toIso8601String(),
+      'submittedAt': submittedAt?.toIso8601String(),
+      'submissionNote': submissionNote,
+      'reviewedAt': reviewedAt?.toIso8601String(),
+      'reviewedBy': reviewedBy,
+      'reviewDecision': reviewDecision,
+      'reviewNote': reviewNote,
+      'revisionCount': revisionCount,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  factory AppTask.fromMap(Map<dynamic, dynamic> map) {
+    return AppTask(
+      taskId: map['taskId'] as String,
+      title: map['title'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      assignedTo: map['assignedTo'] as String? ?? '',
+      assignedBy: map['assignedBy'] as String? ?? '',
+      dueDate: map['dueDate'] != null
+          ? DateTime.parse(map['dueDate'] as String)
+          : DateTime.now(),
+      priority: TaskPriority.values.firstWhere(
+        (e) => e.name == map['priority'],
+        orElse: () => TaskPriority.medium,
+      ),
+      status: TaskStatus.values.firstWhere(
+        (e) => e.name == map['status'],
+        orElse: () => TaskStatus.assigned,
+      ),
+      category: map['category'] as String? ?? 'عام',
+      recurrenceType: RecurrenceType.values.firstWhere(
+        (e) => e.name == map['recurrenceType'],
+        orElse: () => RecurrenceType.none,
+      ),
+      recurrenceDayOfMonth: map['recurrenceDayOfMonth'] as int?,
+      recurrenceWeekOrdinal: map['recurrenceWeekOrdinal'] != null
+          ? WeekOrdinal.values.firstWhere(
+              (e) => e.name == map['recurrenceWeekOrdinal'],
+              orElse: () => WeekOrdinal.first,
+            )
+          : null,
+      recurrenceWeekday: map['recurrenceWeekday'] != null
+          ? Weekday.values.firstWhere(
+              (e) => e.name == map['recurrenceWeekday'],
+              orElse: () => Weekday.monday,
+            )
+          : null,
+      recurrenceEndDate: map['recurrenceEndDate'] != null
+          ? DateTime.parse(map['recurrenceEndDate'] as String)
+          : null,
+      submittedAt: map['submittedAt'] != null
+          ? DateTime.parse(map['submittedAt'] as String)
+          : null,
+      submissionNote: map['submissionNote'] as String?,
+      reviewedAt: map['reviewedAt'] != null
+          ? DateTime.parse(map['reviewedAt'] as String)
+          : null,
+      reviewedBy: map['reviewedBy'] as String?,
+      reviewDecision: map['reviewDecision'] as String?,
+      reviewNote: map['reviewNote'] as String?,
+      revisionCount: map['revisionCount'] as int? ?? 0,
+      createdAt: map['createdAt'] != null
+          ? DateTime.parse(map['createdAt'] as String)
+          : DateTime.now(),
+      updatedAt: map['updatedAt'] != null
+          ? DateTime.parse(map['updatedAt'] as String)
+          : DateTime.now(),
+    );
+  }
+}
