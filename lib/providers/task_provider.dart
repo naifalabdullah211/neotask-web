@@ -214,6 +214,42 @@ class TaskProvider extends ChangeNotifier {
     await FirestoreService.deleteTask(taskId);
   }
 
+  /// Number of tasks currently assigned to [employeeUid] — used by the
+  /// manager's employee-deletion dialog to decide whether task-fate
+  /// resolution (delete vs. reassign) is even necessary.
+  int taskCountForEmployee(String employeeUid) =>
+      _allTasks.where((t) => t.assignedTo == employeeUid).length;
+
+  /// Deletes ALL tasks currently assigned to [employeeUid] (bulk operation).
+  ///
+  /// Called as part of the manager's employee soft-delete flow when the
+  /// manager chooses to discard the employee's tasks. A single history
+  /// entry per task is NOT written here (the tasks themselves are removed,
+  /// making a per-task history note moot); the action is recorded once at
+  /// the caller level if needed.
+  Future<void> deleteAllTasksForEmployee(String employeeUid) async {
+    await FirestoreService.deleteAllTasksForEmployee(employeeUid);
+  }
+
+  /// Reassigns ALL tasks currently assigned to [fromEmployeeUid] over to
+  /// [toEmployeeUid] (bulk operation).
+  ///
+  /// Called as part of the manager's employee soft-delete flow when the
+  /// manager chooses to transfer the employee's tasks to another active
+  /// employee. Each transferred task gets one history entry recording the
+  /// reassignment and the actor (manager) who performed it.
+  Future<void> reassignAllTasksForEmployee(
+      String fromEmployeeUid, String toEmployeeUid, String managerUid) async {
+    final affected =
+        _allTasks.where((t) => t.assignedTo == fromEmployeeUid).toList();
+    await FirestoreService.reassignAllTasksForEmployee(
+        fromEmployeeUid, toEmployeeUid);
+    for (final t in affected) {
+      await _logHistory(t.taskId, HistoryAction.statusChange, managerUid,
+          note: 'تم نقل المهمة إلى موظف آخر بعد حذف الموظف السابق');
+    }
+  }
+
   List<TaskHistoryEntry> historyForTask(String taskId) {
     return FirestoreService.getHistoryForTask(taskId);
   }

@@ -1,6 +1,6 @@
 enum UserRole { manager, employee }
 
-enum AccountStatus { pendingApproval, active, rejected }
+enum AccountStatus { pendingApproval, active, rejected, deleted }
 
 class AppUser {
   final String uid;

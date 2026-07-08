@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/invitation_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 
@@ -30,6 +31,9 @@ class ManagerEmployeesTab extends StatelessWidget {
               .toList();
           final rejected = employees
               .where((u) => u.accountStatus == AccountStatus.rejected)
+              .toList();
+          final deleted = employees
+              .where((u) => u.accountStatus == AccountStatus.deleted)
               .toList();
 
           return ListView(
@@ -63,24 +67,10 @@ class ManagerEmployeesTab extends StatelessWidget {
                       style: TextStyle(color: AppColors.textSecondary)),
                 )
               else
-                ...active.map((u) => Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              AppColors.deepBlue.withValues(alpha: 0.1),
-                          child: Text(
-                            u.name.isNotEmpty ? u.name[0] : '?',
-                            style: const TextStyle(
-                                color: AppColors.deepBlue,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        title: Text(u.name),
-                        subtitle: Text(
-                            '${u.email} · رقم وظيفي: ${u.employeeNumber}'),
-                        trailing: const Icon(Icons.check_circle,
-                            color: AppColors.statusApproved, size: 20),
-                      ),
+                ...active.map((u) => _ActiveEmployeeTile(
+                      user: u,
+                      otherActiveEmployees:
+                          active.where((o) => o.uid != u.uid).toList(),
                     )),
               if (rejected.isNotEmpty) ...[
                 const SizedBox(height: 20),
@@ -100,9 +90,220 @@ class ManagerEmployeesTab extends StatelessWidget {
                       ),
                     )),
               ],
+              if (deleted.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Text('حسابات محذوفة (${deleted.length})',
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary)),
+                const SizedBox(height: 8),
+                ...deleted.map((u) => Card(
+                      color: Colors.grey.shade100,
+                      child: ListTile(
+                        leading: const Icon(Icons.person_off,
+                            color: AppColors.textSecondary),
+                        title: Text(u.name,
+                            style: const TextStyle(
+                                decoration: TextDecoration.lineThrough)),
+                        subtitle: Text(u.email),
+                      ),
+                    )),
+              ],
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Active-employee row with a manager-only "delete account" action.
+///
+/// Deletion is a SOFT delete (accountStatus -> deleted; the Firestore user
+/// document itself is preserved for audit/history purposes). Before the
+/// deletion is finalized, if the employee has any assigned tasks, the
+/// manager must resolve their fate: delete them all, or reassign them all
+/// to another active employee.
+class _ActiveEmployeeTile extends StatelessWidget {
+  final AppUser user;
+  final List<AppUser> otherActiveEmployees;
+  const _ActiveEmployeeTile({
+    required this.user,
+    required this.otherActiveEmployees,
+  });
+
+  Future<void> _startDeleteFlow(BuildContext context) async {
+    final taskProvider = context.read<TaskProvider>();
+    final authProvider = context.read<AuthProvider>();
+    final managerUid = authProvider.currentUser!.uid;
+    final taskCount = taskProvider.taskCountForEmployee(user.uid);
+
+    // Step 1: confirm the deletion itself.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف حساب الموظف'),
+        content: Text(
+          taskCount > 0
+              ? 'سيتم حذف حساب "${user.name}" (حذف ناعم — يمكن مراجعة السجل لاحقًا). '
+                  'لدى هذا الموظف $taskCount مهمة مرتبطة، وسيُطلب منك في الخطوة التالية '
+                  'تحديد مصيرها.'
+              : 'سيتم حذف حساب "${user.name}" (حذف ناعم — يمكن مراجعة السجل لاحقًا). '
+                  'لا توجد مهام مرتبطة بهذا الموظف حاليًا.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppColors.statusRejected),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('متابعة'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    // Step 2: if there are tasks, resolve their fate before deleting.
+    if (taskCount > 0) {
+      final resolved = await _resolveTaskFate(context, taskProvider, managerUid);
+      if (!resolved) return; // manager backed out of the fate dialog
+    }
+
+    // Step 3: perform the soft delete.
+    await authProvider.deleteEmployee(user.uid, managerUid);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تم حذف حساب "${user.name}" بنجاح')),
+      );
+    }
+  }
+
+  /// Presents the delete-vs-reassign choice for the employee's tasks.
+  /// Returns true once the manager has made and executed a choice (or if
+  /// there are no other employees to reassign to and the manager chooses
+  /// delete), false if the manager cancels out entirely.
+  Future<bool> _resolveTaskFate(
+    BuildContext context,
+    TaskProvider taskProvider,
+    String managerUid,
+  ) async {
+    final taskCount = taskProvider.taskCountForEmployee(user.uid);
+    AppUser? reassignTarget =
+        otherActiveEmployees.isNotEmpty ? otherActiveEmployees.first : null;
+
+    final choice = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('مصير مهام الموظف'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('لدى "${user.name}" $taskCount مهمة. اختر ما سيحدث لها:'),
+              const SizedBox(height: 16),
+              if (otherActiveEmployees.isEmpty)
+                const Text(
+                  'لا يوجد موظفون نشطون آخرون لنقل المهام إليهم، لذا الخيار المتاح هو الحذف فقط.',
+                  style: TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                )
+              else ...[
+                const Text('نقل جميع المهام إلى:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<AppUser>(
+                  initialValue: reassignTarget,
+                  decoration: const InputDecoration(isDense: true),
+                  items: otherActiveEmployees
+                      .map((u) => DropdownMenuItem(
+                            value: u,
+                            child: Text(u.name),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => reassignTarget = v),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('إلغاء الحذف بالكامل'),
+            ),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.statusRejected),
+              onPressed: () => Navigator.of(ctx).pop('delete'),
+              child: const Text('حذف كل المهام'),
+            ),
+            if (otherActiveEmployees.isNotEmpty)
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop('reassign'),
+                child: const Text('نقل المهام'),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (choice == null) return false;
+
+    if (choice == 'delete') {
+      await taskProvider.deleteAllTasksForEmployee(user.uid);
+      return true;
+    }
+
+    if (choice == 'reassign' && reassignTarget != null) {
+      await taskProvider.reassignAllTasksForEmployee(
+          user.uid, reassignTarget!.uid, managerUid);
+      return true;
+    }
+
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: AppColors.deepBlue.withValues(alpha: 0.1),
+          child: Text(
+            user.name.isNotEmpty ? user.name[0] : '?',
+            style: const TextStyle(
+                color: AppColors.deepBlue, fontWeight: FontWeight.bold),
+          ),
+        ),
+        title: Text(user.name),
+        subtitle:
+            Text('${user.email} · رقم وظيفي: ${user.employeeNumber}'),
+        trailing: PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
+          onSelected: (value) {
+            if (value == 'delete') _startDeleteFlow(context);
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.person_remove, color: AppColors.statusRejected, size: 18),
+                  SizedBox(width: 8),
+                  Text('حذف الحساب'),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -21,7 +21,15 @@ class AuthProvider extends ChangeNotifier {
   Future<void> restoreSession() async {
     final uid = FirestoreService.getCurrentUid();
     if (uid != null) {
-      _currentUser = FirestoreService.getUser(uid);
+      final user = FirestoreService.getUser(uid);
+      // A previously-active session must not be honored if the manager has
+      // since soft-deleted this account — force it back to the login screen.
+      if (user != null && user.accountStatus == AccountStatus.deleted) {
+        await FirestoreService.setCurrentUid(null);
+        _currentUser = null;
+      } else {
+        _currentUser = user;
+      }
       notifyListeners();
     }
   }
@@ -87,6 +95,13 @@ class AuthProvider extends ChangeNotifier {
 
     if (user.accountStatus == AccountStatus.rejected) {
       _authError = 'تم رفض طلب انضمامك من قِبل المدير';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
+    if (user.accountStatus == AccountStatus.deleted) {
+      _authError = 'هذا الحساب تم حذفه من قِبل المدير';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -193,6 +208,31 @@ class AuthProvider extends ChangeNotifier {
     if (user == null) return;
     final updated = user.copyWith(
       accountStatus: AccountStatus.rejected,
+      approvedBy: managerUid,
+      approvedAt: DateTime.now(),
+    );
+    await FirestoreService.saveUser(updated);
+    notifyListeners();
+  }
+
+  /// Soft-deletes an employee account (manager-only action).
+  ///
+  /// The Firestore user document is NOT removed — only the account status
+  /// is flipped to [AccountStatus.deleted]. This preserves audit history
+  /// (task_history entries referencing this uid remain valid) while fully
+  /// excluding the employee from all active-facing views (login, task
+  /// assignment dropdowns, reports, employee list) since those all filter
+  /// on `accountStatus == AccountStatus.active`.
+  ///
+  /// Task-fate handling (delete vs. reassign the employee's existing tasks)
+  /// must be resolved by the caller BEFORE invoking this method — see
+  /// `TaskProvider.deleteAllTasksForEmployee` /
+  /// `TaskProvider.reassignAllTasksForEmployee`.
+  Future<void> deleteEmployee(String employeeUid, String managerUid) async {
+    final user = FirestoreService.getUser(employeeUid);
+    if (user == null) return;
+    final updated = user.copyWith(
+      accountStatus: AccountStatus.deleted,
       approvedBy: managerUid,
       approvedAt: DateTime.now(),
     );

@@ -215,6 +215,42 @@ class FirestoreService {
     yield* _tasksChanges.stream.map((_) => getSubmittedTasks());
   }
 
+  /// Batch-deletes every task currently assigned to [employeeUid].
+  ///
+  /// Used when a manager soft-deletes an employee and chooses to discard
+  /// that employee's tasks rather than reassign them.
+  static Future<void> deleteAllTasksForEmployee(String employeeUid) async {
+    final toDelete =
+        _tasksCache.where((t) => t.assignedTo == employeeUid).toList();
+    if (toDelete.isEmpty) return;
+    final batch = _db.batch();
+    for (final t in toDelete) {
+      batch.delete(_db.collection('tasks').doc(t.taskId));
+    }
+    await batch.commit();
+  }
+
+  /// Batch-reassigns every task currently assigned to [fromEmployeeUid] over
+  /// to [toEmployeeUid], preserving each task's full history/status.
+  ///
+  /// Used when a manager soft-deletes an employee and chooses to transfer
+  /// that employee's tasks to another active employee instead of deleting
+  /// them.
+  static Future<void> reassignAllTasksForEmployee(
+      String fromEmployeeUid, String toEmployeeUid) async {
+    final toReassign =
+        _tasksCache.where((t) => t.assignedTo == fromEmployeeUid).toList();
+    if (toReassign.isEmpty) return;
+    final batch = _db.batch();
+    for (final t in toReassign) {
+      batch.update(_db.collection('tasks').doc(t.taskId), {
+        'assignedTo': toEmployeeUid,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    }
+    await batch.commit();
+  }
+
   // ---------------- INVITATIONS ----------------
   static Future<void> saveInvitation(Invitation invite) async {
     await _db
