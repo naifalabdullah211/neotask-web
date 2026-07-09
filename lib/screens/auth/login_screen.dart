@@ -116,10 +116,7 @@ class _LoginScreenState extends State<LoginScreen>
                 const SizedBox(height: 24),
                 const Text('NeoTask', style: AppTextStyles.headlineLg),
                 const SizedBox(height: 8),
-                const Text(
-                  'منصة إدارة المهام للمدير والموظفين',
-                  style: AppTextStyles.bodySm,
-                ),
+                const Text('مهامك أسهل', style: AppTextStyles.bodySm),
                 const SizedBox(height: 40),
                 _GlassCard(
                   child: Form(
