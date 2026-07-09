@@ -28,6 +28,21 @@ class TaskDetailScreen extends StatefulWidget {
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
   bool _busy = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Clear the "new task" in-app notification badge once the employee
+    // actually opens this task's details.
+    if (!widget.task.viewedByEmployee) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<TaskProvider>().markTaskViewedByEmployee(
+          widget.task.taskId,
+        );
+      });
+    }
+  }
+
   Future<void> _startWork(String uid) async {
     setState(() => _busy = true);
     await context.read<TaskProvider>().updateStatus(

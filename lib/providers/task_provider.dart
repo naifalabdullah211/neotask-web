@@ -101,6 +101,7 @@ class TaskProvider extends ChangeNotifier {
       recurrenceWeekOrdinal: recurrenceWeekOrdinal,
       recurrenceWeekday: recurrenceWeekday,
       recurrenceEndDate: recurrenceEndDate,
+      viewedByEmployee: false,
       createdAt: now,
       updatedAt: now,
     );
@@ -191,6 +192,10 @@ class TaskProvider extends ChangeNotifier {
       revisionCount: decision == 'approve'
           ? task.revisionCount
           : task.revisionCount + 1,
+      // A review decision (approve/reject/edit_request) is new information
+      // for the employee — re-flag the task as unviewed so the "مهامي" tab
+      // badge appears again until they open it.
+      viewedByEmployee: false,
       updatedAt: DateTime.now(),
     );
     await FirestoreService.saveTask(updated);
@@ -239,6 +244,23 @@ class TaskProvider extends ChangeNotifier {
   Future<void> deleteTask(String taskId) async {
     await FirestoreService.deleteTask(taskId);
   }
+
+  /// Marks [taskId] as viewed by its assigned employee (in-app notification
+  /// pattern mirroring `MessageProvider.markConversationRead`). Called when
+  /// the employee opens `TaskDetailScreen`. No-op if already viewed.
+  Future<void> markTaskViewedByEmployee(String taskId) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null || task.viewedByEmployee) return;
+    await FirestoreService.markTaskViewed(taskId);
+  }
+
+  /// Count of tasks assigned to [employeeUid] that the employee has not
+  /// yet opened since the last manager action (new assignment or review
+  /// decision). Drives the "مهامي" bottom-nav badge. Computed in memory
+  /// from the already-live `_allTasks` stream — no extra Firestore query.
+  int unviewedTaskCountForEmployee(String employeeUid) => _allTasks
+      .where((t) => t.assignedTo == employeeUid && !t.viewedByEmployee)
+      .length;
 
   /// Number of tasks currently assigned to [employeeUid] — used by the
   /// manager's employee-deletion dialog to decide whether task-fate

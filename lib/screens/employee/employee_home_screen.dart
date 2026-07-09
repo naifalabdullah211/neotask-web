@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/message_provider.dart';
+import '../../providers/task_provider.dart';
 import '../../theme/app_theme.dart';
 import '../shared/splash_router.dart';
 import 'employee_tasks_tab.dart';
@@ -24,6 +25,9 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final employeeUid = auth.currentUser!.uid;
+    final unviewedTasks = context
+        .watch<TaskProvider>()
+        .unviewedTaskCountForEmployee(employeeUid);
 
     return Scaffold(
       appBar: AppBar(
@@ -56,9 +60,13 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.checklist_outlined),
-            selectedIcon: Icon(Icons.checklist),
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: unviewedTasks > 0,
+              label: Text('$unviewedTasks'),
+              child: const Icon(Icons.checklist_outlined),
+            ),
+            selectedIcon: const Icon(Icons.checklist),
             label: 'مهامي',
           ),
           const NavigationDestination(

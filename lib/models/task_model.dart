@@ -49,6 +49,14 @@ class AppTask {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// In-app "new task" indicator (see the notifications feature). True once
+  /// the assigned employee has opened [TaskDetailScreen] for this task at
+  /// least once since it was last (re)flagged. Reset to `false` whenever a
+  /// manager action targets this employee (new assignment, or a review
+  /// decision on a previously-submitted task) so the employee sees an
+  /// unread-style badge on the "مهامي" tab until they open it.
+  final bool viewedByEmployee;
+
   AppTask({
     required this.taskId,
     required this.title,
@@ -71,6 +79,7 @@ class AppTask {
     this.reviewDecision,
     this.reviewNote,
     this.revisionCount = 0,
+    this.viewedByEmployee = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -95,6 +104,7 @@ class AppTask {
     String? reviewDecision,
     String? reviewNote,
     int? revisionCount,
+    bool? viewedByEmployee,
     DateTime? updatedAt,
   }) {
     return AppTask(
@@ -120,6 +130,7 @@ class AppTask {
       reviewDecision: reviewDecision ?? this.reviewDecision,
       reviewNote: reviewNote ?? this.reviewNote,
       revisionCount: revisionCount ?? this.revisionCount,
+      viewedByEmployee: viewedByEmployee ?? this.viewedByEmployee,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
@@ -148,6 +159,7 @@ class AppTask {
       'reviewDecision': reviewDecision,
       'reviewNote': reviewNote,
       'revisionCount': revisionCount,
+      'viewedByEmployee': viewedByEmployee,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -203,6 +215,7 @@ class AppTask {
       reviewDecision: map['reviewDecision'] as String?,
       reviewNote: map['reviewNote'] as String?,
       revisionCount: map['revisionCount'] as int? ?? 0,
+      viewedByEmployee: map['viewedByEmployee'] as bool? ?? false,
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
           : DateTime.now(),

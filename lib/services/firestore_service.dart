@@ -243,6 +243,16 @@ class FirestoreService {
     await _db.collection('tasks').doc(taskId).delete();
   }
 
+  /// Marks a single task as viewed by its assigned employee — sets
+  /// `viewedByEmployee: true` on the Firestore doc. Mirrors
+  /// `markConversationRead` below (single-field update, no composite
+  /// index needed).
+  static Future<void> markTaskViewed(String taskId) async {
+    await _db.collection('tasks').doc(taskId).update({
+      'viewedByEmployee': true,
+    });
+  }
+
   static AppTask? getTask(String taskId) {
     for (final t in _tasksCache) {
       if (t.taskId == taskId) return t;
