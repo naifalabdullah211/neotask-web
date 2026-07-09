@@ -77,36 +77,36 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
     final managerUid = context.read<AuthProvider>().currentUser!.uid;
     try {
       await context.read<TaskProvider>().createTask(
-            title: _titleCtrl.text.trim(),
-            description: _descCtrl.text.trim(),
-            assignedTo: _selectedEmployee!.uid,
-            assignedBy: managerUid,
-            dueDate: _dueDate,
-            priority: _priority,
-            category: _categoryCtrl.text.trim().isEmpty
-                ? 'عام'
-                : _categoryCtrl.text.trim(),
-            recurrenceType: _recurrenceType,
-            recurrenceDayOfMonth: _recurrenceType == RecurrenceType.monthlyFixedDate
-                ? _dayOfMonth
-                : null,
-            recurrenceWeekOrdinal:
-                _recurrenceType == RecurrenceType.monthlyWeekdayPattern
-                    ? _weekOrdinal
-                    : null,
-            recurrenceWeekday:
-                _recurrenceType == RecurrenceType.monthlyWeekdayPattern
-                    ? _weekday
-                    : null,
-            recurrenceEndDate: _recurrenceType != RecurrenceType.none
-                ? _recurrenceEndDate
-                : null,
-          );
+        title: _titleCtrl.text.trim(),
+        description: _descCtrl.text.trim(),
+        assignedTo: _selectedEmployee!.uid,
+        assignedBy: managerUid,
+        dueDate: _dueDate,
+        priority: _priority,
+        category: _categoryCtrl.text.trim().isEmpty
+            ? 'عام'
+            : _categoryCtrl.text.trim(),
+        recurrenceType: _recurrenceType,
+        recurrenceDayOfMonth: _recurrenceType == RecurrenceType.monthlyFixedDate
+            ? _dayOfMonth
+            : null,
+        recurrenceWeekOrdinal:
+            _recurrenceType == RecurrenceType.monthlyWeekdayPattern
+            ? _weekOrdinal
+            : null,
+        recurrenceWeekday:
+            _recurrenceType == RecurrenceType.monthlyWeekdayPattern
+            ? _weekday
+            : null,
+        recurrenceEndDate: _recurrenceType != RecurrenceType.none
+            ? _recurrenceEndDate
+            : null,
+      );
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم إنشاء المهمة بنجاح')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم إنشاء المهمة بنجاح')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -130,8 +130,9 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
               TextFormField(
                 controller: _titleCtrl,
                 decoration: const InputDecoration(labelText: 'عنوان المهمة'),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'أدخل عنوان المهمة' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'أدخل عنوان المهمة'
+                    : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -156,12 +157,16 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
               else
                 DropdownButtonFormField<AppUser>(
                   initialValue: _selectedEmployee,
-                  decoration: const InputDecoration(labelText: 'إسناد إلى موظف'),
+                  decoration: const InputDecoration(
+                    labelText: 'إسناد إلى موظف',
+                  ),
                   items: employees
-                      .map((u) => DropdownMenuItem(
-                            value: u,
-                            child: Text('${u.name} (${u.employeeNumber})'),
-                          ))
+                      .map(
+                        (u) => DropdownMenuItem(
+                          value: u,
+                          child: Text('${u.name} (${u.employeeNumber})'),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setState(() => _selectedEmployee = v),
                 ),
@@ -169,47 +174,59 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('تاريخ الاستحقاق'),
-                subtitle:
-                    Text(intl.DateFormat('yyyy/MM/dd').format(_dueDate)),
+                subtitle: Text(intl.DateFormat('yyyy/MM/dd').format(_dueDate)),
                 trailing: const Icon(Icons.calendar_today_outlined),
                 onTap: _pickDueDate,
               ),
               const Divider(),
               const SizedBox(height: 6),
-              const Text('الأولوية',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                'الأولوية',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 8),
               SegmentedButton<TaskPriority>(
                 segments: const [
+                  ButtonSegment(value: TaskPriority.low, label: Text('منخفضة')),
                   ButtonSegment(
-                      value: TaskPriority.low, label: Text('منخفضة')),
-                  ButtonSegment(
-                      value: TaskPriority.medium, label: Text('متوسطة')),
-                  ButtonSegment(
-                      value: TaskPriority.high, label: Text('عالية')),
+                    value: TaskPriority.medium,
+                    label: Text('متوسطة'),
+                  ),
+                  ButtonSegment(value: TaskPriority.high, label: Text('عالية')),
                 ],
                 selected: {_priority},
                 onSelectionChanged: (s) => setState(() => _priority = s.first),
               ),
               const SizedBox(height: 20),
-              const Text('التكرار', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                'التكرار',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 8),
               DropdownButtonFormField<RecurrenceType>(
                 initialValue: _recurrenceType,
                 decoration: const InputDecoration(labelText: 'نوع التكرار'),
                 items: const [
                   DropdownMenuItem(
-                      value: RecurrenceType.none, child: Text('بدون تكرار')),
+                    value: RecurrenceType.none,
+                    child: Text('بدون تكرار'),
+                  ),
                   DropdownMenuItem(
-                      value: RecurrenceType.daily, child: Text('يوميًا')),
+                    value: RecurrenceType.daily,
+                    child: Text('يوميًا'),
+                  ),
                   DropdownMenuItem(
-                      value: RecurrenceType.weekly, child: Text('أسبوعيًا')),
+                    value: RecurrenceType.weekly,
+                    child: Text('أسبوعيًا'),
+                  ),
                   DropdownMenuItem(
-                      value: RecurrenceType.monthlyFixedDate,
-                      child: Text('شهريًا - يوم ثابت من الشهر')),
+                    value: RecurrenceType.monthlyFixedDate,
+                    child: Text('شهريًا - يوم ثابت من الشهر'),
+                  ),
                   DropdownMenuItem(
-                      value: RecurrenceType.monthlyWeekdayPattern,
-                      child: Text('شهريًا - نمط يوم أسبوعي (مثال: آخر خميس)')),
+                    value: RecurrenceType.monthlyWeekdayPattern,
+                    child: Text('شهريًا - نمط يوم أسبوعي (مثال: آخر خميس)'),
+                  ),
                 ],
                 onChanged: (v) =>
                     setState(() => _recurrenceType = v ?? RecurrenceType.none),
@@ -218,11 +235,14 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<int>(
                   initialValue: _dayOfMonth,
-                  decoration:
-                      const InputDecoration(labelText: 'يوم الشهر (1-31)'),
+                  decoration: const InputDecoration(
+                    labelText: 'يوم الشهر (1-31)',
+                  ),
                   items: List.generate(31, (i) => i + 1)
-                      .map((d) =>
-                          DropdownMenuItem(value: d, child: Text('يوم $d')))
+                      .map(
+                        (d) =>
+                            DropdownMenuItem(value: d, child: Text('يوم $d')),
+                      )
                       .toList(),
                   onChanged: (v) => setState(() => _dayOfMonth = v ?? 1),
                 ),
@@ -234,15 +254,25 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
                   decoration: const InputDecoration(labelText: 'الأسبوع'),
                   items: const [
                     DropdownMenuItem(
-                        value: WeekOrdinal.first, child: Text('الأول')),
+                      value: WeekOrdinal.first,
+                      child: Text('الأول'),
+                    ),
                     DropdownMenuItem(
-                        value: WeekOrdinal.second, child: Text('الثاني')),
+                      value: WeekOrdinal.second,
+                      child: Text('الثاني'),
+                    ),
                     DropdownMenuItem(
-                        value: WeekOrdinal.third, child: Text('الثالث')),
+                      value: WeekOrdinal.third,
+                      child: Text('الثالث'),
+                    ),
                     DropdownMenuItem(
-                        value: WeekOrdinal.fourth, child: Text('الرابع')),
+                      value: WeekOrdinal.fourth,
+                      child: Text('الرابع'),
+                    ),
                     DropdownMenuItem(
-                        value: WeekOrdinal.last, child: Text('الأخير')),
+                      value: WeekOrdinal.last,
+                      child: Text('الأخير'),
+                    ),
                   ],
                   onChanged: (v) =>
                       setState(() => _weekOrdinal = v ?? WeekOrdinal.first),
@@ -253,19 +283,33 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
                   decoration: const InputDecoration(labelText: 'اليوم'),
                   items: const [
                     DropdownMenuItem(
-                        value: Weekday.monday, child: Text('الاثنين')),
+                      value: Weekday.monday,
+                      child: Text('الاثنين'),
+                    ),
                     DropdownMenuItem(
-                        value: Weekday.tuesday, child: Text('الثلاثاء')),
+                      value: Weekday.tuesday,
+                      child: Text('الثلاثاء'),
+                    ),
                     DropdownMenuItem(
-                        value: Weekday.wednesday, child: Text('الأربعاء')),
+                      value: Weekday.wednesday,
+                      child: Text('الأربعاء'),
+                    ),
                     DropdownMenuItem(
-                        value: Weekday.thursday, child: Text('الخميس')),
+                      value: Weekday.thursday,
+                      child: Text('الخميس'),
+                    ),
                     DropdownMenuItem(
-                        value: Weekday.friday, child: Text('الجمعة')),
+                      value: Weekday.friday,
+                      child: Text('الجمعة'),
+                    ),
                     DropdownMenuItem(
-                        value: Weekday.saturday, child: Text('السبت')),
+                      value: Weekday.saturday,
+                      child: Text('السبت'),
+                    ),
                     DropdownMenuItem(
-                        value: Weekday.sunday, child: Text('الأحد')),
+                      value: Weekday.sunday,
+                      child: Text('الأحد'),
+                    ),
                   ],
                   onChanged: (v) =>
                       setState(() => _weekday = v ?? Weekday.monday),
@@ -276,10 +320,13 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('تاريخ انتهاء التكرار (اختياري)'),
-                  subtitle: Text(_recurrenceEndDate != null
-                      ? intl.DateFormat('yyyy/MM/dd')
-                          .format(_recurrenceEndDate!)
-                      : 'بدون تاريخ انتهاء'),
+                  subtitle: Text(
+                    _recurrenceEndDate != null
+                        ? intl.DateFormat(
+                            'yyyy/MM/dd',
+                          ).format(_recurrenceEndDate!)
+                        : 'بدون تاريخ انتهاء',
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -303,7 +350,9 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Text('حفظ المهمة'),
               ),

@@ -73,10 +73,13 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
     } else if (auth.authError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(auth.authError!),
-            backgroundColor: AppColors.statusRejected),
+          content: Text(auth.authError!),
+          backgroundColor: AppColors.statusRejected,
+        ),
       );
-      setState(() => _tokenValid = auth.validateInviteToken(widget.token) != null);
+      setState(
+        () => _tokenValid = auth.validateInviteToken(widget.token) != null,
+      );
     }
   }
 
@@ -96,8 +99,11 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.link_off_rounded,
-                      size: 56, color: AppColors.statusRejected),
+                  const Icon(
+                    Icons.link_off_rounded,
+                    size: 56,
+                    color: AppColors.statusRejected,
+                  ),
                   const SizedBox(height: 16),
                   const Text(
                     'رابط الدعوة غير صالح',
@@ -108,7 +114,10 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                     'إمّا أن هذا الرابط قد استُخدم مسبقًا من قِبل موظف آخر، أو أنه غير صحيح.\n'
                     'يرجى التواصل مع المدير للحصول على رابط دعوة جديد.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textSecondary, height: 1.6),
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      height: 1.6,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   OutlinedButton(
@@ -145,8 +154,7 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.mail_outline,
-                                color: AppColors.deepBlue),
+                            Icon(Icons.mail_outline, color: AppColors.deepBlue),
                             const SizedBox(width: 8),
                             const Expanded(
                               child: Text(
@@ -163,8 +171,9 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                             labelText: 'الاسم الكامل',
                             prefixIcon: Icon(Icons.person_outline),
                           ),
-                          validator: (v) =>
-                              (v == null || v.trim().isEmpty) ? 'أدخل الاسم' : null,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'أدخل الاسم'
+                              : null,
                         ),
                         const SizedBox(height: 14),
                         TextFormField(
@@ -198,9 +207,11 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                             labelText: 'كلمة المرور',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
-                              icon: Icon(_obscure
-                                  ? Icons.visibility_off
-                                  : Icons.visibility),
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
                               onPressed: () =>
                                   setState(() => _obscure = !_obscure),
                             ),
@@ -217,7 +228,9 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white),
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
                                 )
                               : const Text('إرسال طلب الانضمام'),
                         ),
@@ -226,7 +239,9 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                           'بعد الإرسال سيصبح حسابك بانتظار موافقة المدير.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12),
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),

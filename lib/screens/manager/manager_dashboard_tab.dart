@@ -125,29 +125,35 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
             childAspectRatio: 1.3,
             children: [
               _StatCard(
-                  label: 'الإجمالي',
-                  value: stats['total']!,
-                  color: AppColors.deepBlue),
+                label: 'الإجمالي',
+                value: stats['total']!,
+                color: AppColors.deepBlue,
+              ),
               _StatCard(
-                  label: 'مكتملة',
-                  value: stats['approved']!,
-                  color: AppColors.statusApproved),
+                label: 'مكتملة',
+                value: stats['approved']!,
+                color: AppColors.statusApproved,
+              ),
               _StatCard(
-                  label: 'قيد الانتظار',
-                  value: stats['pending']!,
-                  color: AppColors.statusPending),
+                label: 'قيد الانتظار',
+                value: stats['pending']!,
+                color: AppColors.statusPending,
+              ),
               _StatCard(
-                  label: 'بانتظار المراجعة',
-                  value: stats['submitted']!,
-                  color: AppColors.statusSubmitted),
+                label: 'بانتظار المراجعة',
+                value: stats['submitted']!,
+                color: AppColors.statusSubmitted,
+              ),
               _StatCard(
-                  label: 'مرفوضة',
-                  value: stats['rejected']!,
-                  color: AppColors.statusRejected),
+                label: 'مرفوضة',
+                value: stats['rejected']!,
+                color: AppColors.statusRejected,
+              ),
               _StatCard(
-                  label: 'متأخرة',
-                  value: stats['overdue']!,
-                  color: Colors.orange.shade800),
+                label: 'متأخرة',
+                value: stats['overdue']!,
+                color: Colors.orange.shade800,
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -160,26 +166,36 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
               child: Center(
-                child: Text('لا توجد مهام في هذه الفترة',
-                    style: TextStyle(color: AppColors.textSecondary)),
+                child: Text(
+                  'لا توجد مهام في هذه الفترة',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
               ),
             )
           else
-            ...rangeTasks.map((t) => Card(
-                  child: ListTile(
-                    onTap: () {
-                      if (t.status == TaskStatus.submitted) {
-                        Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => TaskReviewDetailScreen(task: t)));
-                      }
-                    },
-                    title: Text(t.title,
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(
-                        '${t.category} · ${intl.DateFormat('yyyy/MM/dd').format(t.dueDate)}'),
-                    trailing: StatusChip(statusName: t.status.name),
+            ...rangeTasks.map(
+              (t) => Card(
+                child: ListTile(
+                  onTap: () {
+                    if (t.status == TaskStatus.submitted) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => TaskReviewDetailScreen(task: t),
+                        ),
+                      );
+                    }
+                  },
+                  title: Text(
+                    t.title,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
-                )),
+                  subtitle: Text(
+                    '${t.category} · ${intl.DateFormat('yyyy/MM/dd').format(t.dueDate)}',
+                  ),
+                  trailing: StatusChip(statusName: t.status.name),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -191,8 +207,11 @@ class _StatCard extends StatelessWidget {
   final int value;
   final Color color;
 
-  const _StatCard(
-      {required this.label, required this.value, required this.color});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -206,13 +225,20 @@ class _StatCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('$value',
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+          Text(
+            '$value',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: color)),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: color),
+          ),
         ],
       ),
     );

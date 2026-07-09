@@ -63,20 +63,29 @@ class _EmployeeCalendarTabState extends State<EmployeeCalendarTab> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.calendar_month_outlined,
-                          color: AppColors.deepBlue),
+                      const Icon(
+                        Icons.calendar_month_outlined,
+                        color: AppColors.deepBlue,
+                      ),
                       const SizedBox(width: 8),
                       const Expanded(
-                        child: Text('استيراد تقويم الآيفون (قراءة فقط)',
-                            style: TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          'استيراد تقويم الآيفون (قراءة فقط)',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   const Text(
                     'ألصق رابط الاشتراك (.ics) من تطبيق تقويم الآيفون. تتم المزامنة تلقائيًا عند فتح الصفحة، بالإضافة لإمكانية المزامنة اليدوية. الاتجاه: من تقويم الآيفون إلى هذا التطبيق فقط.',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -97,27 +106,37 @@ class _EmployeeCalendarTabState extends State<EmployeeCalendarTab> {
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : const Icon(Icons.sync),
-                      label: Text(provider.isLoading
-                          ? 'جارٍ المزامنة...'
-                          : 'حفظ ومزامنة الآن'),
+                      label: Text(
+                        provider.isLoading
+                            ? 'جارٍ المزامنة...'
+                            : 'حفظ ومزامنة الآن',
+                      ),
                     ),
                   ),
                   if (provider.error != null) ...[
                     const SizedBox(height: 8),
-                    Text(provider.error!,
-                        style: const TextStyle(
-                            color: AppColors.statusRejected, fontSize: 12)),
+                    Text(
+                      provider.error!,
+                      style: const TextStyle(
+                        color: AppColors.statusRejected,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
           ),
           const SizedBox(height: 20),
-          Text('أحداث الشهر الحالي (${provider.events.length})',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          Text(
+            'أحداث الشهر الحالي (${provider.events.length})',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           if (!_initialized)
             const Padding(
@@ -128,26 +147,32 @@ class _EmployeeCalendarTabState extends State<EmployeeCalendarTab> {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
-                child: Text('لا توجد أحداث مستوردة بعد',
-                    style: TextStyle(color: AppColors.textSecondary)),
+                child: Text(
+                  'لا توجد أحداث مستوردة بعد',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
               ),
             )
           else
-            ...provider.events.map((e) => Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.event_note_outlined,
-                        color: AppColors.lightBlue),
-                    title: Text(e.summary),
-                    subtitle: Text(
-                      e.end != null
-                          ? '${intl.DateFormat('yyyy/MM/dd HH:mm').format(e.start)} - ${intl.DateFormat('HH:mm').format(e.end!)}'
-                          : intl.DateFormat('yyyy/MM/dd HH:mm').format(e.start),
-                    ),
-                    trailing: e.isRecurringInstance
-                        ? const Icon(Icons.repeat, size: 16)
-                        : null,
+            ...provider.events.map(
+              (e) => Card(
+                child: ListTile(
+                  leading: const Icon(
+                    Icons.event_note_outlined,
+                    color: AppColors.lightBlue,
                   ),
-                )),
+                  title: Text(e.summary),
+                  subtitle: Text(
+                    e.end != null
+                        ? '${intl.DateFormat('yyyy/MM/dd HH:mm').format(e.start)} - ${intl.DateFormat('HH:mm').format(e.end!)}'
+                        : intl.DateFormat('yyyy/MM/dd HH:mm').format(e.start),
+                  ),
+                  trailing: e.isRecurringInstance
+                      ? const Icon(Icons.repeat, size: 16)
+                      : null,
+                ),
+              ),
+            ),
         ],
       ),
     );

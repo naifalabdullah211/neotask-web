@@ -27,11 +27,16 @@ class ManagerReviewTab extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.inbox_outlined,
-                        size: 56, color: AppColors.textSecondary),
+                    Icon(
+                      Icons.inbox_outlined,
+                      size: 56,
+                      color: AppColors.textSecondary,
+                    ),
                     SizedBox(height: 12),
-                    Text('لا توجد مهام بانتظار المراجعة حاليًا',
-                        style: TextStyle(color: AppColors.textSecondary)),
+                    Text(
+                      'لا توجد مهام بانتظار المراجعة حاليًا',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
                   ],
                 ),
               ),
@@ -44,9 +49,13 @@ class ManagerReviewTab extends StatelessWidget {
                 return Card(
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    title: Text(t.title,
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    title: Text(
+                      t.title,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -59,25 +68,32 @@ class ManagerReviewTab extends StatelessWidget {
                             t.submissionNote!.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
-                            child: Text('ملاحظة الموظف: ${t.submissionNote}',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary)),
+                            child: Text(
+                              'ملاحظة الموظف: ${t.submissionNote}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ),
                         if (t.revisionCount > 0)
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
-                            child: Text('عدد المراجعات: ${t.revisionCount}',
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.statusPending)),
+                            child: Text(
+                              'عدد المراجعات: ${t.revisionCount}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.statusPending,
+                              ),
+                            ),
                           ),
                       ],
                     ),
                     trailing: const StatusChip(statusName: 'submitted'),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                          builder: (_) => TaskReviewDetailScreen(task: t)),
+                        builder: (_) => TaskReviewDetailScreen(task: t),
+                      ),
                     ),
                   ),
                 );

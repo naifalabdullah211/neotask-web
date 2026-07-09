@@ -3,11 +3,15 @@ import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/task_history_model.dart';
 import '../../models/task_model.dart';
+import '../../models/message_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/message_provider.dart';
 import '../../providers/task_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/recurrence_utils.dart';
 import '../../widgets/status_chip.dart';
+import '../shared/chat_thread_screen.dart';
 
 /// Employee-facing task detail screen. Lets the employee move a task from
 /// assigned -> inProgress -> submitted (with optional note), and resume
@@ -26,18 +30,20 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Future<void> _startWork(String uid) async {
     setState(() => _busy = true);
-    await context
-        .read<TaskProvider>()
-        .updateStatus(widget.task.taskId, TaskStatus.inProgress, uid);
+    await context.read<TaskProvider>().updateStatus(
+      widget.task.taskId,
+      TaskStatus.inProgress,
+      uid,
+    );
     if (mounted) setState(() => _busy = false);
   }
 
   Future<void> _resumeWork(String uid) async {
     setState(() => _busy = true);
     await context.read<TaskProvider>().resumeAfterFeedback(
-          widget.task.taskId,
-          uid,
-        );
+      widget.task.taskId,
+      uid,
+    );
     if (mounted) setState(() => _busy = false);
   }
 
@@ -87,14 +93,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Widget build(BuildContext context) {
     final uid = context.read<AuthProvider>().currentUser!.uid;
     final taskProvider = context.watch<TaskProvider>();
-    final matches =
-        taskProvider.allTasks.where((t) => t.taskId == widget.task.taskId);
+    final matches = taskProvider.allTasks.where(
+      (t) => t.taskId == widget.task.taskId,
+    );
     final current = matches.isNotEmpty ? matches.first : widget.task;
     final history = taskProvider.historyForTask(current.taskId);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('تفاصيل المهمة')),
+      appBar: AppBar(
+        title: const Text('تفاصيل المهمة'),
+        actions: [_TaskChatButton(taskId: current.taskId, employeeUid: uid)],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -108,23 +118,32 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(current.title,
-                              style: const TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            current.title,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                         StatusChip(statusName: current.status.name),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(current.description,
-                        style:
-                            const TextStyle(color: AppColors.textSecondary)),
+                    Text(
+                      current.description,
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
                     const SizedBox(height: 12),
                     _InfoRow('التصنيف', current.category),
-                    _InfoRow('تاريخ الاستحقاق',
-                        intl.DateFormat('yyyy/MM/dd').format(current.dueDate)),
                     _InfoRow(
-                        'التكرار', RecurrenceUtils.recurrenceLabelAr(current)),
+                      'تاريخ الاستحقاق',
+                      intl.DateFormat('yyyy/MM/dd').format(current.dueDate),
+                    ),
+                    _InfoRow(
+                      'التكرار',
+                      RecurrenceUtils.recurrenceLabelAr(current),
+                    ),
                     if (current.reviewNote != null &&
                         current.reviewNote!.isNotEmpty)
                       _InfoRow('ملاحظة المدير الأخيرة', current.reviewNote!),
@@ -154,10 +173,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: (current.status == TaskStatus.rejected
-                              ? AppColors.statusRejected
-                              : AppColors.statusPending)
-                          .withValues(alpha: 0.08),
+                      color:
+                          (current.status == TaskStatus.rejected
+                                  ? AppColors.statusRejected
+                                  : AppColors.statusPending)
+                              .withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -199,17 +219,71 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 ),
               ),
             const SizedBox(height: 20),
-            const Text('سجل المهمة الكامل',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const Text(
+              'سجل المهمة الكامل',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             if (history.isEmpty)
-              const Text('لا يوجد سجل بعد',
-                  style: TextStyle(color: AppColors.textSecondary))
+              const Text(
+                'لا يوجد سجل بعد',
+                style: TextStyle(color: AppColors.textSecondary),
+              )
             else
               ...history.reversed.map((h) => _HistoryTile(entry: h)),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// AppBar action opening the per-task chat thread with the manager. Shows
+/// an unread-count badge when the manager has sent unread messages tied to
+/// this specific task.
+class _TaskChatButton extends StatelessWidget {
+  const _TaskChatButton({required this.taskId, required this.employeeUid});
+
+  final String taskId;
+  final String employeeUid;
+
+  @override
+  Widget build(BuildContext context) {
+    final manager = FirestoreService.getManager();
+    if (manager == null) return const SizedBox.shrink();
+    final conversationId = ChatMessage.taskConversationId(taskId);
+
+    return StreamBuilder<List<ChatMessage>>(
+      stream: context.watch<MessageProvider>().watchConversation(
+        conversationId,
+      ),
+      initialData: context.read<MessageProvider>().conversation(conversationId),
+      builder: (context, snapshot) {
+        final unread = (snapshot.data ?? [])
+            .where((m) => m.recipientUid == employeeUid && m.readAt == null)
+            .length;
+        return IconButton(
+          tooltip: 'محادثة المهمة',
+          icon: Badge(
+            isLabelVisible: unread > 0,
+            label: Text('$unread'),
+            child: const Icon(Icons.chat_bubble_outline),
+          ),
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ChatThreadScreen(
+                  conversationId: conversationId,
+                  taskId: taskId,
+                  currentUserUid: employeeUid,
+                  otherUserUid: manager.uid,
+                  title: 'محادثة المهمة',
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -228,11 +302,13 @@ class _InfoRow extends StatelessWidget {
           style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
           children: [
             TextSpan(
-                text: '$label: ',
-                style: const TextStyle(color: AppColors.textSecondary)),
+              text: '$label: ',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
             TextSpan(
-                text: value,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+              text: value,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ],
         ),
       ),
@@ -265,13 +341,17 @@ class _HistoryTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         dense: true,
-        title: Text(_label,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        title: Text(
+          _label,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(intl.DateFormat('yyyy/MM/dd HH:mm').format(entry.timestamp),
-                style: const TextStyle(fontSize: 11)),
+            Text(
+              intl.DateFormat('yyyy/MM/dd HH:mm').format(entry.timestamp),
+              style: const TextStyle(fontSize: 11),
+            ),
             if (entry.note != null && entry.note!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),

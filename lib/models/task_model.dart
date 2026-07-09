@@ -19,15 +19,7 @@ enum RecurrenceType {
 
 enum WeekOrdinal { first, second, third, fourth, last }
 
-enum Weekday {
-  monday,
-  tuesday,
-  wednesday,
-  thursday,
-  friday,
-  saturday,
-  sunday,
-}
+enum Weekday { monday, tuesday, wednesday, thursday, friday, saturday, sunday }
 
 class AppTask {
   final String taskId;

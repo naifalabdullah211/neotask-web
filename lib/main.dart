@@ -8,6 +8,7 @@ import 'services/firestore_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/task_provider.dart';
 import 'providers/calendar_provider.dart';
+import 'providers/message_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/shared/splash_router.dart';
 
@@ -89,7 +90,10 @@ class _StartupErrorApp extends StatelessWidget {
                     const SizedBox(height: 12),
                     SelectableText(
                       stackTrace.toString(),
-                      style: const TextStyle(fontSize: 10, color: Colors.black54),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.black54,
+                      ),
                     ),
                   ],
                 ],
@@ -112,6 +116,7 @@ class NeoTaskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => TaskProvider()),
         ChangeNotifierProvider(create: (_) => CalendarProvider()),
+        ChangeNotifierProvider(create: (_) => MessageProvider()),
       ],
       child: MaterialApp(
         title: 'NeoTask',

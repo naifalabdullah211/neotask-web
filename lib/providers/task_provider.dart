@@ -26,18 +26,21 @@ class TaskProvider extends ChangeNotifier {
       _allTasks.where((t) => t.assignedTo == uid).toList()
         ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
-  List<AppTask> get submittedForReview => _allTasks
-      .where((t) => t.status == TaskStatus.submitted)
-      .toList()
-    ..sort((a, b) =>
-        (a.submittedAt ?? a.updatedAt).compareTo(b.submittedAt ?? b.updatedAt));
+  List<AppTask> get submittedForReview =>
+      _allTasks.where((t) => t.status == TaskStatus.submitted).toList()..sort(
+        (a, b) => (a.submittedAt ?? a.updatedAt).compareTo(
+          b.submittedAt ?? b.updatedAt,
+        ),
+      );
 
   List<AppTask> tasksForDay(DateTime day, {String? employeeUid}) {
     return _allTasks.where((t) {
-      final matchesDay = t.dueDate.year == day.year &&
+      final matchesDay =
+          t.dueDate.year == day.year &&
           t.dueDate.month == day.month &&
           t.dueDate.day == day.day;
-      final matchesEmployee = employeeUid == null || t.assignedTo == employeeUid;
+      final matchesEmployee =
+          employeeUid == null || t.assignedTo == employeeUid;
       return matchesDay && matchesEmployee;
     }).toList();
   }
@@ -46,7 +49,8 @@ class TaskProvider extends ChangeNotifier {
     return _allTasks.where((t) {
       final matchesMonth =
           t.dueDate.year == month.year && t.dueDate.month == month.month;
-      final matchesEmployee = employeeUid == null || t.assignedTo == employeeUid;
+      final matchesEmployee =
+          employeeUid == null || t.assignedTo == employeeUid;
       return matchesMonth && matchesEmployee;
     }).toList();
   }
@@ -56,9 +60,13 @@ class TaskProvider extends ChangeNotifier {
     final start = anyDayInWeek.subtract(Duration(days: weekday - 1));
     final end = start.add(const Duration(days: 6));
     return _allTasks.where((t) {
-      final inRange = !t.dueDate.isBefore(DateTime(start.year, start.month, start.day)) &&
-          !t.dueDate.isAfter(DateTime(end.year, end.month, end.day, 23, 59, 59));
-      final matchesEmployee = employeeUid == null || t.assignedTo == employeeUid;
+      final inRange =
+          !t.dueDate.isBefore(DateTime(start.year, start.month, start.day)) &&
+          !t.dueDate.isAfter(
+            DateTime(end.year, end.month, end.day, 23, 59, 59),
+          );
+      final matchesEmployee =
+          employeeUid == null || t.assignedTo == employeeUid;
       return inRange && matchesEmployee;
     }).toList();
   }
@@ -97,23 +105,37 @@ class TaskProvider extends ChangeNotifier {
       updatedAt: now,
     );
     await FirestoreService.saveTask(task);
-    await _logHistory(task.taskId, HistoryAction.statusChange, assignedBy,
-        note: 'تم إنشاء المهمة وإسنادها');
+    await _logHistory(
+      task.taskId,
+      HistoryAction.statusChange,
+      assignedBy,
+      note: 'تم إنشاء المهمة وإسنادها',
+    );
     return task;
   }
 
   Future<void> updateStatus(
-      String taskId, TaskStatus status, String actorUid) async {
+    String taskId,
+    TaskStatus status,
+    String actorUid,
+  ) async {
     final task = FirestoreService.getTask(taskId);
     if (task == null) return;
     final updated = task.copyWith(status: status, updatedAt: DateTime.now());
     await FirestoreService.saveTask(updated);
-    await _logHistory(taskId, HistoryAction.statusChange, actorUid,
-        note: 'تغيير الحالة إلى ${status.name}');
+    await _logHistory(
+      taskId,
+      HistoryAction.statusChange,
+      actorUid,
+      note: 'تغيير الحالة إلى ${status.name}',
+    );
   }
 
   Future<void> submitForReview(
-      String taskId, String employeeUid, String? note) async {
+    String taskId,
+    String employeeUid,
+    String? note,
+  ) async {
     final task = FirestoreService.getTask(taskId);
     if (task == null) return;
     final updated = task.copyWith(
@@ -206,8 +228,12 @@ class TaskProvider extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     await FirestoreService.saveTask(updated);
-    await _logHistory(taskId, HistoryAction.statusChange, employeeUid,
-        note: 'استئناف العمل بعد ملاحظات المدير');
+    await _logHistory(
+      taskId,
+      HistoryAction.statusChange,
+      employeeUid,
+      note: 'استئناف العمل بعد ملاحظات المدير',
+    );
   }
 
   Future<void> deleteTask(String taskId) async {
@@ -239,14 +265,24 @@ class TaskProvider extends ChangeNotifier {
   /// employee. Each transferred task gets one history entry recording the
   /// reassignment and the actor (manager) who performed it.
   Future<void> reassignAllTasksForEmployee(
-      String fromEmployeeUid, String toEmployeeUid, String managerUid) async {
-    final affected =
-        _allTasks.where((t) => t.assignedTo == fromEmployeeUid).toList();
+    String fromEmployeeUid,
+    String toEmployeeUid,
+    String managerUid,
+  ) async {
+    final affected = _allTasks
+        .where((t) => t.assignedTo == fromEmployeeUid)
+        .toList();
     await FirestoreService.reassignAllTasksForEmployee(
-        fromEmployeeUid, toEmployeeUid);
+      fromEmployeeUid,
+      toEmployeeUid,
+    );
     for (final t in affected) {
-      await _logHistory(t.taskId, HistoryAction.statusChange, managerUid,
-          note: 'تم نقل المهمة إلى موظف آخر بعد حذف الموظف السابق');
+      await _logHistory(
+        t.taskId,
+        HistoryAction.statusChange,
+        managerUid,
+        note: 'تم نقل المهمة إلى موظف آخر بعد حذف الموظف السابق',
+      );
     }
   }
 
@@ -255,8 +291,11 @@ class TaskProvider extends ChangeNotifier {
   }
 
   Future<void> _logHistory(
-      String taskId, HistoryAction action, String actorUid,
-      {String? note}) async {
+    String taskId,
+    HistoryAction action,
+    String actorUid, {
+    String? note,
+  }) async {
     final entry = TaskHistoryEntry(
       historyId: _uuid.v4(),
       taskId: taskId,
@@ -274,17 +313,20 @@ class TaskProvider extends ChangeNotifier {
       'total': tasks.length,
       'approved': tasks.where((t) => t.status == TaskStatus.approved).length,
       'pending': tasks
-          .where((t) =>
-              t.status == TaskStatus.assigned ||
-              t.status == TaskStatus.inProgress)
+          .where(
+            (t) =>
+                t.status == TaskStatus.assigned ||
+                t.status == TaskStatus.inProgress,
+          )
           .length,
-      'submitted':
-          tasks.where((t) => t.status == TaskStatus.submitted).length,
+      'submitted': tasks.where((t) => t.status == TaskStatus.submitted).length,
       'rejected': tasks.where((t) => t.status == TaskStatus.rejected).length,
       'overdue': tasks
-          .where((t) =>
-              t.dueDate.isBefore(DateTime.now()) &&
-              t.status != TaskStatus.approved)
+          .where(
+            (t) =>
+                t.dueDate.isBefore(DateTime.now()) &&
+                t.status != TaskStatus.approved,
+          )
           .length,
     };
   }

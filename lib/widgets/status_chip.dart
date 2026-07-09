@@ -73,7 +73,10 @@ class PriorityBadge extends StatelessWidget {
         Text(
           _label,
           style: TextStyle(
-              color: _color, fontSize: 12, fontWeight: FontWeight.w600),
+            color: _color,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );

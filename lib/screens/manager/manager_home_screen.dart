@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/message_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
@@ -10,6 +11,7 @@ import 'manager_dashboard_tab.dart';
 import 'manager_review_tab.dart';
 import 'manager_employees_tab.dart';
 import 'manager_reports_tab.dart';
+import 'manager_chat_tab.dart';
 import 'manager_create_task_screen.dart';
 
 class ManagerHomeScreen extends StatefulWidget {
@@ -27,18 +29,22 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     'مراجعة المهام',
     'الموظفون',
     'التقارير',
+    'المحادثات',
   ];
 
   @override
   Widget build(BuildContext context) {
     final taskProvider = context.watch<TaskProvider>();
     final pendingReviewCount = taskProvider.submittedForReview.length;
+    final auth = context.watch<AuthProvider>();
+    final managerUid = auth.currentUser!.uid;
 
-    final pages = const [
-      ManagerDashboardTab(),
-      ManagerReviewTab(),
-      ManagerEmployeesTab(),
-      ManagerReportsTab(),
+    final pages = [
+      const ManagerDashboardTab(),
+      const ManagerReviewTab(),
+      const ManagerEmployeesTab(),
+      const ManagerReportsTab(),
+      ManagerChatTab(managerUid: managerUid),
     ];
 
     return Scaffold(
@@ -65,7 +71,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                      builder: (_) => const ManagerCreateTaskScreen()),
+                    builder: (_) => const ManagerCreateTaskScreen(),
+                  ),
                 );
               },
               icon: const Icon(Icons.add_task),
@@ -96,7 +103,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             initialData: FirestoreService.getAllEmployees(),
             builder: (context, snapshot) {
               final pendingEmployees = (snapshot.data ?? [])
-                  .where((u) => u.accountStatus == AccountStatus.pendingApproval)
+                  .where(
+                    (u) => u.accountStatus == AccountStatus.pendingApproval,
+                  )
                   .length;
               return NavigationDestination(
                 icon: Badge(
@@ -113,6 +122,26 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             icon: Icon(Icons.bar_chart_outlined),
             selectedIcon: Icon(Icons.bar_chart),
             label: 'التقارير',
+          ),
+          StreamBuilder<int>(
+            stream: context
+                .watch<MessageProvider>()
+                .watchTotalUnreadCountForUser(managerUid),
+            initialData: context
+                .read<MessageProvider>()
+                .totalUnreadCountForUser(managerUid),
+            builder: (context, snapshot) {
+              final unread = snapshot.data ?? 0;
+              return NavigationDestination(
+                icon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  child: const Icon(Icons.chat_bubble_outline),
+                ),
+                selectedIcon: const Icon(Icons.chat_bubble),
+                label: 'المحادثات',
+              );
+            },
           ),
         ],
       ),

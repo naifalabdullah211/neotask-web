@@ -104,14 +104,18 @@ class PdfReportService {
                   _cell('التكرار', bold: true),
                 ],
               ),
-              ...tasks.map((t) => pw.TableRow(children: [
+              ...tasks.map(
+                (t) => pw.TableRow(
+                  children: [
                     _cell(t.title),
                     _cell(employeesById?[t.assignedTo]?.name ?? t.assignedTo),
                     _cell(_fmtDate(t.dueDate)),
                     _cell(_priorityAr(t.priority)),
                     _cell(_statusAr(t.status)),
                     _cell(RecurrenceUtils.recurrenceLabelAr(t)),
-                  ])),
+                  ],
+                ),
+              ),
             ],
           ),
           pw.SizedBox(height: 20),
@@ -135,9 +139,10 @@ class PdfReportService {
       ),
       child: pw.Column(
         children: [
-          pw.Text('$value',
-              style:
-                  const pw.TextStyle(fontSize: 14, color: PdfColors.blue900)),
+          pw.Text(
+            '$value',
+            style: const pw.TextStyle(fontSize: 14, color: PdfColors.blue900),
+          ),
           pw.SizedBox(height: 2),
           pw.Text(label, style: const pw.TextStyle(fontSize: 8)),
         ],

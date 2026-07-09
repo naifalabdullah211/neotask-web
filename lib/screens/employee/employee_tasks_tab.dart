@@ -77,8 +77,7 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
               segments: const [
                 ButtonSegment(value: _EmpRangeMode.day, label: Text('يومي')),
                 ButtonSegment(value: _EmpRangeMode.week, label: Text('أسبوعي')),
-                ButtonSegment(
-                    value: _EmpRangeMode.month, label: Text('شهري')),
+                ButtonSegment(value: _EmpRangeMode.month, label: Text('شهري')),
               ],
               selected: {_mode},
               onSelectionChanged: (s) => setState(() => _mode = s.first),
@@ -93,8 +92,10 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () => _shift(1),
                 ),
-                Text(_rangeLabel,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  _rangeLabel,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 IconButton(
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () => _shift(-1),
@@ -105,8 +106,10 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
           Expanded(
             child: tasks.isEmpty
                 ? const Center(
-                    child: Text('لا توجد مهام في هذه الفترة',
-                        style: TextStyle(color: AppColors.textSecondary)),
+                    child: Text(
+                      'لا توجد مهام في هذه الفترة',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
@@ -117,35 +120,43 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
                         child: ListTile(
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
-                                builder: (_) => TaskDetailScreen(task: t)),
+                              builder: (_) => TaskDetailScreen(task: t),
+                            ),
                           ),
-                          title: Text(t.title,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600)),
+                          title: Text(
+                            t.title,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(height: 4),
                               Text(
-                                  '${t.category} · ${intl.DateFormat('yyyy/MM/dd').format(t.dueDate)}'),
+                                '${t.category} · ${intl.DateFormat('yyyy/MM/dd').format(t.dueDate)}',
+                              ),
                               if (t.status == TaskStatus.editRequested &&
                                   t.reviewNote != null)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
                                   child: Text(
-                                      'ملاحظة المدير: ${t.reviewNote}',
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.statusPending)),
+                                    'ملاحظة المدير: ${t.reviewNote}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.statusPending,
+                                    ),
+                                  ),
                                 ),
                               if (t.status == TaskStatus.rejected &&
                                   t.reviewNote != null)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
-                                  child: Text('سبب الرفض: ${t.reviewNote}',
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.statusRejected)),
+                                  child: Text(
+                                    'سبب الرفض: ${t.reviewNote}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.statusRejected,
+                                    ),
+                                  ),
                                 ),
                             ],
                           ),

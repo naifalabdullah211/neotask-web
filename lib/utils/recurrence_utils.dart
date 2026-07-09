@@ -43,11 +43,19 @@ class RecurrenceUtils {
 
   static DateTime _nextMonthWithDay(DateTime base, int day) {
     final targetMonth = DateTime(base.year, base.month + 1, 1);
-    final daysInMonth =
-        DateTime(targetMonth.year, targetMonth.month + 1, 0).day;
+    final daysInMonth = DateTime(
+      targetMonth.year,
+      targetMonth.month + 1,
+      0,
+    ).day;
     final clampedDay = day > daysInMonth ? daysInMonth : day;
     return DateTime(
-        targetMonth.year, targetMonth.month, clampedDay, base.hour, base.minute);
+      targetMonth.year,
+      targetMonth.month,
+      clampedDay,
+      base.hour,
+      base.minute,
+    );
   }
 
   static DateTime _nextMonthWeekdayPattern(
@@ -57,7 +65,12 @@ class RecurrenceUtils {
   ) {
     final targetMonth = DateTime(base.year, base.month + 1, 1);
     return _weekdayOccurrenceInMonth(
-        targetMonth.year, targetMonth.month, ordinal, weekday, base);
+      targetMonth.year,
+      targetMonth.month,
+      ordinal,
+      weekday,
+      base,
+    );
   }
 
   static DateTime _weekdayOccurrenceInMonth(
@@ -84,21 +97,26 @@ class RecurrenceUtils {
         chosenDay = matchingDays.first;
         break;
       case WeekOrdinal.second:
-        chosenDay = matchingDays.length >= 2 ? matchingDays[1] : matchingDays.last;
+        chosenDay = matchingDays.length >= 2
+            ? matchingDays[1]
+            : matchingDays.last;
         break;
       case WeekOrdinal.third:
-        chosenDay = matchingDays.length >= 3 ? matchingDays[2] : matchingDays.last;
+        chosenDay = matchingDays.length >= 3
+            ? matchingDays[2]
+            : matchingDays.last;
         break;
       case WeekOrdinal.fourth:
-        chosenDay = matchingDays.length >= 4 ? matchingDays[3] : matchingDays.last;
+        chosenDay = matchingDays.length >= 4
+            ? matchingDays[3]
+            : matchingDays.last;
         break;
       case WeekOrdinal.last:
         chosenDay = matchingDays.last;
         break;
     }
 
-    return DateTime(
-        year, month, chosenDay, timeSource.hour, timeSource.minute);
+    return DateTime(year, month, chosenDay, timeSource.hour, timeSource.minute);
   }
 
   static String recurrenceLabelAr(AppTask task) {

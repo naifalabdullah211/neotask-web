@@ -50,8 +50,9 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
       case _ReportRange.month:
         return '${_anchor.year}/${_anchor.month.toString().padLeft(2, '0')}';
       case _ReportRange.employee:
-        final emp = FirestoreService.getAllEmployees()
-            .where((e) => e.uid == _selectedEmployeeUid);
+        final emp = FirestoreService.getAllEmployees().where(
+          (e) => e.uid == _selectedEmployeeUid,
+        );
         return emp.isNotEmpty ? emp.first.name : 'اختر موظفًا';
     }
   }
@@ -80,7 +81,9 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
         employeesById: employeesById,
       );
       await PdfReportService.shareOrPrint(
-          bytes, 'neotask_report_${DateTime.now().millisecondsSinceEpoch}.pdf');
+        bytes,
+        'neotask_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      );
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -161,8 +164,9 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
               initialValue: _selectedEmployeeUid,
               decoration: const InputDecoration(labelText: 'اختر الموظف'),
               items: employees
-                  .map((e) =>
-                      DropdownMenuItem(value: e.uid, child: Text(e.name)))
+                  .map(
+                    (e) => DropdownMenuItem(value: e.uid, child: Text(e.name)),
+                  )
                   .toList(),
               onChanged: (v) => setState(() => _selectedEmployeeUid = v),
             )
@@ -174,8 +178,10 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () => _shift(1),
                 ),
-                Text(_rangeLabel,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  _rangeLabel,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 IconButton(
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () => _shift(-1),
@@ -188,9 +194,10 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  Text('عدد المهام في هذا النطاق: ${tasks.length}',
-                      style:
-                          const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    'عدد المهام في هذا النطاق: ${tasks.length}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
@@ -198,14 +205,17 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
                       onPressed: _exporting ? null : () => _export(provider),
                       icon: const Icon(Icons.picture_as_pdf_outlined),
                       label: Text(
-                          _exporting ? 'جارٍ التصدير...' : 'تصدير كملف PDF'),
+                        _exporting ? 'جارٍ التصدير...' : 'تصدير كملف PDF',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 6),
                   const Text(
                     'التصدير يتم فقط عند الضغط على هذا الزر (غير تلقائي).',
                     style: TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary),
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),

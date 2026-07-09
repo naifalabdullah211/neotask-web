@@ -27,8 +27,11 @@ class PendingApprovalScreen extends StatelessWidget {
                     color: AppColors.statusPending.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.hourglass_top_rounded,
-                      color: AppColors.statusPending, size: 48),
+                  child: const Icon(
+                    Icons.hourglass_top_rounded,
+                    color: AppColors.statusPending,
+                    size: 48,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 const Text(
@@ -41,13 +44,17 @@ class PendingApprovalScreen extends StatelessWidget {
                   'بانتظار موافقة المدير على حسابك للبدء باستخدام النظام.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      color: AppColors.textSecondary, height: 1.6),
+                    color: AppColors.textSecondary,
+                    height: 1.6,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'الرقم الوظيفي: ${user?.employeeNumber ?? ''}',
                   style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12),
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 32),
                 OutlinedButton.icon(
@@ -55,8 +62,7 @@ class PendingApprovalScreen extends StatelessWidget {
                     await context.read<AuthProvider>().logout();
                     if (context.mounted) {
                       Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                            builder: (_) => const SplashRouter()),
+                        MaterialPageRoute(builder: (_) => const SplashRouter()),
                         (route) => false,
                       );
                     }

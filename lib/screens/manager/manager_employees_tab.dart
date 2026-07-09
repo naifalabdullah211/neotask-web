@@ -44,71 +44,104 @@ class ManagerEmployeesTab extends StatelessWidget {
               if (pending.isNotEmpty) ...[
                 Row(
                   children: [
-                    const Icon(Icons.notifications_active,
-                        color: AppColors.statusPending, size: 20),
+                    const Icon(
+                      Icons.notifications_active,
+                      color: AppColors.statusPending,
+                      size: 20,
+                    ),
                     const SizedBox(width: 6),
-                    Text('طلبات انضمام بانتظار الموافقة (${pending.length})',
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.bold)),
+                    Text(
+                      'طلبات انضمام بانتظار الموافقة (${pending.length})',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 ...pending.map((u) => _PendingEmployeeCard(user: u)),
                 const SizedBox(height: 20),
               ],
-              Text('الموظفون النشطون (${active.length})',
-                  style:
-                      const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              Text(
+                'الموظفون النشطون (${active.length})',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 8),
               if (active.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text('لا يوجد موظفون نشطون بعد',
-                      style: TextStyle(color: AppColors.textSecondary)),
+                  child: Text(
+                    'لا يوجد موظفون نشطون بعد',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
                 )
               else
-                ...active.map((u) => _ActiveEmployeeTile(
-                      user: u,
-                      otherActiveEmployees:
-                          active.where((o) => o.uid != u.uid).toList(),
-                    )),
+                ...active.map(
+                  (u) => _ActiveEmployeeTile(
+                    user: u,
+                    otherActiveEmployees: active
+                        .where((o) => o.uid != u.uid)
+                        .toList(),
+                  ),
+                ),
               if (rejected.isNotEmpty) ...[
                 const SizedBox(height: 20),
-                Text('طلبات مرفوضة (${rejected.length})',
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textSecondary)),
+                Text(
+                  'طلبات مرفوضة (${rejected.length})',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                ...rejected.map((u) => Card(
-                      color: Colors.grey.shade100,
-                      child: ListTile(
-                        leading: const Icon(Icons.block,
-                            color: AppColors.statusRejected),
-                        title: Text(u.name),
-                        subtitle: Text(u.email),
+                ...rejected.map(
+                  (u) => Card(
+                    color: Colors.grey.shade100,
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.block,
+                        color: AppColors.statusRejected,
                       ),
-                    )),
+                      title: Text(u.name),
+                      subtitle: Text(u.email),
+                    ),
+                  ),
+                ),
               ],
               if (deleted.isNotEmpty) ...[
                 const SizedBox(height: 20),
-                Text('حسابات محذوفة (${deleted.length})',
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textSecondary)),
+                Text(
+                  'حسابات محذوفة (${deleted.length})',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                ...deleted.map((u) => Card(
-                      color: Colors.grey.shade100,
-                      child: ListTile(
-                        leading: const Icon(Icons.person_off,
-                            color: AppColors.textSecondary),
-                        title: Text(u.name,
-                            style: const TextStyle(
-                                decoration: TextDecoration.lineThrough)),
-                        subtitle: Text(u.email),
+                ...deleted.map(
+                  (u) => Card(
+                    color: Colors.grey.shade100,
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.person_off,
+                        color: AppColors.textSecondary,
                       ),
-                    )),
+                      title: Text(
+                        u.name,
+                        style: const TextStyle(
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                      subtitle: Text(u.email),
+                    ),
+                  ),
+                ),
               ],
             ],
           );
@@ -147,10 +180,10 @@ class _ActiveEmployeeTile extends StatelessWidget {
         content: Text(
           taskCount > 0
               ? 'سيتم حذف حساب "${user.name}" (حذف ناعم — يمكن مراجعة السجل لاحقًا). '
-                  'لدى هذا الموظف $taskCount مهمة مرتبطة، وسيُطلب منك في الخطوة التالية '
-                  'تحديد مصيرها.'
+                    'لدى هذا الموظف $taskCount مهمة مرتبطة، وسيُطلب منك في الخطوة التالية '
+                    'تحديد مصيرها.'
               : 'سيتم حذف حساب "${user.name}" (حذف ناعم — يمكن مراجعة السجل لاحقًا). '
-                  'لا توجد مهام مرتبطة بهذا الموظف حاليًا.',
+                    'لا توجد مهام مرتبطة بهذا الموظف حاليًا.',
         ),
         actions: [
           TextButton(
@@ -158,8 +191,9 @@ class _ActiveEmployeeTile extends StatelessWidget {
             child: const Text('إلغاء'),
           ),
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(backgroundColor: AppColors.statusRejected),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.statusRejected,
+            ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('متابعة'),
           ),
@@ -171,7 +205,11 @@ class _ActiveEmployeeTile extends StatelessWidget {
 
     // Step 2: if there are tasks, resolve their fate before deleting.
     if (taskCount > 0) {
-      final resolved = await _resolveTaskFate(context, taskProvider, managerUid);
+      final resolved = await _resolveTaskFate(
+        context,
+        taskProvider,
+        managerUid,
+      );
       if (!resolved) return; // manager backed out of the fate dialog
     }
 
@@ -195,8 +233,9 @@ class _ActiveEmployeeTile extends StatelessWidget {
     String managerUid,
   ) async {
     final taskCount = taskProvider.taskCountForEmployee(user.uid);
-    AppUser? reassignTarget =
-        otherActiveEmployees.isNotEmpty ? otherActiveEmployees.first : null;
+    AppUser? reassignTarget = otherActiveEmployees.isNotEmpty
+        ? otherActiveEmployees.first
+        : null;
 
     final choice = await showDialog<String>(
       context: context,
@@ -214,20 +253,23 @@ class _ActiveEmployeeTile extends StatelessWidget {
                 const Text(
                   'لا يوجد موظفون نشطون آخرون لنقل المهام إليهم، لذا الخيار المتاح هو الحذف فقط.',
                   style: TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 )
               else ...[
-                const Text('نقل جميع المهام إلى:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  'نقل جميع المهام إلى:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<AppUser>(
                   initialValue: reassignTarget,
                   decoration: const InputDecoration(isDense: true),
                   items: otherActiveEmployees
-                      .map((u) => DropdownMenuItem(
-                            value: u,
-                            child: Text(u.name),
-                          ))
+                      .map(
+                        (u) => DropdownMenuItem(value: u, child: Text(u.name)),
+                      )
                       .toList(),
                   onChanged: (v) => setState(() => reassignTarget = v),
                 ),
@@ -241,7 +283,8 @@ class _ActiveEmployeeTile extends StatelessWidget {
             ),
             OutlinedButton(
               style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.statusRejected),
+                foregroundColor: AppColors.statusRejected,
+              ),
               onPressed: () => Navigator.of(ctx).pop('delete'),
               child: const Text('حذف كل المهام'),
             ),
@@ -264,7 +307,10 @@ class _ActiveEmployeeTile extends StatelessWidget {
 
     if (choice == 'reassign' && reassignTarget != null) {
       await taskProvider.reassignAllTasksForEmployee(
-          user.uid, reassignTarget!.uid, managerUid);
+        user.uid,
+        reassignTarget!.uid,
+        managerUid,
+      );
       return true;
     }
 
@@ -280,12 +326,13 @@ class _ActiveEmployeeTile extends StatelessWidget {
           child: Text(
             user.name.isNotEmpty ? user.name[0] : '?',
             style: const TextStyle(
-                color: AppColors.deepBlue, fontWeight: FontWeight.bold),
+              color: AppColors.deepBlue,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         title: Text(user.name),
-        subtitle:
-            Text('${user.email} · رقم وظيفي: ${user.employeeNumber}'),
+        subtitle: Text('${user.email} · رقم وظيفي: ${user.employeeNumber}'),
         trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
           onSelected: (value) {
@@ -296,7 +343,11 @@ class _ActiveEmployeeTile extends StatelessWidget {
               value: 'delete',
               child: Row(
                 children: [
-                  Icon(Icons.person_remove, color: AppColors.statusRejected, size: 18),
+                  Icon(
+                    Icons.person_remove,
+                    color: AppColors.statusRejected,
+                    size: 18,
+                  ),
                   SizedBox(width: 8),
                   Text('حذف الحساب'),
                 ],
@@ -324,16 +375,23 @@ class _PendingEmployeeCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.person_outline, color: AppColors.statusPending),
+                const Icon(
+                  Icons.person_outline,
+                  color: AppColors.statusPending,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(user.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text('${user.email} · رقم وظيفي: ${user.employeeNumber}',
-                          style: const TextStyle(fontSize: 12)),
+                      Text(
+                        user.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '${user.email} · رقم وظيفي: ${user.employeeNumber}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ],
                   ),
                 ),
@@ -345,13 +403,17 @@ class _PendingEmployeeCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.statusRejected),
+                      foregroundColor: AppColors.statusRejected,
+                    ),
                     onPressed: () async {
-                      final managerUid =
-                          context.read<AuthProvider>().currentUser!.uid;
-                      await context
+                      final managerUid = context
                           .read<AuthProvider>()
-                          .rejectEmployee(user.uid, managerUid);
+                          .currentUser!
+                          .uid;
+                      await context.read<AuthProvider>().rejectEmployee(
+                        user.uid,
+                        managerUid,
+                      );
                     },
                     icon: const Icon(Icons.close, size: 18),
                     label: const Text('رفض'),
@@ -361,13 +423,17 @@ class _PendingEmployeeCard extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.statusApproved),
+                      backgroundColor: AppColors.statusApproved,
+                    ),
                     onPressed: () async {
-                      final managerUid =
-                          context.read<AuthProvider>().currentUser!.uid;
-                      await context
+                      final managerUid = context
                           .read<AuthProvider>()
-                          .approveEmployee(user.uid, managerUid);
+                          .currentUser!
+                          .uid;
+                      await context.read<AuthProvider>().approveEmployee(
+                        user.uid,
+                        managerUid,
+                      );
                     },
                     icon: const Icon(Icons.check, size: 18),
                     label: const Text('موافقة'),
@@ -408,10 +474,11 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
     setState(() => _generating = true);
     final managerUid = context.read<AuthProvider>().currentUser!.uid;
     final invite = await context.read<AuthProvider>().generateInvitation(
-          managerUid: managerUid,
-          expectedName:
-              _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
-        );
+      managerUid: managerUid,
+      expectedName: _nameCtrl.text.trim().isEmpty
+          ? null
+          : _nameCtrl.text.trim(),
+    );
     if (!mounted) return;
     setState(() {
       _lastInvite = invite;
@@ -432,9 +499,10 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
                 const Icon(Icons.link, color: AppColors.deepBlue),
                 const SizedBox(width: 8),
                 const Expanded(
-                  child: Text('توليد رابط دعوة موظف جديد',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    'توليد رابط دعوة موظف جديد',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -457,7 +525,9 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
               child: ElevatedButton.icon(
                 onPressed: _generating ? null : _generate,
                 icon: const Icon(Icons.add_link),
-                label: Text(_generating ? 'جارٍ الإنشاء...' : 'إنشاء رابط دعوة'),
+                label: Text(
+                  _generating ? 'جارٍ الإنشاء...' : 'إنشاء رابط دعوة',
+                ),
               ),
             ),
             if (_lastInvite != null) ...[
@@ -475,13 +545,17 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
                     SelectableText(
                       _inviteUrl(_lastInvite!.token),
                       style: const TextStyle(
-                          fontSize: 12, color: AppColors.deepBlue),
+                        fontSize: 12,
+                        color: AppColors.deepBlue,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'تم الإنشاء: ${intl.DateFormat('yyyy/MM/dd HH:mm').format(_lastInvite!.createdAt)}',
                       style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary),
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),

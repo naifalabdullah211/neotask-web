@@ -6,6 +6,7 @@ import '../models/task_model.dart';
 import '../models/invitation_model.dart';
 import '../models/task_history_model.dart';
 import '../models/calendar_event_model.dart';
+import '../models/message_model.dart';
 
 /// FirestoreService — REPLACES LocalDbService (Hive) as of this commit.
 ///
@@ -39,12 +40,14 @@ class FirestoreService {
   static List<TaskHistoryEntry> _historyCache = [];
   static List<Map<String, dynamic>> _calendarRawCache = []; // includes userUid
   static final Map<String, String> _icsUrlCache = {};
+  static List<ChatMessage> _messagesCache = [];
 
   // ---- Change signal controllers (mirror Hive's box.watch() pattern) ----
   static final _usersChanges = StreamController<void>.broadcast();
   static final _tasksChanges = StreamController<void>.broadcast();
   static final _invitationsChanges = StreamController<void>.broadcast();
   static final _calendarChanges = StreamController<void>.broadcast();
+  static final _messagesChanges = StreamController<void>.broadcast();
 
   // ---- Session (kept local per-device via SharedPreferences — session
   // identity is intentionally NOT synced across devices/browsers) ----
@@ -65,59 +68,117 @@ class FirestoreService {
     final historyDone = Completer<void>();
     final calendarDone = Completer<void>();
     final icsDone = Completer<void>();
+    final messagesDone = Completer<void>();
 
-    _db.collection('users').snapshots().listen((snap) {
-      _usersCache =
-          snap.docs.map((d) => AppUser.fromMap(d.data())).toList();
-      if (!usersDone.isCompleted) usersDone.complete();
-      _usersChanges.add(null);
-    }, onError: (_) {
-      if (!usersDone.isCompleted) usersDone.complete();
-    });
+    _db
+        .collection('users')
+        .snapshots()
+        .listen(
+          (snap) {
+            _usersCache = snap.docs
+                .map((d) => AppUser.fromMap(d.data()))
+                .toList();
+            if (!usersDone.isCompleted) usersDone.complete();
+            _usersChanges.add(null);
+          },
+          onError: (_) {
+            if (!usersDone.isCompleted) usersDone.complete();
+          },
+        );
 
-    _db.collection('tasks').snapshots().listen((snap) {
-      _tasksCache = snap.docs.map((d) => AppTask.fromMap(d.data())).toList();
-      if (!tasksDone.isCompleted) tasksDone.complete();
-      _tasksChanges.add(null);
-    }, onError: (_) {
-      if (!tasksDone.isCompleted) tasksDone.complete();
-    });
+    _db
+        .collection('tasks')
+        .snapshots()
+        .listen(
+          (snap) {
+            _tasksCache = snap.docs
+                .map((d) => AppTask.fromMap(d.data()))
+                .toList();
+            if (!tasksDone.isCompleted) tasksDone.complete();
+            _tasksChanges.add(null);
+          },
+          onError: (_) {
+            if (!tasksDone.isCompleted) tasksDone.complete();
+          },
+        );
 
-    _db.collection('invitations').snapshots().listen((snap) {
-      _invitationsCache =
-          snap.docs.map((d) => Invitation.fromMap(d.data())).toList();
-      if (!invitationsDone.isCompleted) invitationsDone.complete();
-      _invitationsChanges.add(null);
-    }, onError: (_) {
-      if (!invitationsDone.isCompleted) invitationsDone.complete();
-    });
+    _db
+        .collection('invitations')
+        .snapshots()
+        .listen(
+          (snap) {
+            _invitationsCache = snap.docs
+                .map((d) => Invitation.fromMap(d.data()))
+                .toList();
+            if (!invitationsDone.isCompleted) invitationsDone.complete();
+            _invitationsChanges.add(null);
+          },
+          onError: (_) {
+            if (!invitationsDone.isCompleted) invitationsDone.complete();
+          },
+        );
 
-    _db.collection('task_history').snapshots().listen((snap) {
-      _historyCache =
-          snap.docs.map((d) => TaskHistoryEntry.fromMap(d.data())).toList();
-      if (!historyDone.isCompleted) historyDone.complete();
-    }, onError: (_) {
-      if (!historyDone.isCompleted) historyDone.complete();
-    });
+    _db
+        .collection('task_history')
+        .snapshots()
+        .listen(
+          (snap) {
+            _historyCache = snap.docs
+                .map((d) => TaskHistoryEntry.fromMap(d.data()))
+                .toList();
+            if (!historyDone.isCompleted) historyDone.complete();
+          },
+          onError: (_) {
+            if (!historyDone.isCompleted) historyDone.complete();
+          },
+        );
 
-    _db.collection('calendar_imports').snapshots().listen((snap) {
-      _calendarRawCache = snap.docs.map((d) => d.data()).toList();
-      if (!calendarDone.isCompleted) calendarDone.complete();
-      _calendarChanges.add(null);
-    }, onError: (_) {
-      if (!calendarDone.isCompleted) calendarDone.complete();
-    });
+    _db
+        .collection('calendar_imports')
+        .snapshots()
+        .listen(
+          (snap) {
+            _calendarRawCache = snap.docs.map((d) => d.data()).toList();
+            if (!calendarDone.isCompleted) calendarDone.complete();
+            _calendarChanges.add(null);
+          },
+          onError: (_) {
+            if (!calendarDone.isCompleted) calendarDone.complete();
+          },
+        );
 
-    _db.collection('calendar_settings').snapshots().listen((snap) {
-      _icsUrlCache.clear();
-      for (final d in snap.docs) {
-        final url = d.data()['icsUrl'] as String?;
-        if (url != null) _icsUrlCache[d.id] = url;
-      }
-      if (!icsDone.isCompleted) icsDone.complete();
-    }, onError: (_) {
-      if (!icsDone.isCompleted) icsDone.complete();
-    });
+    _db
+        .collection('calendar_settings')
+        .snapshots()
+        .listen(
+          (snap) {
+            _icsUrlCache.clear();
+            for (final d in snap.docs) {
+              final url = d.data()['icsUrl'] as String?;
+              if (url != null) _icsUrlCache[d.id] = url;
+            }
+            if (!icsDone.isCompleted) icsDone.complete();
+          },
+          onError: (_) {
+            if (!icsDone.isCompleted) icsDone.complete();
+          },
+        );
+
+    _db
+        .collection('messages')
+        .snapshots()
+        .listen(
+          (snap) {
+            _messagesCache = snap.docs
+                .map((d) => ChatMessage.fromMap(d.data()))
+                .toList();
+            if (!messagesDone.isCompleted) messagesDone.complete();
+            _messagesChanges.add(null);
+          },
+          onError: (_) {
+            if (!messagesDone.isCompleted) messagesDone.complete();
+          },
+        );
 
     await Future.wait([
       usersDone.future,
@@ -126,6 +187,7 @@ class FirestoreService {
       historyDone.future,
       calendarDone.future,
       icsDone.future,
+      messagesDone.future,
     ]).timeout(const Duration(seconds: 15), onTimeout: () => []);
 
     _initialized = true;
@@ -196,8 +258,11 @@ class FirestoreService {
 
   static List<AppTask> getSubmittedTasks() {
     return _tasksCache.where((t) => t.status == TaskStatus.submitted).toList()
-      ..sort((a, b) => (a.submittedAt ?? a.updatedAt)
-          .compareTo(b.submittedAt ?? b.updatedAt));
+      ..sort(
+        (a, b) => (a.submittedAt ?? a.updatedAt).compareTo(
+          b.submittedAt ?? b.updatedAt,
+        ),
+      );
   }
 
   static Stream<List<AppTask>> watchAllTasks() async* {
@@ -220,8 +285,9 @@ class FirestoreService {
   /// Used when a manager soft-deletes an employee and chooses to discard
   /// that employee's tasks rather than reassign them.
   static Future<void> deleteAllTasksForEmployee(String employeeUid) async {
-    final toDelete =
-        _tasksCache.where((t) => t.assignedTo == employeeUid).toList();
+    final toDelete = _tasksCache
+        .where((t) => t.assignedTo == employeeUid)
+        .toList();
     if (toDelete.isEmpty) return;
     final batch = _db.batch();
     for (final t in toDelete) {
@@ -237,9 +303,12 @@ class FirestoreService {
   /// that employee's tasks to another active employee instead of deleting
   /// them.
   static Future<void> reassignAllTasksForEmployee(
-      String fromEmployeeUid, String toEmployeeUid) async {
-    final toReassign =
-        _tasksCache.where((t) => t.assignedTo == fromEmployeeUid).toList();
+    String fromEmployeeUid,
+    String toEmployeeUid,
+  ) async {
+    final toReassign = _tasksCache
+        .where((t) => t.assignedTo == fromEmployeeUid)
+        .toList();
     if (toReassign.isEmpty) return;
     final batch = _db.batch();
     for (final t in toReassign) {
@@ -341,14 +410,12 @@ class FirestoreService {
 
   // ---------------- CALENDAR EVENTS (imported, read-only) ----------------
   static Future<void> saveCalendarEvent(
-      String userUid, CalendarEventItem event) async {
-    await _db
-        .collection('calendar_imports')
-        .doc('${userUid}_${event.uid}')
-        .set({
-      'userUid': userUid,
-      ...event.toMap(),
-    });
+    String userUid,
+    CalendarEventItem event,
+  ) async {
+    await _db.collection('calendar_imports').doc('${userUid}_${event.uid}').set(
+      {'userUid': userUid, ...event.toMap()},
+    );
   }
 
   static Future<void> clearCalendarEventsForUser(String userUid) async {
@@ -376,12 +443,122 @@ class FirestoreService {
   // ---------------- ICS URL PER USER (calendar_settings collection) ----------------
   static Future<void> saveIcsUrl(String userUid, String url) async {
     _icsUrlCache[userUid] = url;
-    await _db.collection('calendar_settings').doc(userUid).set({
-      'icsUrl': url,
-    });
+    await _db.collection('calendar_settings').doc(userUid).set({'icsUrl': url});
   }
 
   static String? getIcsUrl(String userUid) => _icsUrlCache[userUid];
+
+  // ---------------- MESSAGES (chat: general DM + per-task threads) ----------------
+  static Future<void> saveMessage(ChatMessage message) async {
+    await _db
+        .collection('messages')
+        .doc(message.messageId)
+        .set(message.toMap());
+  }
+
+  /// All messages belonging to [conversationId] (either a
+  /// `ChatMessage.generalConversationId(...)` or
+  /// `ChatMessage.taskConversationId(...)` value), sorted by time.
+  ///
+  /// Deliberately a single-field `==` filter (no `orderBy`) to avoid any
+  /// Firestore composite-index requirement — sorting is done in memory,
+  /// consistent with `getHistoryForTask` / `getAllInvitations` above.
+  static List<ChatMessage> getMessagesForConversation(String conversationId) {
+    return _messagesCache
+        .where((m) => m.conversationId == conversationId)
+        .toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+  }
+
+  static Stream<List<ChatMessage>> watchMessagesForConversation(
+    String conversationId,
+  ) async* {
+    yield getMessagesForConversation(conversationId);
+    yield* _messagesChanges.stream.map(
+      (_) => getMessagesForConversation(conversationId),
+    );
+  }
+
+  /// Latest message per conversation the given [userUid] participates in
+  /// (as sender or recipient) — used to build conversation-list previews
+  /// (e.g. the manager's per-employee chat list).
+  static List<ChatMessage> getLatestMessagesForUser(String userUid) {
+    final byConversation = <String, ChatMessage>{};
+    for (final m in _messagesCache) {
+      if (m.senderUid != userUid && m.recipientUid != userUid) continue;
+      final existing = byConversation[m.conversationId];
+      if (existing == null || m.timestamp.isAfter(existing.timestamp)) {
+        byConversation[m.conversationId] = m;
+      }
+    }
+    return byConversation.values.toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  }
+
+  static Stream<List<ChatMessage>> watchLatestMessagesForUser(
+    String userUid,
+  ) async* {
+    yield getLatestMessagesForUser(userUid);
+    yield* _messagesChanges.stream.map(
+      (_) => getLatestMessagesForUser(userUid),
+    );
+  }
+
+  /// Number of unread messages in [conversationId] addressed to [userUid]
+  /// (i.e. `recipientUid == userUid && readAt == null`).
+  static int getUnreadCountForConversation(
+    String conversationId,
+    String userUid,
+  ) {
+    return _messagesCache
+        .where(
+          (m) =>
+              m.conversationId == conversationId &&
+              m.recipientUid == userUid &&
+              m.readAt == null,
+        )
+        .length;
+  }
+
+  /// Total unread messages across ALL of [userUid]'s conversations — used
+  /// for the bottom-nav badge.
+  static int getTotalUnreadCountForUser(String userUid) {
+    return _messagesCache
+        .where((m) => m.recipientUid == userUid && m.readAt == null)
+        .length;
+  }
+
+  static Stream<int> watchTotalUnreadCountForUser(String userUid) async* {
+    yield getTotalUnreadCountForUser(userUid);
+    yield* _messagesChanges.stream.map(
+      (_) => getTotalUnreadCountForUser(userUid),
+    );
+  }
+
+  /// Marks every unread message in [conversationId] addressed to [userUid]
+  /// as read.
+  static Future<void> markConversationRead(
+    String conversationId,
+    String userUid,
+  ) async {
+    final unread = _messagesCache
+        .where(
+          (m) =>
+              m.conversationId == conversationId &&
+              m.recipientUid == userUid &&
+              m.readAt == null,
+        )
+        .toList();
+    if (unread.isEmpty) return;
+    final batch = _db.batch();
+    final now = DateTime.now();
+    for (final m in unread) {
+      batch.update(_db.collection('messages').doc(m.messageId), {
+        'readAt': now.toIso8601String(),
+      });
+    }
+    await batch.commit();
+  }
 
   // ---------------- SESSION (local device only — SharedPreferences) ----------------
   static Future<void> setCurrentUid(String? uid) async {

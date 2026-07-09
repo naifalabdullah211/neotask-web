@@ -21,7 +21,8 @@ class IcsCalendarService {
   }
 
   static Future<List<CalendarEventItem>> fetchCurrentMonthEvents(
-      String icsUrl) async {
+    String icsUrl,
+  ) async {
     final normalized = normalizeUrl(icsUrl.trim());
     final uri = Uri.tryParse(normalized);
     if (uri == null) {
@@ -31,15 +32,19 @@ class IcsCalendarService {
     final response = await http.get(uri);
     if (response.statusCode != 200) {
       throw Exception(
-          'تعذّر تحميل ملف التقويم (رمز الاستجابة: ${response.statusCode})');
+        'تعذّر تحميل ملف التقويم (رمز الاستجابة: ${response.statusCode})',
+      );
     }
 
     final events = _parseIcs(response.body);
 
     final now = DateTime.now();
     final monthStart = DateTime(now.year, now.month, 1);
-    final monthEnd = DateTime(now.year, now.month + 1, 1)
-        .subtract(const Duration(seconds: 1));
+    final monthEnd = DateTime(
+      now.year,
+      now.month + 1,
+      1,
+    ).subtract(const Duration(seconds: 1));
 
     return _expandAndFilter(events, monthStart, monthEnd);
   }
@@ -100,7 +105,9 @@ class IcsCalendarService {
         final d = int.parse(cleaned.substring(6, 8));
         final h = int.parse(cleaned.substring(9, 11));
         final mi = int.parse(cleaned.substring(11, 13));
-        final s = cleaned.length >= 15 ? int.parse(cleaned.substring(13, 15)) : 0;
+        final s = cleaned.length >= 15
+            ? int.parse(cleaned.substring(13, 15))
+            : 0;
         return DateTime(y, mo, d, h, mi, s);
       } else if (cleaned.length >= 8) {
         final y = int.parse(cleaned.substring(0, 4));
@@ -132,12 +139,14 @@ class IcsCalendarService {
 
       if (rrule == null) {
         if (!start.isBefore(monthStart) && !start.isAfter(monthEnd)) {
-          results.add(CalendarEventItem(
-            uid: uid,
-            summary: summary,
-            start: start,
-            end: end,
-          ));
+          results.add(
+            CalendarEventItem(
+              uid: uid,
+              summary: summary,
+              start: start,
+              end: end,
+            ),
+          );
         }
         continue;
       }
@@ -164,13 +173,15 @@ class IcsCalendarService {
         if (count != null && occurrences >= count) break;
 
         if (!cursor.isBefore(monthStart) && !cursor.isAfter(monthEnd)) {
-          results.add(CalendarEventItem(
-            uid: '$uid-${cursor.toIso8601String()}',
-            summary: summary,
-            start: cursor,
-            end: end,
-            isRecurringInstance: true,
-          ));
+          results.add(
+            CalendarEventItem(
+              uid: '$uid-${cursor.toIso8601String()}',
+              summary: summary,
+              start: cursor,
+              end: end,
+              isRecurringInstance: true,
+            ),
+          );
         }
         occurrences++;
 
