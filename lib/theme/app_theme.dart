@@ -33,6 +33,39 @@ class AppColors {
   );
 }
 
+/// Shared type scale for "premium" surfaces (auth screens, empty states,
+/// marketing-style sections). Keeps heading/body weight & spacing consistent
+/// wherever this look is reused, instead of inline TextStyle literals.
+class AppTextStyles {
+  static const TextStyle headlineLg = TextStyle(
+    color: Colors.white,
+    fontSize: 30,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.5,
+  );
+
+  static const TextStyle titleMd = TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 20,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.2,
+  );
+
+  static const TextStyle bodySm = TextStyle(
+    color: Colors.white70,
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    height: 1.4,
+  );
+
+  static const TextStyle captionSm = TextStyle(
+    color: Colors.white60,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.4,
+  );
+}
+
 class AppTheme {
   static ThemeData get lightTheme {
     final base = ThemeData(
@@ -59,9 +92,7 @@ class AppTheme {
         color: AppColors.surface,
         elevation: 2,
         shadowColor: Colors.black.withValues(alpha: 0.08),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -88,13 +119,13 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.deepBlue, width: 2),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
@@ -105,9 +136,7 @@ class AppTheme {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
