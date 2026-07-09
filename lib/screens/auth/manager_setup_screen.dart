@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
-import '../shared/splash_router.dart';
+import 'manager_welcome_screen.dart';
 
 /// First-run screen shown when NO manager account exists yet in the system.
 /// Since this app has a single-manager flat hierarchy, this screen creates
@@ -47,8 +47,10 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
     if (!mounted) return;
     setState(() => _submitting = false);
     if (ok) {
+      // First-time-only welcome screen; it is the one that eventually
+      // navigates onward to SplashRouter -> ManagerHomeScreen.
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const SplashRouter()),
+        MaterialPageRoute(builder: (_) => const ManagerWelcomeScreen()),
         (route) => false,
       );
     }
@@ -75,16 +77,19 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                         color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(22),
                       ),
-                      child: Image.asset('assets/images/neotask_logo.png',
-                          fit: BoxFit.contain),
+                      child: Image.asset(
+                        'assets/images/neotask_logo.png',
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     const Text(
                       'مرحبًا بك في NeoTask',
                       style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold),
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const Text(
                       'لا يوجد حساب مدير بعد — أنشئ حساب المدير الرئيسي للبدء',
@@ -114,7 +119,9 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                               'إنشاء حساب المدير',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const SizedBox(height: 18),
                             TextFormField(
@@ -159,9 +166,11 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                                 labelText: 'كلمة المرور',
                                 prefixIcon: const Icon(Icons.lock_outline),
                                 suffixIcon: IconButton(
-                                  icon: Icon(_obscure
-                                      ? Icons.visibility_off
-                                      : Icons.visibility),
+                                  icon: Icon(
+                                    _obscure
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                  ),
                                   onPressed: () =>
                                       setState(() => _obscure = !_obscure),
                                 ),
@@ -178,7 +187,9 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                                       height: 20,
                                       width: 20,
                                       child: CircularProgressIndicator(
-                                          strokeWidth: 2, color: Colors.white),
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
                                     )
                                   : const Text('إنشاء الحساب والدخول'),
                             ),
