@@ -73,19 +73,21 @@ class MessageProvider extends ChangeNotifier {
     return FirestoreService.getTotalUnreadCountForUser(userUid);
   }
 
-  /// Sends a text-only message. [attachmentUrl] is intentionally not
-  /// exposed as a parameter here — no calling UI in this release collects
-  /// an attachment, so there is nothing to pass. The model field itself
-  /// still exists for future-proofing (see message_model.dart doc comment).
+  /// Sends a message with optional text and/or attachment. At least one of
+  /// [text] or [attachmentUrl] must be non-empty (an attachment-only
+  /// message with empty text is valid — e.g. sending just a photo).
   Future<void> sendMessage({
     required String conversationId,
     String? taskId,
     required String senderUid,
     required String recipientUid,
     required String text,
+    String? attachmentUrl,
+    String? attachmentName,
+    String? attachmentType,
   }) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty && attachmentUrl == null) return;
     final message = ChatMessage(
       messageId: _uuid.v4(),
       conversationId: conversationId,
@@ -93,6 +95,9 @@ class MessageProvider extends ChangeNotifier {
       senderUid: senderUid,
       recipientUid: recipientUid,
       text: trimmed,
+      attachmentUrl: attachmentUrl,
+      attachmentName: attachmentName,
+      attachmentType: attachmentType,
       timestamp: DateTime.now(),
     );
     await FirestoreService.saveMessage(message);
@@ -103,12 +108,18 @@ class MessageProvider extends ChangeNotifier {
     required String senderUid,
     required String recipientUid,
     required String text,
+    String? attachmentUrl,
+    String? attachmentName,
+    String? attachmentType,
   }) {
     return sendMessage(
       conversationId: ChatMessage.generalConversationId(employeeUid),
       senderUid: senderUid,
       recipientUid: recipientUid,
       text: text,
+      attachmentUrl: attachmentUrl,
+      attachmentName: attachmentName,
+      attachmentType: attachmentType,
     );
   }
 
@@ -117,6 +128,9 @@ class MessageProvider extends ChangeNotifier {
     required String senderUid,
     required String recipientUid,
     required String text,
+    String? attachmentUrl,
+    String? attachmentName,
+    String? attachmentType,
   }) {
     return sendMessage(
       conversationId: ChatMessage.taskConversationId(taskId),
@@ -124,6 +138,9 @@ class MessageProvider extends ChangeNotifier {
       senderUid: senderUid,
       recipientUid: recipientUid,
       text: text,
+      attachmentUrl: attachmentUrl,
+      attachmentName: attachmentName,
+      attachmentType: attachmentType,
     );
   }
 

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/message_model.dart';
 import '../../providers/message_provider.dart';
+import '../../services/cloudinary_service.dart';
 import '../../theme/app_theme.dart';
 
 /// Shared chat thread UI — reused for BOTH the general (task-independent)
@@ -11,12 +15,10 @@ import '../../theme/app_theme.dart';
 /// ChatMessage.generalConversationId / taskConversationId) so this widget
 /// itself has no branching logic between the two scopes.
 ///
-/// INTENTIONAL SCOPE LIMITATION (per current product decision): this UI
-/// renders a plain text input + send button ONLY. There is no attachment /
-/// image / file icon anywhere. The underlying `ChatMessage` model already
-/// reserves an `attachmentUrl` field so that attachment support can be
-/// added later purely as a UI change (new icon + upload call), with zero
-/// data-model migration — see message_model.dart.
+/// ATTACHMENTS: a paperclip icon lets the user pick an image (camera-roll)
+/// or an arbitrary file, which is uploaded directly to Cloudinary (unsigned
+/// preset — see CloudinaryService) and the resulting URL is stored on the
+/// message via [ChatMessage.attachmentUrl]/[attachmentName]/[attachmentType].
 ///
 /// [ChatThreadBody] contains no Scaffold/AppBar of its own so it can be
 /// embedded directly inside an existing bottom-nav tab page (which already
@@ -45,6 +47,7 @@ class _ChatThreadBodyState extends State<ChatThreadBody> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   bool _sending = false;
+  bool _uploading = false;
 
   @override
   void initState() {
@@ -103,6 +106,110 @@ class _ChatThreadBodyState extends State<ChatThreadBody> {
     }
   }
 
+  Future<void> _pickAndSendImage() async {
+    final picker = ImagePicker();
+    final XFile? picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    await _uploadAndSend(
+      bytes: bytes,
+      filename: picked.name,
+      attachmentType: 'image',
+    );
+  }
+
+  Future<void> _pickAndSendFile() async {
+    final result = await FilePicker.pickFiles(withData: true);
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذّرت قراءة الملف المحدَّد')),
+        );
+      }
+      return;
+    }
+    await _uploadAndSend(
+      bytes: bytes,
+      filename: file.name,
+      attachmentType: 'file',
+    );
+  }
+
+  Future<void> _uploadAndSend({
+    required List<int> bytes,
+    required String filename,
+    required String attachmentType,
+  }) async {
+    setState(() => _uploading = true);
+    final messageProvider = context.read<MessageProvider>();
+    try {
+      final url = await CloudinaryService.uploadBytes(
+        bytes: bytes,
+        filename: filename,
+      );
+      if (!mounted) return;
+      await messageProvider.sendMessage(
+        conversationId: widget.conversationId,
+        taskId: widget.taskId,
+        senderUid: widget.currentUserUid,
+        recipientUid: widget.otherUserUid,
+        text: '',
+        attachmentUrl: url,
+        attachmentName: filename,
+        attachmentType: attachmentType,
+      );
+      if (mounted) _scrollToBottomSoon();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('تعذّر رفع الملف: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  void _showAttachmentSheet() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.photo_outlined,
+                color: AppColors.deepBlue,
+              ),
+              title: const Text('صورة'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendImage();
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.insert_drive_file_outlined,
+                color: AppColors.deepBlue,
+              ),
+              title: const Text('ملف'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendFile();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -146,10 +253,21 @@ class _ChatThreadBodyState extends State<ChatThreadBody> {
             },
           ),
         ),
+        if (_uploading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 6),
+            child: SizedBox(
+              height: 16,
+              width: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
         _MessageInputBar(
           controller: _controller,
           sending: _sending,
+          uploading: _uploading,
           onSend: _send,
+          onAttach: _showAttachmentSheet,
         ),
       ],
     );
@@ -211,17 +329,28 @@ class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMine;
 
+  Future<void> _openAttachment() async {
+    final url = message.attachmentUrl;
+    if (url == null) return;
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
   @override
   Widget build(BuildContext context) {
     final bubbleColor = isMine ? AppColors.deepBlue : Colors.white;
     final textColor = isMine ? Colors.white : AppColors.textPrimary;
     final timeLabel = DateFormat('HH:mm').format(message.timestamp);
+    final hasAttachment = message.attachmentUrl != null;
+    final isImage = message.attachmentType == 'image';
 
     return Align(
       alignment: isMine ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: hasAttachment && isImage ? 6 : 14,
+          vertical: hasAttachment && isImage ? 6 : 10,
+        ),
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.72,
         ),
@@ -239,16 +368,80 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              message.text,
-              style: TextStyle(color: textColor, fontSize: 14),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              timeLabel,
-              style: TextStyle(
-                color: isMine ? Colors.white70 : AppColors.textSecondary,
-                fontSize: 10,
+            if (hasAttachment && isImage)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: GestureDetector(
+                  onTap: _openAttachment,
+                  child: Image.network(
+                    message.attachmentUrl!,
+                    fit: BoxFit.cover,
+                    height: 160,
+                    width: double.infinity,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 100,
+                      color: Colors.black12,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.broken_image_outlined),
+                    ),
+                  ),
+                ),
+              )
+            else if (hasAttachment)
+              InkWell(
+                onTap: _openAttachment,
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.insert_drive_file_outlined,
+                        size: 20,
+                        color: textColor,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          message.attachmentName ?? 'ملف مرفق',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 13,
+                            decoration: TextDecoration.underline,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (message.text.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.only(
+                  top: hasAttachment ? 6 : 0,
+                  left: hasAttachment && isImage ? 6 : 0,
+                  right: hasAttachment && isImage ? 6 : 0,
+                ),
+                child: Text(
+                  message.text,
+                  style: TextStyle(color: textColor, fontSize: 14),
+                ),
+              ),
+            Padding(
+              padding: EdgeInsets.only(
+                top: 4,
+                left: hasAttachment && isImage ? 6 : 0,
+                right: hasAttachment && isImage ? 6 : 0,
+                bottom: hasAttachment && isImage ? 4 : 0,
+              ),
+              child: Text(
+                timeLabel,
+                style: TextStyle(
+                  color: isMine ? Colors.white70 : AppColors.textSecondary,
+                  fontSize: 10,
+                ),
               ),
             ),
           ],
@@ -258,18 +451,21 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-/// Message composer — text field + send button ONLY. No attachment icon
-/// exists in this widget by design (see class-level doc comment above).
+/// Message composer — text field + attachment (paperclip) + send button.
 class _MessageInputBar extends StatelessWidget {
   const _MessageInputBar({
     required this.controller,
     required this.sending,
+    required this.uploading,
     required this.onSend,
+    required this.onAttach,
   });
 
   final TextEditingController controller;
   final bool sending;
+  final bool uploading;
   final VoidCallback onSend;
+  final VoidCallback onAttach;
 
   @override
   Widget build(BuildContext context) {
@@ -283,6 +479,11 @@ class _MessageInputBar extends StatelessWidget {
         ),
         child: Row(
           children: [
+            IconButton(
+              onPressed: uploading ? null : onAttach,
+              icon: const Icon(Icons.attach_file_rounded),
+              color: AppColors.textSecondary,
+            ),
             Expanded(
               child: TextField(
                 controller: controller,

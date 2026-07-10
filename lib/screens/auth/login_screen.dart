@@ -186,6 +186,14 @@ class _LoginScreenState extends State<LoginScreen>
                   textAlign: TextAlign.center,
                   style: AppTextStyles.captionSm,
                 ),
+                const SizedBox(height: 20),
+                Text(
+                  'Nay211 © 2026',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.captionSm.copyWith(
+                    color: Colors.white.withValues(alpha: 0.5),
+                  ),
+                ),
               ],
             ),
           ),

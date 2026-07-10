@@ -17,12 +17,13 @@
 /// fetching (same pattern used elsewhere in this codebase, see
 /// FirestoreService.getHistoryForTask / getAllInvitations).
 ///
-/// NOTE ON ATTACHMENTS: [attachmentUrl] exists purely for forward-compatibility
-/// so that enabling file/image attachments later (once Firebase Storage
-/// billing is provisioned) requires NO model/schema migration — only a new
-/// UI control that populates this already-existing field. No attachment
-/// UI is rendered anywhere in the current release; this field is always
-/// null for every message created today.
+/// ATTACHMENTS: [attachmentUrl] holds the secure Cloudinary URL of an
+/// uploaded image or file (see CloudinaryService — unsigned client-side
+/// upload, no backend required). [attachmentName] preserves the original
+/// filename for display, since the Cloudinary upload preset used here does
+/// NOT keep the original filename (Use filename: false). [attachmentType]
+/// is `'image'` or `'file'`, letting the UI decide between an inline
+/// thumbnail vs. a generic file chip without re-parsing the URL.
 class ChatMessage {
   final String messageId;
   final String conversationId;
@@ -30,7 +31,9 @@ class ChatMessage {
   final String senderUid;
   final String recipientUid;
   final String text;
-  final String? attachmentUrl; // reserved for future use — always null today
+  final String? attachmentUrl;
+  final String? attachmentName;
+  final String? attachmentType; // 'image' | 'file'
   final DateTime timestamp;
   final DateTime? readAt;
 
@@ -42,6 +45,8 @@ class ChatMessage {
     required this.recipientUid,
     required this.text,
     this.attachmentUrl,
+    this.attachmentName,
+    this.attachmentType,
     required this.timestamp,
     this.readAt,
   });
@@ -63,6 +68,8 @@ class ChatMessage {
       recipientUid: recipientUid,
       text: text,
       attachmentUrl: attachmentUrl,
+      attachmentName: attachmentName,
+      attachmentType: attachmentType,
       timestamp: timestamp,
       readAt: readAt ?? this.readAt,
     );
@@ -77,6 +84,8 @@ class ChatMessage {
       'recipientUid': recipientUid,
       'text': text,
       'attachmentUrl': attachmentUrl,
+      'attachmentName': attachmentName,
+      'attachmentType': attachmentType,
       'timestamp': timestamp.toIso8601String(),
       'readAt': readAt?.toIso8601String(),
     };
@@ -91,6 +100,8 @@ class ChatMessage {
       recipientUid: map['recipientUid'] as String? ?? '',
       text: map['text'] as String? ?? '',
       attachmentUrl: map['attachmentUrl'] as String?,
+      attachmentName: map['attachmentName'] as String?,
+      attachmentType: map['attachmentType'] as String?,
       timestamp: map['timestamp'] != null
           ? DateTime.parse(map['timestamp'] as String)
           : DateTime.now(),
