@@ -28,13 +28,19 @@ Future<void> main() async {
     // If Firebase.initializeApp() above failed to actually register a
     // default app (e.g. threw internally but was mis-caught, or on a
     // platform where FirebaseOptions are still placeholders), calling
-    // FirestoreService.init() will otherwise throw an UNCAUGHT
+    // FirestoreService.initPublic() will otherwise throw an UNCAUGHT
     // FirebaseException deep inside FirebaseFirestore.instance, which
     // previously escaped main() entirely and silently prevented runApp()
     // from ever being called (blank white screen with no visible error).
     // A timeout is also added as defense-in-depth in case Firestore's
     // snapshot listeners never resolve on a restricted network.
-    await FirestoreService.init().timeout(const Duration(seconds: 20));
+    //
+    // NOTE: only the PUBLIC listeners (system/manager_lock + invitations)
+    // are started here — the rest (users/tasks/messages/...) require an
+    // authenticated session under the security rules and are started by
+    // AuthProvider once sign-in succeeds (see restoreSession/login/
+    // registerViaInvite/ensureManagerExists in auth_provider.dart).
+    await FirestoreService.initPublic().timeout(const Duration(seconds: 20));
   } catch (e, st) {
     startupError = e;
     startupStack = st;

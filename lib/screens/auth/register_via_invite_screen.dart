@@ -216,8 +216,8 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                                   setState(() => _obscure = !_obscure),
                             ),
                           ),
-                          validator: (v) => (v == null || v.length < 4)
-                              ? 'كلمة المرور 4 أحرف على الأقل'
+                          validator: (v) => (v == null || v.length < 6)
+                              ? 'كلمة المرور 6 أحرف على الأقل'
                               : null,
                         ),
                         const SizedBox(height: 22),

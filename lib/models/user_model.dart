@@ -13,12 +13,6 @@ class AppUser {
   final DateTime? approvedAt;
   final DateTime createdAt;
 
-  /// NOTE: plain-text password stored in Firestore, ONLY acceptable as an
-  /// interim mechanism before real Firebase Authentication is connected.
-  /// This field will be removed entirely once Firebase Auth
-  /// (email/password) replaces this placeholder mechanism.
-  final String passwordPlaceholder;
-
   AppUser({
     required this.uid,
     required this.name,
@@ -29,7 +23,6 @@ class AppUser {
     this.approvedBy,
     this.approvedAt,
     required this.createdAt,
-    this.passwordPlaceholder = '',
   });
 
   AppUser copyWith({
@@ -40,7 +33,6 @@ class AppUser {
     AccountStatus? accountStatus,
     String? approvedBy,
     DateTime? approvedAt,
-    String? passwordPlaceholder,
   }) {
     return AppUser(
       uid: uid,
@@ -52,7 +44,6 @@ class AppUser {
       approvedBy: approvedBy ?? this.approvedBy,
       approvedAt: approvedAt ?? this.approvedAt,
       createdAt: createdAt,
-      passwordPlaceholder: passwordPlaceholder ?? this.passwordPlaceholder,
     );
   }
 
@@ -67,7 +58,6 @@ class AppUser {
       'approvedBy': approvedBy,
       'approvedAt': approvedAt?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
-      'passwordPlaceholder': passwordPlaceholder,
     };
   }
 
@@ -92,7 +82,6 @@ class AppUser {
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
           : DateTime.now(),
-      passwordPlaceholder: map['passwordPlaceholder'] as String? ?? '',
     );
   }
 }

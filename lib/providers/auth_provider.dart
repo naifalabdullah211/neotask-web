@@ -1,13 +1,28 @@
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/invitation_model.dart';
 import '../services/firestore_service.dart';
 
+/// AuthProvider — backed by real Firebase Authentication (email/password).
+///
+/// SECURITY NOTE (replaces the previous interim mechanism): passwords are no
+/// longer stored or compared in Firestore. `FirebaseAuth.instance` now owns
+/// credential storage/verification entirely; the Firestore `users` document
+/// (`AppUser`) holds ONLY the non-secret profile fields (name, email,
+/// employeeNumber, role, accountStatus, ...) and is keyed by the Firebase
+/// Auth `uid` for every account.
+///
+/// The public method signatures below are UNCHANGED from the previous
+/// implementation on purpose — every screen that calls into this provider
+/// (14 files) continues to work without modification.
 class AuthProvider extends ChangeNotifier {
   AppUser? _currentUser;
   String? _authError;
   bool _isLoading = false;
+
+  final fb_auth.FirebaseAuth _fbAuth = fb_auth.FirebaseAuth.instance;
 
   AppUser? get currentUser => _currentUser;
   String? get authError => _authError;
@@ -18,68 +33,136 @@ class AuthProvider extends ChangeNotifier {
 
   static const _uuid = Uuid();
 
+  /// Restores the session from Firebase Auth's own persisted state (it keeps
+  /// the user signed in across reloads on Web/Android by itself — no manual
+  /// SharedPreferences caching is needed anymore).
   Future<void> restoreSession() async {
-    final uid = FirestoreService.getCurrentUid();
-    if (uid != null) {
-      final user = FirestoreService.getUser(uid);
-      // A previously-active session must not be honored if the manager has
-      // since soft-deleted this account — force it back to the login screen.
-      if (user != null && user.accountStatus == AccountStatus.deleted) {
-        await FirestoreService.setCurrentUid(null);
-        _currentUser = null;
-      } else {
-        _currentUser = user;
-      }
+    final fbUser = _fbAuth.currentUser;
+    if (fbUser == null) {
+      _currentUser = null;
       notifyListeners();
+      return;
     }
+
+    // The `users`/`tasks`/`messages`/... listeners require an authenticated
+    // session under the security rules — must be started (and awaited for
+    // their first snapshot) before any synchronous cache read below.
+    await FirestoreService.initAuthenticated();
+
+    final user = FirestoreService.getUser(fbUser.uid);
+    // A previously-active session must not be honored if the manager has
+    // since soft-deleted this account — force it back to the login screen.
+    if (user == null || user.accountStatus == AccountStatus.deleted) {
+      await _fbAuth.signOut();
+      await FirestoreService.resetAuthenticatedState();
+      _currentUser = null;
+    } else {
+      _currentUser = user;
+    }
+    notifyListeners();
   }
 
   /// Bootstraps the single manager account if none exists yet.
+  ///
+  /// Creates the Firebase Auth account first (credential storage), then the
+  /// Firestore profile document keyed by the resulting Auth uid. If the
+  /// Firestore write fails after the Auth account was created, the Auth
+  /// account is rolled back to avoid an orphaned credential with no profile.
   Future<void> ensureManagerExists({
     required String name,
     required String email,
     required String employeeNumber,
     String password = '',
   }) async {
-    final existingManager = FirestoreService.getManager();
-    if (existingManager != null) return;
+    if (FirestoreService.managerLockExists) return;
 
+    fb_auth.UserCredential cred;
+    try {
+      cred = await _fbAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+    } on fb_auth.FirebaseAuthException catch (e) {
+      _authError = _mapAuthError(e);
+      notifyListeners();
+      return;
+    }
+
+    final fbUid = cred.user!.uid;
     final manager = AppUser(
-      uid: _uuid.v4(),
+      uid: fbUid,
       name: name,
-      email: email,
+      email: email.trim(),
       employeeNumber: employeeNumber,
       role: UserRole.manager,
       accountStatus: AccountStatus.active,
       createdAt: DateTime.now(),
-      passwordPlaceholder: password,
     );
-    await FirestoreService.saveUser(manager);
+
+    // The `system/manager_lock` sentinel + `users/{uid}` doc are created in
+    // one atomic transaction (see createManagerProfile) which requires the
+    // caller to already be signed in as `manager.uid` — start the
+    // authenticated listeners now so subsequent `getManager()`/cache reads
+    // (e.g. from the immediately-following `login()` call) work correctly.
+    await FirestoreService.initAuthenticated();
+
+    bool created;
+    try {
+      created = await FirestoreService.createManagerProfile(manager);
+    } catch (_) {
+      await FirestoreService.resetAuthenticatedState();
+      await cred.user!.delete();
+      rethrow;
+    }
+
+    if (!created) {
+      // Another manager-bootstrap request won the race (or the security
+      // rules already reject this write) — roll back the orphaned Auth
+      // account so the email address is not left stuck on an unusable
+      // credential.
+      await FirestoreService.resetAuthenticatedState();
+      await cred.user!.delete();
+    }
   }
 
-  bool get managerExists => FirestoreService.getManager() != null;
+  /// Whether a manager account exists yet — readable BEFORE sign-in via the
+  /// public `system/manager_lock` sentinel (see
+  /// `FirestoreService.managerLockExists`), since the `users` collection
+  /// itself requires authentication to read under the security rules.
+  bool get managerExists => FirestoreService.managerLockExists;
 
   Future<bool> login(String email, String password) async {
     _isLoading = true;
     _authError = null;
     notifyListeners();
 
-    // NOTE: password verification is currently a plain-text comparison
-    // against a value stored in Firestore (interim mechanism). This will be
-    // replaced by real Firebase Authentication (email/password) next.
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    final user = FirestoreService.getUserByEmail(email.trim());
-    if (user == null) {
-      _authError = 'البريد الإلكتروني غير مسجّل';
+    fb_auth.UserCredential cred;
+    try {
+      cred = await _fbAuth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+    } on fb_auth.FirebaseAuthException catch (e) {
+      _authError = _mapAuthError(e);
       _isLoading = false;
       notifyListeners();
       return false;
     }
 
-    if (user.passwordPlaceholder.isNotEmpty &&
-        user.passwordPlaceholder != password) {
-      _authError = 'كلمة المرور غير صحيحة';
+    final fbUid = cred.user!.uid;
+
+    // Authenticated listeners (users/tasks/messages/...) require a signed-in
+    // session under the security rules — start them now, before any
+    // synchronous cache read.
+    await FirestoreService.initAuthenticated();
+
+    final user = FirestoreService.getUser(fbUid);
+    if (user == null) {
+      // Auth credential exists but no Firestore profile — treat as invalid
+      // account state and sign back out.
+      await FirestoreService.resetAuthenticatedState();
+      await _fbAuth.signOut();
+      _authError = 'الحساب غير مكتمل، يرجى التواصل مع المدير';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -87,13 +170,14 @@ class AuthProvider extends ChangeNotifier {
 
     if (user.accountStatus == AccountStatus.pendingApproval) {
       _currentUser = user;
-      await FirestoreService.setCurrentUid(user.uid);
       _isLoading = false;
       notifyListeners();
       return true; // login succeeds but UI will route to pending screen
     }
 
     if (user.accountStatus == AccountStatus.rejected) {
+      await FirestoreService.resetAuthenticatedState();
+      await _fbAuth.signOut();
       _authError = 'تم رفض طلب انضمامك من قِبل المدير';
       _isLoading = false;
       notifyListeners();
@@ -101,6 +185,8 @@ class AuthProvider extends ChangeNotifier {
     }
 
     if (user.accountStatus == AccountStatus.deleted) {
+      await FirestoreService.resetAuthenticatedState();
+      await _fbAuth.signOut();
       _authError = 'هذا الحساب تم حذفه من قِبل المدير';
       _isLoading = false;
       notifyListeners();
@@ -108,7 +194,6 @@ class AuthProvider extends ChangeNotifier {
     }
 
     _currentUser = user;
-    await FirestoreService.setCurrentUid(user.uid);
     _isLoading = false;
     notifyListeners();
     return true;
@@ -140,9 +225,14 @@ class AuthProvider extends ChangeNotifier {
 
   /// Employee self-registration via a valid single-use invite token.
   ///
-  /// Uses an atomic Firestore transaction (see
-  /// FirestoreService.consumeInviteAndRegister) to guarantee the token
-  /// cannot be consumed twice under concurrent registration attempts.
+  /// Creates the Firebase Auth account first, then runs the atomic
+  /// Firestore transaction (see FirestoreService.consumeInviteAndRegister)
+  /// using the Auth-issued uid as the profile document id — this guarantees
+  /// the token cannot be consumed twice under concurrent registration
+  /// attempts. If the Firestore transaction fails/rejects AFTER the Auth
+  /// account was created (e.g. token already burned by a concurrent
+  /// request), the Auth account is rolled back (deleted) so the email is
+  /// not left "stuck" on an orphaned credential.
   Future<bool> registerViaInvite({
     required String token,
     required String name,
@@ -154,26 +244,54 @@ class AuthProvider extends ChangeNotifier {
     _authError = null;
     notifyListeners();
 
+    fb_auth.UserCredential cred;
+    try {
+      cred = await _fbAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+    } on fb_auth.FirebaseAuthException catch (e) {
+      _authError = _mapAuthError(e);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
+    final fbUid = cred.user!.uid;
     final newUser = AppUser(
-      uid: _uuid.v4(),
+      uid: fbUid,
       name: name,
       email: email.trim(),
       employeeNumber: employeeNumber,
       role: UserRole.employee,
       accountStatus: AccountStatus.pendingApproval,
       createdAt: DateTime.now(),
-      passwordPlaceholder: password,
     );
 
+    // createUserWithEmailAndPassword() above already signs the new account
+    // in — the transaction below writes to `users` as that now-authenticated
+    // uid, which the security rules require.
     final result = await FirestoreService.consumeInviteAndRegister(
       token: token,
       newUser: newUser,
     );
 
     if (result == null) {
-      // Distinguish the two failure causes for a clearer user-facing message.
-      final existing = FirestoreService.getUserByEmail(email.trim());
-      _authError = existing != null
+      // Roll back the orphaned Auth account — the invite/email checks below
+      // are only used to select the correct user-facing error message.
+      // `getUserByEmail` needs the authenticated `users` listener; start it
+      // (best-effort — a failure here just falls back to the generic
+      // "invalid invite" message) before signing back out.
+      String? existingEmail;
+      try {
+        await FirestoreService.initAuthenticated();
+        existingEmail = FirestoreService.getUserByEmail(email.trim())?.email;
+      } catch (_) {
+        // ignore — fall back to generic message below
+      }
+      await FirestoreService.resetAuthenticatedState();
+      await cred.user!.delete();
+      _authError = existingEmail != null
           ? 'هذا البريد الإلكتروني مسجّل بالفعل'
           : 'رابط الدعوة غير صالح أو مُستخدم مسبقًا';
       _isLoading = false;
@@ -181,8 +299,8 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
 
+    await FirestoreService.initAuthenticated();
     _currentUser = result;
-    await FirestoreService.setCurrentUid(result.uid);
     _isLoading = false;
     notifyListeners();
     return true;
@@ -224,6 +342,12 @@ class AuthProvider extends ChangeNotifier {
   /// assignment dropdowns, reports, employee list) since those all filter
   /// on `accountStatus == AccountStatus.active`.
   ///
+  /// NOTE: this does NOT delete the underlying Firebase Auth credential —
+  /// only Firestore-side status is flipped, consistent with the pre-existing
+  /// soft-delete semantics. The `login()` flow above already checks
+  /// `accountStatus == AccountStatus.deleted` and force-signs the account
+  /// back out even if the Auth credential itself still verifies correctly.
+  ///
   /// Task-fate handling (delete vs. reassign the employee's existing tasks)
   /// must be resolved by the caller BEFORE invoking this method — see
   /// `TaskProvider.deleteAllTasksForEmployee` /
@@ -242,7 +366,8 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     _currentUser = null;
-    await FirestoreService.setCurrentUid(null);
+    await FirestoreService.resetAuthenticatedState();
+    await _fbAuth.signOut();
     notifyListeners();
   }
 
@@ -253,6 +378,31 @@ class AuthProvider extends ChangeNotifier {
         _currentUser = updated;
         notifyListeners();
       }
+    }
+  }
+
+  /// Maps FirebaseAuthException error codes to Arabic user-facing messages.
+  String _mapAuthError(fb_auth.FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-email':
+        return 'صيغة البريد الإلكتروني غير صحيحة';
+      case 'user-disabled':
+        return 'هذا الحساب معطّل';
+      case 'user-not-found':
+        return 'البريد الإلكتروني غير مسجّل';
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'كلمة المرور غير صحيحة';
+      case 'email-already-in-use':
+        return 'هذا البريد الإلكتروني مسجّل بالفعل';
+      case 'weak-password':
+        return 'كلمة المرور ضعيفة جدًا — يجب أن تكون 6 أحرف على الأقل';
+      case 'too-many-requests':
+        return 'محاولات كثيرة جدًا، يرجى الانتظار قليلًا ثم المحاولة مرة أخرى';
+      case 'network-request-failed':
+        return 'تعذّر الاتصال بالخادم، تحقّق من اتصال الإنترنت';
+      default:
+        return 'حدث خطأ غير متوقع (${e.code})';
     }
   }
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../models/task_model.dart';
 import '../models/invitation_model.dart';
@@ -49,56 +48,47 @@ class FirestoreService {
   static final _calendarChanges = StreamController<void>.broadcast();
   static final _messagesChanges = StreamController<void>.broadcast();
 
-  // ---- Session (kept local per-device via SharedPreferences — session
-  // identity is intentionally NOT synced across devices/browsers) ----
-  static String? _cachedCurrentUid;
-  static SharedPreferences? _prefs;
+  // NOTE: session/identity is now handled entirely by FirebaseAuth
+  // (see AuthProvider + FirebaseAuth.instance.authStateChanges()) — this
+  // service no longer tracks a locally-cached "currentUid" itself.
 
-  static bool _initialized = false;
+  // ---- "manager exists?" signal, readable BEFORE any sign-in ----
+  //
+  // Under the locked-down Firestore security rules, the `users` collection
+  // requires `request.auth != null` to read — but SplashRouter/AuthProvider
+  // need to know whether a manager account exists at all *before* anyone is
+  // signed in (to decide: show ManagerSetupScreen vs. LoginScreen). This is
+  // answered by the tiny public `system/manager_lock` sentinel document
+  // (created atomically alongside the manager's `users` doc — see
+  // `createManagerProfile` below) instead of querying `users` directly.
+  static bool _managerLockExists = false;
+  static bool get managerLockExists => _managerLockExists;
 
-  static Future<void> init() async {
-    if (_initialized) return;
+  static bool _publicInitialized = false;
+  static bool _authInitialized = false;
+  static final List<StreamSubscription> _authSubscriptions = [];
 
-    _prefs = await SharedPreferences.getInstance();
-    _cachedCurrentUid = _prefs!.getString('currentUid');
+  /// Sets up ONLY the listeners that are safe to run before any user is
+  /// signed in (per the security rules: `system/manager_lock` and
+  /// `invitations` are both public-read — see firestore.rules). Call this
+  /// once at app startup, before FirebaseAuth's session is even checked.
+  static Future<void> initPublic() async {
+    if (_publicInitialized) return;
 
-    final usersDone = Completer<void>();
-    final tasksDone = Completer<void>();
+    final lockDone = Completer<void>();
     final invitationsDone = Completer<void>();
-    final historyDone = Completer<void>();
-    final calendarDone = Completer<void>();
-    final icsDone = Completer<void>();
-    final messagesDone = Completer<void>();
 
     _db
-        .collection('users')
+        .collection('system')
+        .doc('manager_lock')
         .snapshots()
         .listen(
           (snap) {
-            _usersCache = snap.docs
-                .map((d) => AppUser.fromMap(d.data()))
-                .toList();
-            if (!usersDone.isCompleted) usersDone.complete();
-            _usersChanges.add(null);
+            _managerLockExists = snap.exists;
+            if (!lockDone.isCompleted) lockDone.complete();
           },
           onError: (_) {
-            if (!usersDone.isCompleted) usersDone.complete();
-          },
-        );
-
-    _db
-        .collection('tasks')
-        .snapshots()
-        .listen(
-          (snap) {
-            _tasksCache = snap.docs
-                .map((d) => AppTask.fromMap(d.data()))
-                .toList();
-            if (!tasksDone.isCompleted) tasksDone.complete();
-            _tasksChanges.add(null);
-          },
-          onError: (_) {
-            if (!tasksDone.isCompleted) tasksDone.complete();
+            if (!lockDone.isCompleted) lockDone.complete();
           },
         );
 
@@ -118,84 +108,203 @@ class FirestoreService {
           },
         );
 
-    _db
-        .collection('task_history')
-        .snapshots()
-        .listen(
-          (snap) {
-            _historyCache = snap.docs
-                .map((d) => TaskHistoryEntry.fromMap(d.data()))
-                .toList();
-            if (!historyDone.isCompleted) historyDone.complete();
-          },
-          onError: (_) {
-            if (!historyDone.isCompleted) historyDone.complete();
-          },
-        );
+    await Future.wait([
+      lockDone.future,
+      invitationsDone.future,
+    ]).timeout(const Duration(seconds: 15), onTimeout: () => []);
 
-    _db
-        .collection('calendar_imports')
-        .snapshots()
-        .listen(
-          (snap) {
-            _calendarRawCache = snap.docs.map((d) => d.data()).toList();
-            if (!calendarDone.isCompleted) calendarDone.complete();
-            _calendarChanges.add(null);
-          },
-          onError: (_) {
-            if (!calendarDone.isCompleted) calendarDone.complete();
-          },
-        );
+    _publicInitialized = true;
+  }
 
-    _db
-        .collection('calendar_settings')
-        .snapshots()
-        .listen(
-          (snap) {
-            _icsUrlCache.clear();
-            for (final d in snap.docs) {
-              final url = d.data()['icsUrl'] as String?;
-              if (url != null) _icsUrlCache[d.id] = url;
-            }
-            if (!icsDone.isCompleted) icsDone.complete();
-          },
-          onError: (_) {
-            if (!icsDone.isCompleted) icsDone.complete();
-          },
-        );
+  /// Sets up every listener that requires an authenticated session (per the
+  /// security rules). Must be called AFTER Firebase Auth sign-in succeeds
+  /// (see AuthProvider.login / restoreSession / registerViaInvite) and
+  /// BEFORE any UI renders authenticated screens, so synchronous cache
+  /// reads (getAllTasks, getAllEmployees, etc.) are warm by then — mirrors
+  /// the original single-init() design's guarantee.
+  ///
+  /// Idempotent within a single signed-in session (returns immediately if
+  /// already initialized); call `resetAuthenticatedState()` on sign-out so
+  /// the NEXT sign-in (potentially a different account) gets a clean cache
+  /// and fresh listeners scoped to the new session.
+  static Future<void> initAuthenticated() async {
+    if (_authInitialized) return;
 
-    _db
-        .collection('messages')
-        .snapshots()
-        .listen(
-          (snap) {
-            _messagesCache = snap.docs
-                .map((d) => ChatMessage.fromMap(d.data()))
-                .toList();
-            if (!messagesDone.isCompleted) messagesDone.complete();
-            _messagesChanges.add(null);
-          },
-          onError: (_) {
-            if (!messagesDone.isCompleted) messagesDone.complete();
-          },
-        );
+    final usersDone = Completer<void>();
+    final tasksDone = Completer<void>();
+    final historyDone = Completer<void>();
+    final calendarDone = Completer<void>();
+    final icsDone = Completer<void>();
+    final messagesDone = Completer<void>();
+
+    _authSubscriptions.add(
+      _db
+          .collection('users')
+          .snapshots()
+          .listen(
+            (snap) {
+              _usersCache = snap.docs
+                  .map((d) => AppUser.fromMap(d.data()))
+                  .toList();
+              if (!usersDone.isCompleted) usersDone.complete();
+              _usersChanges.add(null);
+            },
+            onError: (_) {
+              if (!usersDone.isCompleted) usersDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('tasks')
+          .snapshots()
+          .listen(
+            (snap) {
+              _tasksCache = snap.docs
+                  .map((d) => AppTask.fromMap(d.data()))
+                  .toList();
+              if (!tasksDone.isCompleted) tasksDone.complete();
+              _tasksChanges.add(null);
+            },
+            onError: (_) {
+              if (!tasksDone.isCompleted) tasksDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('task_history')
+          .snapshots()
+          .listen(
+            (snap) {
+              _historyCache = snap.docs
+                  .map((d) => TaskHistoryEntry.fromMap(d.data()))
+                  .toList();
+              if (!historyDone.isCompleted) historyDone.complete();
+            },
+            onError: (_) {
+              if (!historyDone.isCompleted) historyDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('calendar_imports')
+          .snapshots()
+          .listen(
+            (snap) {
+              _calendarRawCache = snap.docs.map((d) => d.data()).toList();
+              if (!calendarDone.isCompleted) calendarDone.complete();
+              _calendarChanges.add(null);
+            },
+            onError: (_) {
+              if (!calendarDone.isCompleted) calendarDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('calendar_settings')
+          .snapshots()
+          .listen(
+            (snap) {
+              _icsUrlCache.clear();
+              for (final d in snap.docs) {
+                final url = d.data()['icsUrl'] as String?;
+                if (url != null) _icsUrlCache[d.id] = url;
+              }
+              if (!icsDone.isCompleted) icsDone.complete();
+            },
+            onError: (_) {
+              if (!icsDone.isCompleted) icsDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('messages')
+          .snapshots()
+          .listen(
+            (snap) {
+              _messagesCache = snap.docs
+                  .map((d) => ChatMessage.fromMap(d.data()))
+                  .toList();
+              if (!messagesDone.isCompleted) messagesDone.complete();
+              _messagesChanges.add(null);
+            },
+            onError: (_) {
+              if (!messagesDone.isCompleted) messagesDone.complete();
+            },
+          ),
+    );
 
     await Future.wait([
       usersDone.future,
       tasksDone.future,
-      invitationsDone.future,
       historyDone.future,
       calendarDone.future,
       icsDone.future,
       messagesDone.future,
     ]).timeout(const Duration(seconds: 15), onTimeout: () => []);
 
-    _initialized = true;
+    _authInitialized = true;
+  }
+
+  /// Tears down every authenticated-session listener and clears the
+  /// corresponding caches. Call on sign-out so a subsequent sign-in (by the
+  /// same or a different account) starts from a clean, correctly-scoped
+  /// state rather than accumulating duplicate listeners or briefly showing
+  /// the previous account's cached data.
+  static Future<void> resetAuthenticatedState() async {
+    for (final sub in _authSubscriptions) {
+      await sub.cancel();
+    }
+    _authSubscriptions.clear();
+    _usersCache = [];
+    _tasksCache = [];
+    _historyCache = [];
+    _calendarRawCache = [];
+    _icsUrlCache.clear();
+    _messagesCache = [];
+    _authInitialized = false;
   }
 
   // ---------------- USERS ----------------
   static Future<void> saveUser(AppUser user) async {
     await _db.collection('users').doc(user.uid).set(user.toMap());
+  }
+
+  /// Atomically creates the single manager profile document together with
+  /// the `system/manager_lock` sentinel document, in the SAME Firestore
+  /// transaction. This mirrors `consumeInviteAndRegister`'s
+  /// read-then-write-atomically pattern and is what makes the Firestore
+  /// security rule `!exists(/system/manager_lock)` gate on manager-role
+  /// user-doc creation actually race-safe: two concurrent manager-bootstrap
+  /// attempts cannot both succeed, because the second transaction's read of
+  /// `system/manager_lock` will see the first transaction's write once it
+  /// has committed (Firestore transactions guarantee serializability).
+  ///
+  /// Returns `true` if the manager profile was created, `false` if a
+  /// manager (lock) already existed — in which case the caller MUST roll
+  /// back the just-created Firebase Auth credential.
+  static Future<bool> createManagerProfile(AppUser manager) async {
+    return _db.runTransaction<bool>((tx) async {
+      final lockRef = _db.collection('system').doc('manager_lock');
+      final lockSnap = await tx.get(lockRef);
+      if (lockSnap.exists) return false;
+
+      tx.set(_db.collection('users').doc(manager.uid), manager.toMap());
+      tx.set(lockRef, {
+        'createdAt': DateTime.now().toIso8601String(),
+        'createdBy': manager.uid,
+      });
+      return true;
+    });
   }
 
   static AppUser? getUser(String uid) {
@@ -570,15 +679,4 @@ class FirestoreService {
     await batch.commit();
   }
 
-  // ---------------- SESSION (local device only — SharedPreferences) ----------------
-  static Future<void> setCurrentUid(String? uid) async {
-    _cachedCurrentUid = uid;
-    if (uid == null) {
-      await _prefs?.remove('currentUid');
-    } else {
-      await _prefs?.setString('currentUid', uid);
-    }
-  }
-
-  static String? getCurrentUid() => _cachedCurrentUid;
 }

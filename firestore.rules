@@ -1,0 +1,240 @@
+rules_version = '2';
+
+// =============================================================================
+// NeoTask — Firestore Security Rules
+// =============================================================================
+// Replaces the previous `allow read, write: if true;` (fully public,
+// unauthenticated read/write to every document in the database).
+//
+// ARCHITECTURAL CONSTRAINT (see firestore_service.dart): most collections
+// are read via UNFILTERED `.collection(x).snapshots()` listeners (no
+// `.where()`), with role/ownership filtering done client-side in Dart
+// memory. Per official Firestore docs, "rules are not filters — queries are
+// all-or-nothing": a `list`/read rule that conditions on a per-document
+// field (e.g. `resource.data.assignedTo == request.auth.uid`) would make
+// these unfiltered queries FAIL ENTIRELY, not just narrow their results.
+// Reference: https://firebase.google.com/docs/firestore/security/rules-query
+//
+// Therefore this ruleset uses:
+//   READ:  `request.auth != null` (any signed-in account of THIS
+//          deployment) for the collections that are read via unfiltered
+//          listeners. This is the core fix for the reported vulnerability —
+//          previously ANYONE on the public internet, with no account at
+//          all, could read/write everything.
+//   WRITE: strict, per-field, per-role validation — writes are always
+//          single-document operations and are NOT subject to the
+//          "queries are all-or-nothing" limitation above, so real
+//          role-based/ownership enforcement IS applied here.
+//
+// RESIDUAL LIMITATION (flagged, not silently glossed over): this does NOT
+// give employee-vs-employee read isolation (e.g. employee A can technically
+// still read employee B's tasks/messages once signed in, because the
+// client's unfiltered-listen architecture requires a uniform read gate).
+// Closing that fully would require either (a) refactoring every screen to
+// use `.where()`-scoped queries matching per-role rules, or (b) moving reads
+// behind a Cloud Functions callable API. Out of scope for this pass.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // `get()` inside rules bypasses security rules for the read it performs
+    // (this is documented, standard Firestore behavior) — safe to use here
+    // even though a plain employee cannot otherwise read arbitrary fields
+    // of another user's profile via a client query.
+    function isManager() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+    }
+
+    // ---- system/manager_lock sentinel ----
+    // Public-read is intentional: SplashRouter must decide "show
+    // ManagerSetupScreen vs. LoginScreen" BEFORE anyone is signed in, and
+    // this tiny sentinel doc (no PII, just createdAt/createdBy) is how that
+    // decision is made without exposing the `users` collection itself.
+    // Creation is guarded by BOTH this rule AND the atomic Firestore
+    // transaction in `createManagerProfile()` (see firestore_service.dart)
+    // that writes this doc in the SAME transaction as the manager's
+    // `users/{uid}` doc — this is what makes the single-manager invariant
+    // race-safe under concurrent bootstrap attempts.
+    match /system/manager_lock {
+      allow read: if true;
+      allow create: if isSignedIn() &&
+        !exists(/databases/$(database)/documents/system/manager_lock) &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ---- users ----
+    match /users/{uid} {
+      allow read: if isSignedIn();
+
+      // Two creation paths, both keyed by the Firebase Auth uid of the
+      // caller (i.e. you can only ever create YOUR OWN profile doc — the
+      // Auth account itself was already created by the time this write
+      // happens, per AuthProvider.ensureManagerExists/registerViaInvite):
+      //
+      //   1) Manager bootstrap. CRITICAL: it is NOT enough to check
+      //      `!exists(manager_lock)` — that only proves the lock doesn't
+      //      exist YET, it does NOT force the caller to actually create it.
+      //      A client could create this users/{uid} doc with role=manager
+      //      WITHOUT ever writing manager_lock, and repeat that indefinitely
+      //      (every future check would still see !exists(manager_lock)),
+      //      producing unlimited fraudulent managers. This was empirically
+      //      verified against production during rules testing (2026-07-10)
+      //      before this fix was added — see incident notes.
+      //      FIX: use getAfter() to require that, within this SAME atomic
+      //      transaction/batch, system/manager_lock is ALSO created and
+      //      its createdBy field equals this uid. This matches exactly
+      //      what FirestoreService.createManagerProfile()'s transaction
+      //      does — so the legitimate app flow is unaffected, but any
+      //      write that creates a manager-role user doc WITHOUT also
+      //      atomically creating the lock (pointing at the same uid) is
+      //      now rejected at the rules layer, not just by app discipline.
+      //   2) Employee self-registration via invite — the invite-token
+      //      validity itself is enforced by the `invitations` update rule
+      //      below (same transaction, same request.auth).
+      //      RESIDUAL LIMITATION (flagged, NOT fixed in this pass): unlike
+      //      the manager path above, this branch does NOT cross-check via
+      //      getAfter() that a real invitations/{id} doc was atomically
+      //      transitioned to status=used/usedByUid=uid in the same write.
+      //      The invitations query in consumeInviteAndRegister() looks up
+      //      the invite doc by a `where('token', ...)` query, so its
+      //      document ID is not known to this rule without a client-side
+      //      data-model change (e.g. passing inviteId as a field). Impact
+      //      is bounded: this only lets a signed-in user reach
+      //      accountStatus='pendingApproval' without a real invite link —
+      //      it does NOT grant elevated role or bypass manager approval —
+      //      but it is a real, unaddressed gap in the "invite-only
+      //      registration" design and must be explicitly acknowledged.
+      allow create: if isOwner(uid) &&
+        request.resource.data.uid == uid &&
+        (
+          (request.resource.data.role == 'manager' &&
+           request.resource.data.accountStatus == 'active' &&
+           !exists(/databases/$(database)/documents/system/manager_lock) &&
+           getAfter(/databases/$(database)/documents/system/manager_lock).data.createdBy == uid)
+          ||
+          (request.resource.data.role == 'employee' &&
+           request.resource.data.accountStatus == 'pendingApproval')
+        );
+
+      // Only a manager may update another user's doc, and ONLY the
+      // approval-workflow fields (accountStatus/approvedBy/approvedAt) —
+      // this specifically prevents any client from writing `role` after
+      // creation (blocks self-promotion to manager) and prevents a manager
+      // from silently rewriting someone else's email/name via this path.
+      // No self-update path exists in the current app (see
+      // AuthProvider.approveEmployee/rejectEmployee/deleteEmployee — all
+      // manager-actor-only), so isOwner() is deliberately NOT included here.
+      allow update: if isManager() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['accountStatus', 'approvedBy', 'approvedAt']);
+
+      allow delete: if false; // soft-delete only, via accountStatus field
+    }
+
+    // ---- tasks ----
+    match /tasks/{taskId} {
+      allow read: if isSignedIn();
+
+      allow create: if isManager() &&
+        request.resource.data.assignedBy == request.auth.uid;
+
+      // Manager: unrestricted update (review decisions, edits, etc.).
+      // Employee: may update ONLY their own assigned task, and ONLY the
+      // fields their own app flows actually touch (status transitions,
+      // submission note/time, viewed flag) — cannot reassign the task,
+      // change who assigned it, or write review-decision fields that are
+      // manager-only (reviewedBy/reviewDecision/reviewNote/revisionCount).
+      allow update: if isManager() ||
+        (isSignedIn() &&
+         resource.data.assignedTo == request.auth.uid &&
+         request.resource.data.assignedTo == resource.data.assignedTo &&
+         request.resource.data.assignedBy == resource.data.assignedBy &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'submittedAt', 'submissionNote', 'updatedAt', 'viewedByEmployee']));
+
+      allow delete: if isManager();
+    }
+
+    // ---- task_history (append-only audit log) ----
+    match /task_history/{historyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ---- invitations ----
+    // Read stays PUBLIC and unauthenticated on purpose: an employee
+    // clicking a manager-shared invite link has, by definition, no account
+    // yet, so RegisterViaInviteScreen must be able to validate the token
+    // before any sign-in occurs.
+    //
+    // RESIDUAL LIMITATION (flagged): this means any visitor can list ALL
+    // invitation documents (including already-used ones), not just the one
+    // token they were given — i.e. token enumeration is possible. This is a
+    // real, acknowledged trade-off, not eliminated by this pass. A future
+    // hardening step would move invite validation behind a Cloud Functions
+    // callable (server-side single-token lookup) instead of a public
+    // collection read.
+    match /invitations/{inviteId} {
+      allow read: if true;
+
+      allow create: if isManager() &&
+        request.resource.data.createdBy == request.auth.uid;
+
+      // Consuming an invite: the new employee is ALREADY signed in by the
+      // time this write happens (createUserWithEmailAndPassword runs before
+      // the transaction — see AuthProvider.registerViaInvite), so this can
+      // safely require auth. Only a pending -> used transition, only by the
+      // uid that is registering, only touching the three burn-related
+      // fields.
+      allow update: if isSignedIn() &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status == 'used' &&
+        request.resource.data.usedByUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'usedAt', 'usedByUid']);
+
+      allow delete: if false;
+    }
+
+    // ---- messages (general DM + per-task chat threads) ----
+    match /messages/{messageId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+        request.resource.data.senderUid == request.auth.uid;
+
+      // Only the recipient can mark a message read, and only the `readAt`
+      // field — matches markConversationRead's exact semantics.
+      allow update: if isSignedIn() &&
+        resource.data.recipientUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+
+      allow delete: if false;
+    }
+
+    // ---- calendar_imports / calendar_settings ----
+    // Per-user data, but read via the same unfiltered-listen pattern as
+    // above — gated on sign-in only. No PII beyond imported event
+    // titles/times and an ICS feed URL the user supplied themselves.
+    match /calendar_imports/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /calendar_settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+  }
+}
