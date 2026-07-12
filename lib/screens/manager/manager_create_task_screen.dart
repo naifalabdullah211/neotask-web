@@ -13,7 +13,12 @@ import '../../theme/app_theme.dart';
 /// (e.g. "15th of every month") / monthly-weekday-pattern
 /// (e.g. "last Thursday of every month").
 class ManagerCreateTaskScreen extends StatefulWidget {
-  const ManagerCreateTaskScreen({super.key});
+  const ManagerCreateTaskScreen({super.key, this.initialDueDate});
+
+  /// Optional pre-filled due date — passed in when this screen is opened
+  /// from ManagerCalendarScreen (tapping a specific day), so the manager
+  /// doesn't have to re-pick the date they already selected on the calendar.
+  final DateTime? initialDueDate;
 
   @override
   State<ManagerCreateTaskScreen> createState() =>
@@ -27,7 +32,7 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
   final _categoryCtrl = TextEditingController(text: 'عام');
 
   AppUser? _selectedEmployee;
-  DateTime _dueDate = DateTime.now().add(const Duration(days: 1));
+  late DateTime _dueDate;
   TaskPriority _priority = TaskPriority.medium;
   RecurrenceType _recurrenceType = RecurrenceType.none;
   int _dayOfMonth = 1;
@@ -35,6 +40,13 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
   Weekday _weekday = Weekday.monday;
   DateTime? _recurrenceEndDate;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _dueDate =
+        widget.initialDueDate ?? DateTime.now().add(const Duration(days: 1));
+  }
 
   @override
   void dispose() {

@@ -6,6 +6,7 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
+import 'manager_create_task_screen.dart';
 import 'task_review_detail_screen.dart';
 
 enum _MgrRangeMode { day, week, month }
@@ -76,6 +77,17 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('التقويم')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ManagerCreateTaskScreen(initialDueDate: _anchor),
+            ),
+          );
+        },
+        icon: const Icon(Icons.add_task),
+        label: const Text('مهمة جديدة'),
+      ),
       body: SafeArea(
         child: Column(
           children: [
