@@ -5,6 +5,7 @@ import '../../providers/message_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../theme/app_theme.dart';
 import '../shared/splash_router.dart';
+import '../shared/app_drawer.dart';
 import 'employee_tasks_tab.dart';
 import 'employee_calendar_tab.dart';
 import 'employee_chat_tab.dart';
@@ -30,6 +31,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
         .unviewedTaskCountForEmployee(employeeUid);
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,

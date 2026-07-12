@@ -9,6 +9,10 @@ import 'providers/auth_provider.dart';
 import 'providers/task_provider.dart';
 import 'providers/calendar_provider.dart';
 import 'providers/message_provider.dart';
+import 'providers/document_provider.dart';
+import 'providers/meeting_provider.dart';
+import 'providers/contact_provider.dart';
+import 'providers/favorite_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/shared/splash_router.dart';
 
@@ -123,6 +127,10 @@ class NeoTaskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TaskProvider()),
         ChangeNotifierProvider(create: (_) => CalendarProvider()),
         ChangeNotifierProvider(create: (_) => MessageProvider()),
+        ChangeNotifierProvider(create: (_) => DocumentProvider()),
+        ChangeNotifierProvider(create: (_) => MeetingProvider()),
+        ChangeNotifierProvider(create: (_) => ContactProvider()),
+        ChangeNotifierProvider(create: (_) => FavoriteProvider()),
       ],
       child: MaterialApp(
         title: 'NeoTask',

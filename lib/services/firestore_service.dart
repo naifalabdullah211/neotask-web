@@ -6,6 +6,10 @@ import '../models/invitation_model.dart';
 import '../models/task_history_model.dart';
 import '../models/calendar_event_model.dart';
 import '../models/message_model.dart';
+import '../models/document_model.dart';
+import '../models/meeting_model.dart';
+import '../models/contact_model.dart';
+import '../models/favorite_model.dart';
 
 /// FirestoreService — REPLACES LocalDbService (Hive) as of this commit.
 ///
@@ -40,6 +44,10 @@ class FirestoreService {
   static List<Map<String, dynamic>> _calendarRawCache = []; // includes userUid
   static final Map<String, String> _icsUrlCache = {};
   static List<ChatMessage> _messagesCache = [];
+  static List<DocumentItem> _documentsCache = [];
+  static List<MeetingItem> _meetingsCache = [];
+  static List<ContactItem> _contactsCache = [];
+  static List<FavoriteTask> _favoritesCache = [];
 
   // ---- Change signal controllers (mirror Hive's box.watch() pattern) ----
   static final _usersChanges = StreamController<void>.broadcast();
@@ -47,6 +55,10 @@ class FirestoreService {
   static final _invitationsChanges = StreamController<void>.broadcast();
   static final _calendarChanges = StreamController<void>.broadcast();
   static final _messagesChanges = StreamController<void>.broadcast();
+  static final _documentsChanges = StreamController<void>.broadcast();
+  static final _meetingsChanges = StreamController<void>.broadcast();
+  static final _contactsChanges = StreamController<void>.broadcast();
+  static final _favoritesChanges = StreamController<void>.broadcast();
 
   // NOTE: session/identity is now handled entirely by FirebaseAuth
   // (see AuthProvider + FirebaseAuth.instance.authStateChanges()) — this
@@ -136,6 +148,10 @@ class FirestoreService {
     final calendarDone = Completer<void>();
     final icsDone = Completer<void>();
     final messagesDone = Completer<void>();
+    final documentsDone = Completer<void>();
+    final meetingsDone = Completer<void>();
+    final contactsDone = Completer<void>();
+    final favoritesDone = Completer<void>();
 
     _authSubscriptions.add(
       _db
@@ -243,6 +259,78 @@ class FirestoreService {
           ),
     );
 
+    _authSubscriptions.add(
+      _db
+          .collection('documents')
+          .snapshots()
+          .listen(
+            (snap) {
+              _documentsCache = snap.docs
+                  .map((d) => DocumentItem.fromMap(d.data()))
+                  .toList();
+              if (!documentsDone.isCompleted) documentsDone.complete();
+              _documentsChanges.add(null);
+            },
+            onError: (_) {
+              if (!documentsDone.isCompleted) documentsDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('meetings')
+          .snapshots()
+          .listen(
+            (snap) {
+              _meetingsCache = snap.docs
+                  .map((d) => MeetingItem.fromMap(d.data()))
+                  .toList();
+              if (!meetingsDone.isCompleted) meetingsDone.complete();
+              _meetingsChanges.add(null);
+            },
+            onError: (_) {
+              if (!meetingsDone.isCompleted) meetingsDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('contacts')
+          .snapshots()
+          .listen(
+            (snap) {
+              _contactsCache = snap.docs
+                  .map((d) => ContactItem.fromMap(d.data()))
+                  .toList();
+              if (!contactsDone.isCompleted) contactsDone.complete();
+              _contactsChanges.add(null);
+            },
+            onError: (_) {
+              if (!contactsDone.isCompleted) contactsDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('favorites')
+          .snapshots()
+          .listen(
+            (snap) {
+              _favoritesCache = snap.docs
+                  .map((d) => FavoriteTask.fromMap(d.data()))
+                  .toList();
+              if (!favoritesDone.isCompleted) favoritesDone.complete();
+              _favoritesChanges.add(null);
+            },
+            onError: (_) {
+              if (!favoritesDone.isCompleted) favoritesDone.complete();
+            },
+          ),
+    );
+
     await Future.wait([
       usersDone.future,
       tasksDone.future,
@@ -250,6 +338,10 @@ class FirestoreService {
       calendarDone.future,
       icsDone.future,
       messagesDone.future,
+      documentsDone.future,
+      meetingsDone.future,
+      contactsDone.future,
+      favoritesDone.future,
     ]).timeout(const Duration(seconds: 15), onTimeout: () => []);
 
     _authInitialized = true;
@@ -271,6 +363,10 @@ class FirestoreService {
     _calendarRawCache = [];
     _icsUrlCache.clear();
     _messagesCache = [];
+    _documentsCache = [];
+    _meetingsCache = [];
+    _contactsCache = [];
+    _favoritesCache = [];
     _authInitialized = false;
   }
 
@@ -677,6 +773,106 @@ class FirestoreService {
       });
     }
     await batch.commit();
+  }
+
+  // ---------------- DOCUMENTS (shared library, manager + employee) ----------------
+  static Future<void> saveDocument(DocumentItem doc) async {
+    await _db
+        .collection('documents')
+        .doc(doc.documentId)
+        .set(doc.toMap());
+  }
+
+  static Future<void> deleteDocument(String documentId) async {
+    await _db.collection('documents').doc(documentId).delete();
+  }
+
+  static List<DocumentItem> getAllDocuments() {
+    return List<DocumentItem>.from(_documentsCache)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  static Stream<List<DocumentItem>> watchAllDocuments() async* {
+    yield getAllDocuments();
+    yield* _documentsChanges.stream.map((_) => getAllDocuments());
+  }
+
+  // ---------------- MEETINGS (schedule only, no live call integration) ----------------
+  static Future<void> saveMeeting(MeetingItem meeting) async {
+    await _db
+        .collection('meetings')
+        .doc(meeting.meetingId)
+        .set(meeting.toMap());
+  }
+
+  static Future<void> deleteMeeting(String meetingId) async {
+    await _db.collection('meetings').doc(meetingId).delete();
+  }
+
+  static List<MeetingItem> getAllMeetings() {
+    return List<MeetingItem>.from(_meetingsCache)
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+  }
+
+  static Stream<List<MeetingItem>> watchAllMeetings() async* {
+    yield getAllMeetings();
+    yield* _meetingsChanges.stream.map((_) => getAllMeetings());
+  }
+
+  // ---------------- CONTACTS ----------------
+  static Future<void> saveContact(ContactItem contact) async {
+    await _db
+        .collection('contacts')
+        .doc(contact.contactId)
+        .set(contact.toMap());
+  }
+
+  static Future<void> deleteContact(String contactId) async {
+    await _db.collection('contacts').doc(contactId).delete();
+  }
+
+  static List<ContactItem> getAllContacts() {
+    return List<ContactItem>.from(_contactsCache)
+      ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  static Stream<List<ContactItem>> watchAllContacts() async* {
+    yield getAllContacts();
+    yield* _contactsChanges.stream.map((_) => getAllContacts());
+  }
+
+  // ---------------- FAVORITES (per-user starred tasks) ----------------
+  static Future<void> saveFavorite(FavoriteTask favorite) async {
+    await _db
+        .collection('favorites')
+        .doc(favorite.favoriteId)
+        .set(favorite.toMap());
+  }
+
+  static Future<void> removeFavorite(String favoriteId) async {
+    await _db.collection('favorites').doc(favoriteId).delete();
+  }
+
+  /// Deterministic favoriteId so create/remove is idempotent per
+  /// (userUid, taskId) pair without needing a query-then-delete round trip.
+  static String favoriteIdFor(String userUid, String taskId) =>
+      '${userUid}_$taskId';
+
+  static bool isFavorite(String userUid, String taskId) {
+    final id = favoriteIdFor(userUid, taskId);
+    return _favoritesCache.any((f) => f.favoriteId == id);
+  }
+
+  static List<FavoriteTask> getFavoritesForUser(String userUid) {
+    return _favoritesCache.where((f) => f.userUid == userUid).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  static Stream<List<FavoriteTask>> watchFavoritesForUser(
+    String userUid,
+  ) async* {
+    yield getFavoritesForUser(userUid);
+    yield* _favoritesChanges.stream.map((_) => getFavoritesForUser(userUid));
   }
 
 }

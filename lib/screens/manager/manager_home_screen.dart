@@ -7,6 +7,7 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../shared/splash_router.dart';
+import '../shared/app_drawer.dart';
 import 'manager_dashboard_tab.dart';
 import 'manager_review_tab.dart';
 import 'manager_employees_tab.dart';
@@ -48,6 +49,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     ];
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,

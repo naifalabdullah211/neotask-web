@@ -236,5 +236,45 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
+
+    // ---- documents (shared library, manager + employee, Cloudinary-backed) ----
+    match /documents/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.uploadedBy == request.auth.uid;
+      // Only the uploader or a manager may remove a document.
+      allow delete: if isSignedIn() &&
+        (resource.data.uploadedBy == request.auth.uid || isManager());
+      allow update: if false;
+    }
+
+    // ---- meetings (schedule only, no live call integration) ----
+    match /meetings/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isSignedIn() &&
+        (resource.data.createdBy == request.auth.uid || isManager());
+    }
+
+    // ---- contacts ----
+    match /contacts/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isSignedIn() &&
+        (resource.data.createdBy == request.auth.uid || isManager());
+    }
+
+    // ---- favorites (per-user starred tasks; docId is deterministic
+    //      "{userUid}_{taskId}" — see FirestoreService.favoriteIdFor) ----
+    match /favorites/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.userUid == request.auth.uid;
+      allow delete: if isSignedIn() &&
+        resource.data.userUid == request.auth.uid;
+      allow update: if false;
+    }
   }
 }
