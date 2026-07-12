@@ -91,7 +91,18 @@ class ManagerReviewTab extends StatelessWidget {
                           ),
                       ],
                     ),
-                    trailing: const StatusChip(statusName: 'submitted'),
+                    trailing: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const StatusChip(statusName: 'submitted'),
+                        const SizedBox(height: 4),
+                        PriorityBadge(
+                          priorityName: t.priority.name,
+                          compact: true,
+                        ),
+                      ],
+                    ),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => TaskReviewDetailScreen(task: t),

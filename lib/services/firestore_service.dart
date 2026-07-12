@@ -10,6 +10,9 @@ import '../models/document_model.dart';
 import '../models/meeting_model.dart';
 import '../models/contact_model.dart';
 import '../models/favorite_model.dart';
+import '../models/goal_model.dart';
+import '../models/criterion_model.dart';
+import '../models/criterion_history_model.dart';
 
 /// FirestoreService — REPLACES LocalDbService (Hive) as of this commit.
 ///
@@ -48,6 +51,12 @@ class FirestoreService {
   static List<MeetingItem> _meetingsCache = [];
   static List<ContactItem> _contactsCache = [];
   static List<FavoriteTask> _favoritesCache = [];
+  // NEW (Goal/Criteria feature — added ALONGSIDE the existing task system,
+  // per the manager's explicit answer "١- اضافه" — see goal_model.dart /
+  // criterion_model.dart doc comments for the full feature rationale).
+  static List<Goal> _goalsCache = [];
+  static List<Criterion> _criteriaCache = [];
+  static List<CriterionHistoryEntry> _criterionHistoryCache = [];
 
   // ---- Change signal controllers (mirror Hive's box.watch() pattern) ----
   static final _usersChanges = StreamController<void>.broadcast();
@@ -59,6 +68,8 @@ class FirestoreService {
   static final _meetingsChanges = StreamController<void>.broadcast();
   static final _contactsChanges = StreamController<void>.broadcast();
   static final _favoritesChanges = StreamController<void>.broadcast();
+  static final _goalsChanges = StreamController<void>.broadcast();
+  static final _criteriaChanges = StreamController<void>.broadcast();
 
   // NOTE: session/identity is now handled entirely by FirebaseAuth
   // (see AuthProvider + FirebaseAuth.instance.authStateChanges()) — this
@@ -152,6 +163,9 @@ class FirestoreService {
     final meetingsDone = Completer<void>();
     final contactsDone = Completer<void>();
     final favoritesDone = Completer<void>();
+    final goalsDone = Completer<void>();
+    final criteriaDone = Completer<void>();
+    final criterionHistoryDone = Completer<void>();
 
     _authSubscriptions.add(
       _db
@@ -331,6 +345,63 @@ class FirestoreService {
           ),
     );
 
+    _authSubscriptions.add(
+      _db
+          .collection('goals')
+          .snapshots()
+          .listen(
+            (snap) {
+              _goalsCache = snap.docs
+                  .map((d) => Goal.fromMap(d.data()))
+                  .toList();
+              if (!goalsDone.isCompleted) goalsDone.complete();
+              _goalsChanges.add(null);
+            },
+            onError: (_) {
+              if (!goalsDone.isCompleted) goalsDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('criteria')
+          .snapshots()
+          .listen(
+            (snap) {
+              _criteriaCache = snap.docs
+                  .map((d) => Criterion.fromMap(d.data()))
+                  .toList();
+              if (!criteriaDone.isCompleted) criteriaDone.complete();
+              _criteriaChanges.add(null);
+            },
+            onError: (_) {
+              if (!criteriaDone.isCompleted) criteriaDone.complete();
+            },
+          ),
+    );
+
+    _authSubscriptions.add(
+      _db
+          .collection('criterion_history')
+          .snapshots()
+          .listen(
+            (snap) {
+              _criterionHistoryCache = snap.docs
+                  .map((d) => CriterionHistoryEntry.fromMap(d.data()))
+                  .toList();
+              if (!criterionHistoryDone.isCompleted) {
+                criterionHistoryDone.complete();
+              }
+            },
+            onError: (_) {
+              if (!criterionHistoryDone.isCompleted) {
+                criterionHistoryDone.complete();
+              }
+            },
+          ),
+    );
+
     await Future.wait([
       usersDone.future,
       tasksDone.future,
@@ -342,6 +413,9 @@ class FirestoreService {
       meetingsDone.future,
       contactsDone.future,
       favoritesDone.future,
+      goalsDone.future,
+      criteriaDone.future,
+      criterionHistoryDone.future,
     ]).timeout(const Duration(seconds: 15), onTimeout: () => []);
 
     _authInitialized = true;
@@ -367,6 +441,9 @@ class FirestoreService {
     _meetingsCache = [];
     _contactsCache = [];
     _favoritesCache = [];
+    _goalsCache = [];
+    _criteriaCache = [];
+    _criterionHistoryCache = [];
     _authInitialized = false;
   }
 
@@ -620,6 +697,98 @@ class FirestoreService {
 
   static List<TaskHistoryEntry> getHistoryForTask(String taskId) {
     return _historyCache.where((h) => h.taskId == taskId).toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+  }
+
+  // ---------------- GOALS (new — additive feature, see goal_model.dart) ----------------
+  static Future<void> saveGoal(Goal goal) async {
+    await _db.collection('goals').doc(goal.goalId).set(goal.toMap());
+  }
+
+  static Future<void> deleteGoal(String goalId) async {
+    await _db.collection('goals').doc(goalId).delete();
+  }
+
+  static Goal? getGoal(String goalId) {
+    for (final g in _goalsCache) {
+      if (g.goalId == goalId) return g;
+    }
+    return null;
+  }
+
+  static List<Goal> getAllGoals() => List.unmodifiable(_goalsCache);
+
+  static Stream<List<Goal>> watchAllGoals() async* {
+    yield getAllGoals();
+    yield* _goalsChanges.stream.map((_) => getAllGoals());
+  }
+
+  // ---------------- CRITERIA (new — additive feature, see criterion_model.dart) ----------------
+  static Future<void> saveCriterion(Criterion criterion) async {
+    await _db
+        .collection('criteria')
+        .doc(criterion.criterionId)
+        .set(criterion.toMap());
+  }
+
+  static Future<void> deleteCriterion(String criterionId) async {
+    await _db.collection('criteria').doc(criterionId).delete();
+  }
+
+  static Criterion? getCriterion(String criterionId) {
+    for (final c in _criteriaCache) {
+      if (c.criterionId == criterionId) return c;
+    }
+    return null;
+  }
+
+  static List<Criterion> getAllCriteria() => List.unmodifiable(_criteriaCache);
+
+  static List<Criterion> getCriteriaForGoal(String goalId) {
+    return _criteriaCache.where((c) => c.goalId == goalId).toList()
+      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+  }
+
+  /// Criteria can have MULTIPLE assignees (per the manager's explicit
+  /// answer "٤- يمكن لعدة موظفين المشاركة بحسب رغبة المدير") — hence
+  /// list-membership (`contains`), never `==` equality like the single-
+  /// assignee `AppTask.assignedTo` check in `getTasksForEmployee`.
+  static List<Criterion> getCriteriaForEmployee(String uid) {
+    return _criteriaCache.where((c) => c.assignedTo.contains(uid)).toList()
+      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+  }
+
+  static Stream<List<Criterion>> watchAllCriteria() async* {
+    yield getAllCriteria();
+    yield* _criteriaChanges.stream.map((_) => getAllCriteria());
+  }
+
+  static Stream<List<Criterion>> watchCriteriaForGoal(String goalId) async* {
+    yield getCriteriaForGoal(goalId);
+    yield* _criteriaChanges.stream.map((_) => getCriteriaForGoal(goalId));
+  }
+
+  static Stream<List<Criterion>> watchCriteriaForEmployee(String uid) async* {
+    yield getCriteriaForEmployee(uid);
+    yield* _criteriaChanges.stream.map((_) => getCriteriaForEmployee(uid));
+  }
+
+  // ---------------- CRITERION HISTORY (new, parallel to TASK HISTORY) ----------------
+  static Future<void> addCriterionHistoryEntry(
+    CriterionHistoryEntry entry,
+  ) async {
+    await _db
+        .collection('criterion_history')
+        .doc(entry.historyId)
+        .set(entry.toMap());
+  }
+
+  static List<CriterionHistoryEntry> getHistoryForCriterion(
+    String criterionId,
+  ) {
+    return _criterionHistoryCache
+        .where((h) => h.criterionId == criterionId)
+        .toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
   }
 

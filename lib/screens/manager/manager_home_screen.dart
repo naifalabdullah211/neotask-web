@@ -14,6 +14,7 @@ import 'manager_employees_tab.dart';
 import 'manager_reports_tab.dart';
 import 'manager_chat_tab.dart';
 import 'manager_create_task_screen.dart';
+import '../shared/search_screen.dart';
 
 class ManagerHomeScreen extends StatefulWidget {
   const ManagerHomeScreen({super.key});
@@ -64,6 +65,15 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'بحث',
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'تسجيل الخروج',
             icon: const Icon(Icons.logout),

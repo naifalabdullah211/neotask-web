@@ -9,6 +9,7 @@ import '../shared/app_drawer.dart';
 import 'employee_tasks_tab.dart';
 import 'employee_calendar_tab.dart';
 import 'employee_chat_tab.dart';
+import '../shared/search_screen.dart';
 
 class EmployeeHomeScreen extends StatefulWidget {
   const EmployeeHomeScreen({super.key});
@@ -46,6 +47,15 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'بحث',
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'تسجيل الخروج',
             icon: const Icon(Icons.logout),

@@ -6,6 +6,7 @@ import 'documents_screen.dart';
 import 'meetings_screen.dart';
 import 'contacts_screen.dart';
 import 'favorites_screen.dart';
+import 'goals_list_screen.dart';
 import '../manager/manager_calendar_screen.dart';
 
 /// Shared side-menu ("Drawer") giving BOTH manager and employee access to
@@ -77,6 +78,11 @@ class AppDrawer extends StatelessWidget {
                 title: const Text('التقويم'),
                 onTap: () => push(const ManagerCalendarScreen()),
               ),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined),
+              title: const Text('الأهداف'),
+              onTap: () => push(const GoalsListScreen()),
+            ),
             ListTile(
               leading: const Icon(Icons.folder_outlined),
               title: const Text('المستندات'),
