@@ -96,25 +96,13 @@ class _LoginScreenState extends State<LoginScreen>
             constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
               children: [
-                Container(
-                  width: 88,
-                  height: 88,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      width: 1,
-                    ),
-                  ),
+                SizedBox(
+                  width: 200,
                   child: Image.asset(
-                    'assets/images/neotask_logo.png',
+                    'assets/images/neotask_logo_full.png',
                     fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text('NeoTask', style: AppTextStyles.headlineLg),
                 const SizedBox(height: 8),
                 const Text('مهامك أسهل', style: AppTextStyles.bodySm),
                 const SizedBox(height: 40),

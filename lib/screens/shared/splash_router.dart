@@ -87,18 +87,20 @@ class _NeoTaskLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 96,
-      height: 96,
+      width: 220,
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: AppColors.deepBlue.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: AppColors.deepBlue.withValues(alpha: 0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Image.asset('assets/images/neotask_logo.png', fit: BoxFit.contain),
+      child: Image.asset(
+        'assets/images/neotask_logo_full.png',
+        fit: BoxFit.contain,
+      ),
     );
   }
 }

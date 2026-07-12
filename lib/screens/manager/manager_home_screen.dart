@@ -49,7 +49,18 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_titles[_index]),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/neotask_logo.png',
+              height: 28,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 10),
+            Text(_titles[_index]),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'تسجيل الخروج',
