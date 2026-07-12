@@ -390,6 +390,14 @@ class _HistoryTile extends StatelessWidget {
         return Icons.edit_outlined;
       case HistoryAction.statusChange:
         return Icons.sync_alt;
+      case HistoryAction.reassignRequested:
+        return Icons.swap_horiz;
+      case HistoryAction.reassignApproved:
+        return Icons.check_circle_outline;
+      case HistoryAction.reassignRejected:
+        return Icons.cancel_outlined;
+      case HistoryAction.reassignConfirmed:
+        return Icons.assignment_turned_in_outlined;
     }
   }
 
@@ -405,16 +413,28 @@ class _HistoryTile extends StatelessWidget {
         return 'طلب تعديل من المدير';
       case HistoryAction.statusChange:
         return 'تحديث الحالة';
+      case HistoryAction.reassignRequested:
+        return 'طلب إسناد لموظف آخر';
+      case HistoryAction.reassignApproved:
+        return 'موافقة على الإسناد';
+      case HistoryAction.reassignRejected:
+        return 'رفض الإسناد';
+      case HistoryAction.reassignConfirmed:
+        return 'تأكيد استلام الموظف الجديد';
     }
   }
 
   Color get _color {
     switch (entry.action) {
       case HistoryAction.approve:
+      case HistoryAction.reassignApproved:
+      case HistoryAction.reassignConfirmed:
         return AppColors.statusApproved;
       case HistoryAction.reject:
+      case HistoryAction.reassignRejected:
         return AppColors.statusRejected;
       case HistoryAction.editRequest:
+      case HistoryAction.reassignRequested:
         return AppColors.statusPending;
       default:
         return AppColors.textSecondary;

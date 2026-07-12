@@ -147,19 +147,49 @@ service cloud.firestore {
       allow create: if isManager() &&
         request.resource.data.assignedBy == request.auth.uid;
 
-      // Manager: unrestricted update (review decisions, edits, etc.).
-      // Employee: may update ONLY their own assigned task, and ONLY the
-      // fields their own app flows actually touch (status transitions,
-      // submission note/time, viewed flag) — cannot reassign the task,
-      // change who assigned it, or write review-decision fields that are
-      // manager-only (reviewedBy/reviewDecision/reviewNote/revisionCount).
+      // Manager: unrestricted update (review decisions, edits, reassignment
+      // approve/reject, etc.).
+      //
+      // Employee — THREE distinct self-service branches (none may change
+      // `assignedBy`, and none of the manager-only review-decision fields
+      // reviewedBy/reviewDecision/reviewNote/revisionCount may be touched):
+      //
+      //   (a) Normal lifecycle — the assignee updates their own task's
+      //       status/submission fields. `assignedTo` unchanged.
+      //   (b) Reassignment REQUEST (NEW feature) — the CURRENT assignee
+      //       proposes handing the task to someone else. `assignedTo` is
+      //       NOT changed by this branch (per answer ٦: only the new
+      //       employee's own confirmation, branch (c), may change it) —
+      //       only the 4 reassignRequest* fields + updatedAt are written,
+      //       and reassignRequestedStatus must be exactly 'pending'.
+      //   (c) Reassignment CONFIRMATION (NEW feature) — the PROPOSED new
+      //       employee accepts a manager-approved request. This is the
+      //       ONLY employee-write branch allowed to change `assignedTo`,
+      //       and only to their OWN uid, and only when the task was
+      //       already sitting in 'awaitingNewEmployee' addressed to them.
       allow update: if isManager() ||
         (isSignedIn() &&
          resource.data.assignedTo == request.auth.uid &&
          request.resource.data.assignedTo == resource.data.assignedTo &&
          request.resource.data.assignedBy == resource.data.assignedBy &&
          request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['status', 'submittedAt', 'submissionNote', 'updatedAt', 'viewedByEmployee']));
+           .hasOnly(['status', 'submittedAt', 'submissionNote', 'updatedAt', 'viewedByEmployee'])) ||
+        (isSignedIn() &&
+         resource.data.assignedTo == request.auth.uid &&
+         request.resource.data.assignedTo == resource.data.assignedTo &&
+         request.resource.data.assignedBy == resource.data.assignedBy &&
+         request.resource.data.reassignRequestedStatus == 'pending' &&
+         request.resource.data.reassignRequestedBy == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['reassignRequestedTo', 'reassignRequestedBy', 'reassignRequestedAt', 'reassignRequestedStatus', 'updatedAt'])) ||
+        (isSignedIn() &&
+         resource.data.reassignRequestedStatus == 'awaitingNewEmployee' &&
+         resource.data.reassignRequestedTo == request.auth.uid &&
+         request.resource.data.assignedTo == request.auth.uid &&
+         request.resource.data.assignedBy == resource.data.assignedBy &&
+         request.resource.data.reassignRequestedStatus == null &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['assignedTo', 'reassignRequestedTo', 'reassignRequestedBy', 'reassignRequestedAt', 'reassignRequestedStatus', 'viewedByEmployee', 'updatedAt']));
 
       allow delete: if isManager();
     }

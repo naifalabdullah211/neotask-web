@@ -312,6 +312,158 @@ class TaskProvider extends ChangeNotifier {
     return FirestoreService.getHistoryForTask(taskId);
   }
 
+  // =========================================================================
+  // EMPLOYEE-INITIATED TASK REASSIGNMENT (NEW — additive feature)
+  // =========================================================================
+  // Design answers from the manager (verbatim, translated):
+  //   ١- أي مهمة (any task, any status — no restriction).
+  //   ٢- الموظف الأول يستمر بالعمل لحين موافقة المدير (current employee is
+  //      NOT blocked from continuing normal task actions while a request is
+  //      pending — deliberately does NOT gate updateStatus/submitForReview/
+  //      resumeAfterFeedback on reassignRequestedStatus).
+  //   ٣- بعد الموافقة تنتقل المهمة بكل مافيها (كل الحقول الأخرى) للموظف
+  //      الجديد — only `assignedTo` changes; status/history/reviewNote/etc.
+  //      are carried over unmodified.
+  //   ٤- الرفض لا يتطلب سبب، وتبقى المهمة عند الموظف الأول بالكامل.
+  //   ٥- أي موظف (نشط) يمكن اختياره كموظف جديد — enforced at the UI layer
+  //      (screen only lists AccountStatus.active employees), not re-checked
+  //      here since TaskProvider has no direct dependency on AuthProvider's
+  //      user list by design (see FirestoreService.getAllEmployees()).
+  //   ٦- الموظف الجديد يحتاج لتأكيد استلامها — approval alone does NOT move
+  //      `assignedTo`; see confirmReassignmentByNewEmployee().
+  //
+  // JUDGMENT CALL (flagged, not covered by the manager's answers): what if
+  // the NEW employee does not want to accept after the manager approves?
+  // No "decline by new employee" action was requested, so none is
+  // implemented — the task simply remains in 'awaitingNewEmployee' limbo
+  // (still fully usable/visible to the ORIGINAL employee, since assignedTo
+  // has not changed yet) until the new employee confirms. A future
+  // extension point, not built here.
+
+  /// Employee-initiated: propose handing [taskId] over to [requestedTo].
+  /// Does NOT alter task status/fields other than the 4 reassignRequest*
+  /// fields — the current employee keeps working on the task normally.
+  Future<void> requestReassignment({
+    required String taskId,
+    required String requestedBy, // current (first) employee's uid
+    required String requestedTo, // proposed new employee's uid
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return;
+    if (requestedBy == requestedTo) {
+      throw ArgumentError('لا يمكن إسناد المهمة لنفس الموظف');
+    }
+    final updated = task.copyWith(
+      reassignRequestedTo: requestedTo,
+      reassignRequestedBy: requestedBy,
+      reassignRequestedAt: DateTime.now(),
+      reassignRequestedStatus: 'pending',
+      updatedAt: DateTime.now(),
+    );
+    await FirestoreService.saveTask(updated);
+    await _logHistory(
+      taskId,
+      HistoryAction.reassignRequested,
+      requestedBy,
+      note: 'طلب إسناد المهمة إلى موظف آخر (uid: $requestedTo)',
+    );
+  }
+
+  /// Manager's binary decision on a pending reassignment request.
+  /// Reject: per answer ٤, requires NO note — task's reassign* fields are
+  /// simply cleared and the task remains fully with the original employee.
+  /// Approve: moves to 'awaitingNewEmployee' — assignedTo is UNCHANGED
+  /// until the new employee explicitly confirms (answer ٦).
+  Future<void> decideReassignmentRequest({
+    required String taskId,
+    required String managerUid,
+    required bool approve,
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return;
+    if (task.reassignRequestedStatus != 'pending') return;
+
+    if (!approve) {
+      final updated = task.copyWith(
+        clearReassignRequest: true,
+        updatedAt: DateTime.now(),
+      );
+      await FirestoreService.saveTask(updated);
+      await _logHistory(
+        taskId,
+        HistoryAction.reassignRejected,
+        managerUid,
+        note: 'رفض المدير طلب إسناد المهمة',
+      );
+      return;
+    }
+
+    final updated = task.copyWith(
+      reassignRequestedStatus: 'awaitingNewEmployee',
+      updatedAt: DateTime.now(),
+    );
+    await FirestoreService.saveTask(updated);
+    await _logHistory(
+      taskId,
+      HistoryAction.reassignApproved,
+      managerUid,
+      note: 'وافق المدير على طلب الإسناد؛ بانتظار تأكيد الموظف الجديد',
+    );
+  }
+
+  /// The NEW employee's confirmation of receipt (answer ٦). Only now does
+  /// `assignedTo` actually change — the task moves "بكل مافيها" (with all
+  /// its current fields/status/history untouched) per answer ٣.
+  Future<void> confirmReassignmentByNewEmployee({
+    required String taskId,
+    required String newEmployeeUid,
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return;
+    if (task.reassignRequestedStatus != 'awaitingNewEmployee' ||
+        task.reassignRequestedTo != newEmployeeUid) {
+      return;
+    }
+    final updated = task.copyWith(
+      assignedTo: newEmployeeUid,
+      clearReassignRequest: true,
+      // A new assignee should see this as a fresh/unread item, mirroring
+      // the "new task" notification badge semantics used elsewhere.
+      viewedByEmployee: false,
+      updatedAt: DateTime.now(),
+    );
+    await FirestoreService.saveTask(updated);
+    await _logHistory(
+      taskId,
+      HistoryAction.reassignConfirmed,
+      newEmployeeUid,
+      note: 'أكّد الموظف الجديد استلام المهمة',
+    );
+  }
+
+  /// Tasks with a reassignment request awaiting the MANAGER's decision.
+  /// Feeds the "طلبات الإسناد" section inside the existing manager review
+  /// tab (per answer ٧: shown in the current review tab, not a new one).
+  List<AppTask> get reassignmentRequestsForManager => _allTasks
+      .where((t) => t.reassignRequestedStatus == 'pending')
+      .toList()
+    ..sort(
+      (a, b) => (a.reassignRequestedAt ?? a.updatedAt).compareTo(
+        b.reassignRequestedAt ?? b.updatedAt,
+      ),
+    );
+
+  /// Tasks approved by the manager and awaiting THIS employee's
+  /// confirmation of receipt (answer ٦).
+  List<AppTask> reassignmentsAwaitingConfirmation(String employeeUid) =>
+      _allTasks
+          .where(
+            (t) =>
+                t.reassignRequestedStatus == 'awaitingNewEmployee' &&
+                t.reassignRequestedTo == employeeUid,
+          )
+          .toList();
+
   Future<void> _logHistory(
     String taskId,
     HistoryAction action,

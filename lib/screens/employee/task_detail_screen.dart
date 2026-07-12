@@ -12,6 +12,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/recurrence_utils.dart';
 import '../../widgets/status_chip.dart';
 import '../shared/chat_thread_screen.dart';
+import '../shared/request_reassignment_dialog.dart';
 
 /// Employee-facing task detail screen. Lets the employee move a task from
 /// assigned -> inProgress -> submitted (with optional note), and resume
@@ -51,6 +52,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       uid,
     );
     if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _requestReassignment(String uid) async {
+    await showRequestReassignmentDialog(
+      context,
+      task: widget.task,
+      currentEmployeeUid: uid,
+    );
   }
 
   Future<void> _resumeWork(String uid) async {
@@ -167,6 +176,40 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            // ---- Reassignment-request status banner (NEW feature) ----
+            if (current.reassignRequestedStatus == 'pending')
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.statusPending.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'تم إرسال طلب إسناد هذه المهمة لموظف آخر، وهو بانتظار موافقة المدير. يمكنك الاستمرار بالعمل عليها حتى الرد.',
+                  style: TextStyle(fontSize: 13),
+                ),
+              )
+            else if (current.reassignRequestedStatus == 'awaitingNewEmployee')
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.statusApproved.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'وافق المدير على إسناد هذه المهمة لموظف آخر، وهي الآن بانتظار تأكيده. المهمة لا تزال معك حتى يتم التأكيد.',
+                  style: TextStyle(fontSize: 13),
+                ),
+              )
+            else
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _requestReassignment(uid),
+                icon: const Icon(Icons.swap_horiz),
+                label: const Text('طلب إسناد المهمة لموظف آخر'),
+              ),
+            const SizedBox(height: 12),
             if (current.status == TaskStatus.assigned)
               ElevatedButton.icon(
                 onPressed: _busy ? null : () => _startWork(uid),
@@ -347,6 +390,14 @@ class _HistoryTile extends StatelessWidget {
         return 'طُلب تعديل';
       case HistoryAction.statusChange:
         return 'تحديث الحالة';
+      case HistoryAction.reassignRequested:
+        return 'طلب إسناد لموظف آخر';
+      case HistoryAction.reassignApproved:
+        return 'وافق المدير على الإسناد';
+      case HistoryAction.reassignRejected:
+        return 'رفض المدير الإسناد';
+      case HistoryAction.reassignConfirmed:
+        return 'تأكيد استلام المهمة من الموظف الجديد';
     }
   }
 

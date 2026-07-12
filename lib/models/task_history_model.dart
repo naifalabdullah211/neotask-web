@@ -1,4 +1,17 @@
-enum HistoryAction { submit, approve, reject, editRequest, statusChange }
+enum HistoryAction {
+  submit,
+  approve,
+  reject,
+  editRequest,
+  statusChange,
+  // NEW — employee-initiated task reassignment feature (additive, see
+  // TaskProvider.requestReassignment/decideReassignmentRequest/
+  // confirmReassignmentByNewEmployee).
+  reassignRequested, // employee A asked to hand the task to employee B
+  reassignApproved, // manager approved; awaiting B's confirmation
+  reassignRejected, // manager rejected; task stays with A, no reason required
+  reassignConfirmed, // B confirmed receipt; assignedTo is now B
+}
 
 class TaskHistoryEntry {
   final String historyId;

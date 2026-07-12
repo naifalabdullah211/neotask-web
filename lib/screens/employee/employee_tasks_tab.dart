@@ -3,6 +3,7 @@ import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
@@ -68,10 +69,36 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
     final tasks = _tasksForRange(provider);
+    // NEW — tasks a manager approved for reassignment TO this employee,
+    // awaiting this employee's own confirmation of receipt (per the
+    // manager's design answer "٦- يحتاج لتأكيد استلامها").
+    final awaitingConfirmation = provider.reassignmentsAwaitingConfirmation(
+      widget.employeeUid,
+    );
 
     return SafeArea(
       child: Column(
         children: [
+          if (awaitingConfirmation.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'مهام بانتظار تأكيد استلامك',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...awaitingConfirmation.map(
+                    (t) => _ReassignConfirmationCard(
+                      task: t,
+                      employeeUid: widget.employeeUid,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: SegmentedButton<_EmpRangeMode>(
@@ -180,6 +207,76 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One task the manager approved for handover TO this employee, awaiting
+/// this employee's explicit confirmation before `assignedTo` actually
+/// changes (per answer "٦- يحتاج لتأكيد استلامها"). The original employee
+/// keeps the task, unaffected, until this confirmation happens.
+class _ReassignConfirmationCard extends StatefulWidget {
+  const _ReassignConfirmationCard({
+    required this.task,
+    required this.employeeUid,
+  });
+  final AppTask task;
+  final String employeeUid;
+
+  @override
+  State<_ReassignConfirmationCard> createState() =>
+      _ReassignConfirmationCardState();
+}
+
+class _ReassignConfirmationCardState
+    extends State<_ReassignConfirmationCard> {
+  bool _busy = false;
+
+  Future<void> _confirm() async {
+    setState(() => _busy = true);
+    await context.read<TaskProvider>().confirmReassignmentByNewEmployee(
+      taskId: widget.task.taskId,
+      newEmployeeUid: widget.employeeUid,
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم تأكيد استلام المهمة، وهي الآن مهمتك')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.task;
+    final fromEmployee = FirestoreService.getUser(t.reassignRequestedBy ?? '');
+    return Card(
+      color: AppColors.statusApproved.withValues(alpha: 0.06),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(
+              'وافق المدير على إسناد هذه المهمة إليك من ${fromEmployee?.name ?? 'موظف آخر'}. المهمة ستنتقل بكل تفاصيلها الحالية بعد تأكيدك.',
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.statusApproved,
+                ),
+                onPressed: _busy ? null : _confirm,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('تأكيد استلام المهمة'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
