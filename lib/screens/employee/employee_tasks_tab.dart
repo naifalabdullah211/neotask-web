@@ -5,6 +5,7 @@ import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
+import '../../widgets/task_urgency_indicator.dart';
 import 'task_detail_screen.dart';
 
 enum _EmpRangeMode { day, week, month }
@@ -123,6 +124,7 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
                               builder: (_) => TaskDetailScreen(task: t),
                             ),
                           ),
+                          leading: TaskUrgencyDot(task: t),
                           title: Text(
                             t.title,
                             style: const TextStyle(fontWeight: FontWeight.w600),

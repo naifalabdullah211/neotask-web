@@ -6,6 +6,7 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
+import '../../widgets/task_urgency_indicator.dart';
 import 'manager_create_task_screen.dart';
 import 'task_review_detail_screen.dart';
 
@@ -144,6 +145,7 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
                                 builder: (_) => TaskReviewDetailScreen(task: t),
                               ),
                             ),
+                            leading: TaskUrgencyDot(task: t),
                             title: Text(
                               t.title,
                               style: const TextStyle(fontWeight: FontWeight.w600),
