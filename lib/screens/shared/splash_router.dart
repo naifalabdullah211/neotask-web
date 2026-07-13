@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../theme/app_theme.dart';
 import '../auth/login_screen.dart';
 import '../auth/pending_approval_screen.dart';
 import '../auth/register_via_invite_screen.dart';
@@ -92,12 +91,19 @@ class _NeoTaskLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Opaque white card behind the logo — same fix applied to
+    // login_screen.dart. The logo's dark navy wordmark has low contrast
+    // directly on the dark navy/slate background gradient; mounting it on
+    // white restores legibility instead of just adding a drop shadow.
     return Container(
       width: 220,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.deepBlue.withValues(alpha: 0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),

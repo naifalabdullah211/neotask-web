@@ -159,7 +159,7 @@ class _EmployeeCalendarTabState extends State<EmployeeCalendarTab> {
                 child: ListTile(
                   leading: const Icon(
                     Icons.event_note_outlined,
-                    color: AppColors.lightBlue,
+                    color: AppColors.steel,
                   ),
                   title: Text(e.summary),
                   subtitle: Text(

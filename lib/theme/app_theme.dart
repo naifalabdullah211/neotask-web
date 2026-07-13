@@ -1,35 +1,54 @@
 import 'package:flutter/material.dart';
 
-/// NeoTask color palette — inspired by geometric gradient tones
-/// (deep navy, purple, green, light blue) WITHOUT using any official logo.
+/// NeoTask color palette — "legendary/premium" scheme: a grounded, deep
+/// ink-navy base with a single gold accent, replacing the previous
+/// navy→blue→purple gradient (a documented "AI-generated design"
+/// anti-pattern: over-saturated multi-hue purple/blue gradients + candy
+/// pastel status colors). This palette deliberately uses ONLY two brand
+/// hues (ink navy + gold) instead of four competing bright ones, which is
+/// what makes premium/luxury interfaces read as intentional rather than
+/// templated.
 class AppColors {
-  static const Color navy = Color(0xFF0B1D4D);
-  static const Color deepBlue = Color(0xFF1E3A8A);
-  static const Color purple = Color(0xFF7C3AED);
-  static const Color green = Color(0xFF10B981);
-  static const Color lightBlue = Color(0xFF38BDF8);
+  // Deep, desaturated "ink" tones — replace the old bright navy/blue.
+  static const Color navy = Color(0xFF0F1B2E); // near-black ink navy
+  static const Color deepBlue = Color(0xFF1B3A5C); // grounded slate-blue
+  static const Color inkDeep = Color(0xFF13293D); // third gradient anchor
+
+  // Single accent hue used for "premium/legendary" highlights — replaces
+  // the previous bright violet `purple`.
+  static const Color gold = Color(0xFFC9972A);
+  static const Color goldLight = Color(0xFFE8C468);
+
+  // Replaces the old candy-bright `green` / `lightBlue`.
+  static const Color emerald = Color(0xFF15803D);
+  static const Color steel = Color(0xFF3E6B8C);
 
   static const Color background = Color(0xFFF5F7FB);
   static const Color surface = Colors.white;
   static const Color textPrimary = Color(0xFF11182C);
   static const Color textSecondary = Color(0xFF64748B);
 
-  static const Color statusPending = Color(0xFFF59E0B);
-  static const Color statusApproved = Color(0xFF10B981);
-  static const Color statusRejected = Color(0xFFEF4444);
-  static const Color statusInProgress = Color(0xFF38BDF8);
-  static const Color statusSubmitted = Color(0xFF7C3AED);
+  static const Color statusPending = Color(0xFFB45309); // deep amber
+  static const Color statusApproved = Color(0xFF15803D); // = emerald
+  static const Color statusRejected = Color(0xFFB3261E); // deep crimson
+  static const Color statusInProgress = Color(0xFF3E6B8C); // = steel
+  static const Color statusSubmitted = Color(0xFFC9972A); // = gold
 
+  /// Monochrome-dark gradient (ink → slate → deep teal-charcoal). No
+  /// bright purple/pink anchor — this is the direct fix for the
+  /// "purple/pink AI gradient" defect.
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [navy, deepBlue, purple],
+    colors: [navy, deepBlue, inkDeep],
   );
 
+  /// Reserved for premium highlight touches only (badges, banners) — not
+  /// used as a full-screen background gradient.
   static const LinearGradient accentGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [green, lightBlue],
+    colors: [gold, goldLight],
   );
 }
 
@@ -73,8 +92,8 @@ class AppTheme {
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.deepBlue,
         primary: AppColors.deepBlue,
-        secondary: AppColors.purple,
-        tertiary: AppColors.green,
+        secondary: AppColors.gold,
+        tertiary: AppColors.emerald,
         surface: AppColors.surface,
       ),
       scaffoldBackgroundColor: AppColors.background,

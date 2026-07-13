@@ -72,10 +72,17 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                     Container(
                       width: 96,
                       height: 96,
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
                       child: Image.asset(
                         'assets/images/neotask_logo.png',

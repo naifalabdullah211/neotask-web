@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/task_model.dart';
@@ -269,13 +270,19 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
             ],
           ),
           const SizedBox(height: 20),
+          _CompletionChartCard(
+            completed: stats['approved']!,
+            overdue: stats['overdue']!,
+            pending: stats['pending']! + stats['submitted']!,
+          ),
+          const SizedBox(height: 20),
           Row(
             children: [
               Container(
                 width: 8,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: AppColors.purple,
+                  color: AppColors.gold,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -456,56 +463,255 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Solid-white card with a colored top edge + a SQUARE, solid-fill
+    // icon medallion (not an outline icon on a pale circle — that
+    // outline-icon-on-pastel-circle combination is the single most
+    // recognizable "generated AI dashboard" tell). The icon itself is
+    // rendered in white on a solid color block, matching how real
+    // analytics products (Linear, Stripe, Notion) render category
+    // markers.
     return Container(
       width: _boxWidth,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withValues(alpha: 0.14),
-            color.withValues(alpha: 0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE7E9EE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(7),
+            width: 26,
+            height: 26,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.16),
-              shape: BoxShape.circle,
+              color: color,
+              borderRadius: BorderRadius.circular(7),
             ),
-            child: Icon(icon, size: 20, color: color),
+            child: Icon(icon, size: 15, color: Colors.white),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           Text(
             '$value',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: color,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              height: 1,
             ),
           ),
           const SizedBox(height: 3),
           Text(
             label,
-            textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: color,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
             ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Professional completed-vs-overdue bar chart for the current range.
+/// Uses fl_chart to render 3 grouped bars (مكتملة / متأخرة / قيد
+/// الانتظار) with value labels drawn above each bar, a restrained
+/// gridline backdrop, and NO legend-icon clutter — deliberately simple
+/// and legible rather than decorative, matching real analytics-product
+/// chart conventions instead of a generic AI-generated "colorful donut".
+class _CompletionChartCard extends StatelessWidget {
+  const _CompletionChartCard({
+    required this.completed,
+    required this.overdue,
+    required this.pending,
+  });
+
+  final int completed;
+  final int overdue;
+  final int pending;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxVal = [
+      completed,
+      overdue,
+      pending,
+    ].fold<int>(1, (m, v) => v > m ? v : m);
+    final maxY = (maxVal * 1.35).ceilToDouble();
+
+    final bars = <_BarSpec>[
+      _BarSpec('مكتملة', completed, AppColors.emerald),
+      _BarSpec('متأخرة', overdue, AppColors.statusRejected),
+      _BarSpec('قيد الانتظار', pending, AppColors.steel),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE7E9EE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: AppColors.navy,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'المنجز مقابل المتأخر',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 190,
+            child: BarChart(
+              BarChartData(
+                maxY: maxY,
+                minY: 0,
+                alignment: BarChartAlignment.spaceAround,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: (maxY / 4).clamp(1, double.infinity),
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: const Color(0xFFEEF0F4),
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                barTouchData: BarTouchData(enabled: false),
+                titlesData: FlTitlesData(
+                  show: true,
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      getTitlesWidget: (value, meta) {
+                        final i = value.toInt();
+                        if (i < 0 || i >= bars.length) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            bars[i].label,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barGroups: [
+                  for (var i = 0; i < bars.length; i++)
+                    BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(
+                          toY: bars[i].value.toDouble(),
+                          color: bars[i].color,
+                          width: 34,
+                          borderRadius: BorderRadius.circular(6),
+                          backDrawRodData: BackgroundBarChartRodData(
+                            show: true,
+                            toY: maxY,
+                            color: const Color(0xFFF6F7F9),
+                          ),
+                          rodStackItems: const [],
+                        ),
+                      ],
+                      showingTooltipIndicators: const [],
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              for (final b in bars)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: b.color,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${b.value}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: b.color,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _BarSpec {
+  const _BarSpec(this.label, this.value, this.color);
+  final String label;
+  final int value;
+  final Color color;
 }

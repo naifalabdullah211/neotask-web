@@ -209,7 +209,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                   IconButton(
                                     icon: const Icon(
                                       Icons.call_outlined,
-                                      color: AppColors.green,
+                                      color: AppColors.emerald,
                                     ),
                                     onPressed: () => _call(c.phone),
                                   ),

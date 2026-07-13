@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/task_model.dart';
@@ -117,45 +118,57 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
             ],
           ),
           const SizedBox(height: 8),
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 1.3,
+          // Fixed-size boxes via Wrap (not GridView.count — see the
+          // designer dashboard's identical fix for why GridView.count
+          // stretches cells on wide viewports).
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 10,
+            runSpacing: 10,
             children: [
               _StatCard(
                 label: 'الإجمالي',
                 value: stats['total']!,
                 color: AppColors.deepBlue,
+                icon: Icons.assignment_outlined,
               ),
               _StatCard(
                 label: 'مكتملة',
                 value: stats['approved']!,
                 color: AppColors.statusApproved,
+                icon: Icons.check_circle_outline,
               ),
               _StatCard(
                 label: 'قيد الانتظار',
                 value: stats['pending']!,
                 color: AppColors.statusPending,
+                icon: Icons.hourglass_empty,
               ),
               _StatCard(
                 label: 'بانتظار المراجعة',
                 value: stats['submitted']!,
                 color: AppColors.statusSubmitted,
+                icon: Icons.rate_review_outlined,
               ),
               _StatCard(
                 label: 'مرفوضة',
                 value: stats['rejected']!,
                 color: AppColors.statusRejected,
+                icon: Icons.cancel_outlined,
               ),
               _StatCard(
                 label: 'متأخرة',
                 value: stats['overdue']!,
-                color: Colors.orange.shade800,
+                color: AppColors.statusRejected.withValues(alpha: 0.85),
+                icon: Icons.warning_amber_outlined,
               ),
             ],
+          ),
+          const SizedBox(height: 20),
+          _ManagerCompletionChartCard(
+            completed: stats['approved']!,
+            overdue: stats['overdue']!,
+            pending: stats['pending']! + stats['submitted']!,
           ),
           const SizedBox(height: 20),
           Text(
@@ -219,41 +232,257 @@ class _StatCard extends StatelessWidget {
   final String label;
   final int value;
   final Color color;
+  final IconData icon;
 
   const _StatCard({
     required this.label,
     required this.value,
     required this.color,
+    required this.icon,
   });
+
+  static const double _boxWidth = 104;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      width: _boxWidth,
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE7E9EE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(icon, size: 15, color: Colors.white),
+          ),
+          const SizedBox(height: 10),
           Text(
             '$value',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: color,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              height: 1,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(
             label,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: color),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Same completed/overdue/pending bar chart used on the designer
+/// dashboard — kept as a separate class here (rather than importing the
+/// private widget from the other file) since both `_CompletionChartCard`
+/// classes are file-private by convention in this codebase.
+class _ManagerCompletionChartCard extends StatelessWidget {
+  const _ManagerCompletionChartCard({
+    required this.completed,
+    required this.overdue,
+    required this.pending,
+  });
+
+  final int completed;
+  final int overdue;
+  final int pending;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxVal = [
+      completed,
+      overdue,
+      pending,
+    ].fold<int>(1, (m, v) => v > m ? v : m);
+    final maxY = (maxVal * 1.35).ceilToDouble();
+
+    final bars = <_ManagerBarSpec>[
+      _ManagerBarSpec('مكتملة', completed, AppColors.emerald),
+      _ManagerBarSpec('متأخرة', overdue, AppColors.statusRejected),
+      _ManagerBarSpec('قيد الانتظار', pending, AppColors.steel),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE7E9EE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: AppColors.navy,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'المنجز مقابل المتأخر',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 190,
+            child: BarChart(
+              BarChartData(
+                maxY: maxY,
+                minY: 0,
+                alignment: BarChartAlignment.spaceAround,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: (maxY / 4).clamp(1, double.infinity),
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: const Color(0xFFEEF0F4),
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                barTouchData: BarTouchData(enabled: false),
+                titlesData: FlTitlesData(
+                  show: true,
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      getTitlesWidget: (value, meta) {
+                        final i = value.toInt();
+                        if (i < 0 || i >= bars.length) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            bars[i].label,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barGroups: [
+                  for (var i = 0; i < bars.length; i++)
+                    BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(
+                          toY: bars[i].value.toDouble(),
+                          color: bars[i].color,
+                          width: 34,
+                          borderRadius: BorderRadius.circular(6),
+                          backDrawRodData: BackgroundBarChartRodData(
+                            show: true,
+                            toY: maxY,
+                            color: const Color(0xFFF6F7F9),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              for (final b in bars)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: b.color,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${b.value}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: b.color,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManagerBarSpec {
+  const _ManagerBarSpec(this.label, this.value, this.color);
+  final String label;
+  final int value;
+  final Color color;
 }
