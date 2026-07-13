@@ -86,6 +86,28 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
     'ديسمبر',
   ];
 
+  String _modeLabel(_RangeMode m) {
+    switch (m) {
+      case _RangeMode.day:
+        return 'يومي';
+      case _RangeMode.week:
+        return 'أسبوعي';
+      case _RangeMode.month:
+        return 'شهري';
+    }
+  }
+
+  IconData get _modeIcon {
+    switch (_mode) {
+      case _RangeMode.day:
+        return Icons.today_outlined;
+      case _RangeMode.week:
+        return Icons.view_week_outlined;
+      case _RangeMode.month:
+        return Icons.calendar_month_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
@@ -96,34 +118,105 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SegmentedButton<_RangeMode>(
-            segments: const [
-              ButtonSegment(value: _RangeMode.day, label: Text('يومي')),
-              ButtonSegment(value: _RangeMode.week, label: Text('أسبوعي')),
-              ButtonSegment(value: _RangeMode.month, label: Text('شهري')),
-            ],
-            selected: {_mode},
-            onSelectionChanged: (s) => setState(() => _mode = s.first),
+          // Eye-catching gradient card combining the range-mode DROPDOWN
+          // (replaces the previous 3-way SegmentedButton per user request)
+          // with the day/week/month date navigator.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.deepBlue.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<_RangeMode>(
+                      value: _mode,
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.white,
+                      ),
+                      selectedItemBuilder: (context) => _RangeMode.values
+                          .map(
+                            (m) => Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(_modeIcon, size: 16, color: Colors.white),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _modeLabel(m),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          .toList(),
+                      items: _RangeMode.values
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(
+                                _modeLabel(m),
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setState(() => _mode = v);
+                      },
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    _NavArrowButton(
+                      icon: Icons.chevron_right,
+                      onTap: () => _shift(1),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _rangeLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    _NavArrowButton(
+                      icon: Icons.chevron_left,
+                      onTap: () => _shift(-1),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: () => _shift(1),
-              ),
-              Text(
-                _rangeLabel,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: () => _shift(-1),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           GridView.count(
             crossAxisCount: 3,
             shrinkWrap: true,
@@ -165,11 +258,27 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
             ],
           ),
           const SizedBox(height: 20),
-          Text(
-            'المهام (${rangeTasks.length})',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: AppColors.purple,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'المهام (${rangeTasks.length})',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           if (rangeTasks.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
@@ -181,40 +290,136 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
               ),
             )
           else
-            ...rangeTasks.map(
-              (t) => Card(
-                child: ListTile(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => DesignerTaskViewScreen(task: t),
+            ...rangeTasks.map((t) => _TaskCard(task: t)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact circular chevron button used for the day/week/month navigator,
+/// styled to sit on the dark gradient header (white translucent circle).
+class _NavArrowButton extends StatelessWidget {
+  const _NavArrowButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 18),
+      ),
+    );
+  }
+}
+
+/// Eye-catching task row: a colored left accent stripe (matches the task's
+/// status color) + soft-tinted background, replacing the previous plain
+/// [Card]/[ListTile] row.
+class _TaskCard extends StatelessWidget {
+  const _TaskCard({required this.task});
+
+  final AppTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = statusColor(task.status.name);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => DesignerTaskViewScreen(task: task),
+              ),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+            ),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  Container(
+                    width: 5,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(14),
                       ),
-                    );
-                  },
-                  leading: TaskUrgencyDot(task: t),
-                  title: Text(
-                    t.title,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
-                  subtitle: Text(
-                    '${t.category} · ${intl.DateFormat('yyyy/MM/dd').format(t.dueDate)}',
-                  ),
-                  trailing: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      StatusChip(statusName: t.status.name),
-                      const SizedBox(height: 4),
-                      PriorityBadge(
-                        priorityName: t.priority.name,
-                        compact: true,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
                       ),
-                    ],
+                      child: Row(
+                        children: [
+                          TaskUrgencyDot(task: task),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  task.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '${task.category} · ${intl.DateFormat('yyyy/MM/dd').format(task.dueDate)}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              StatusChip(statusName: task.status.name),
+                              const SizedBox(height: 4),
+                              PriorityBadge(
+                                priorityName: task.priority.name,
+                                compact: true,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
