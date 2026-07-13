@@ -232,39 +232,33 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
             runSpacing: 10,
             children: [
               _StatCard(
-                label: 'الإجمالي',
+                metric: DashboardMetric.total,
                 value: stats['total']!,
-                color: AppColors.deepBlue,
                 icon: Icons.assignment_outlined,
               ),
               _StatCard(
-                label: 'مكتملة',
+                metric: DashboardMetric.completed,
                 value: stats['approved']!,
-                color: AppColors.statusApproved,
                 icon: Icons.check_circle_outline,
               ),
               _StatCard(
-                label: 'قيد الانتظار',
+                metric: DashboardMetric.pending,
                 value: stats['pending']!,
-                color: AppColors.statusPending,
                 icon: Icons.hourglass_empty,
               ),
               _StatCard(
-                label: 'بانتظار المراجعة',
+                metric: DashboardMetric.review,
                 value: stats['submitted']!,
-                color: AppColors.statusSubmitted,
                 icon: Icons.rate_review_outlined,
               ),
               _StatCard(
-                label: 'مرفوضة',
+                metric: DashboardMetric.rejected,
                 value: stats['rejected']!,
-                color: AppColors.statusRejected,
                 icon: Icons.cancel_outlined,
               ),
               _StatCard(
-                label: 'متأخرة',
+                metric: DashboardMetric.overdue,
                 value: stats['overdue']!,
-                color: Colors.orange.shade800,
                 icon: Icons.warning_amber_outlined,
               ),
             ],
@@ -444,15 +438,13 @@ class _TaskCard extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  final String label;
+  final DashboardMetric metric;
   final int value;
-  final Color color;
   final IconData icon;
 
   const _StatCard({
-    required this.label,
+    required this.metric,
     required this.value,
-    required this.color,
     required this.icon,
   });
 
@@ -463,6 +455,13 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Color/label read from the shared dashboardMetricColors/
+    // dashboardMetricLabelsAr maps (app_theme.dart) — single source of
+    // truth shared with _CompletionChartCard below, so the same metric
+    // can never render two different colors between the stat card and
+    // the chart.
+    final color = dashboardMetricColors[metric]!;
+    final label = dashboardMetricLabelsAr[metric]!;
     // Solid-white card with a colored top edge + a SQUARE, solid-fill
     // icon medallion (not an outline icon on a pale circle — that
     // outline-icon-on-pastel-circle combination is the single most
@@ -551,10 +550,13 @@ class _CompletionChartCard extends StatelessWidget {
     ].fold<int>(1, (m, v) => v > m ? v : m);
     final maxY = (maxVal * 1.35).ceilToDouble();
 
+    // Same DashboardMetric enum + shared color/label maps used by the
+    // stat cards above — guarantees "مكتملة"/"متأخرة"/"قيد الانتظار"
+    // render in IDENTICAL colors in both the cards and this chart.
     final bars = <_BarSpec>[
-      _BarSpec('مكتملة', completed, AppColors.emerald),
-      _BarSpec('متأخرة', overdue, AppColors.statusRejected),
-      _BarSpec('قيد الانتظار', pending, AppColors.steel),
+      _BarSpec(DashboardMetric.completed, completed),
+      _BarSpec(DashboardMetric.overdue, overdue),
+      _BarSpec(DashboardMetric.pending, pending),
     ];
 
     return Container(
@@ -659,15 +661,15 @@ class _CompletionChartCard extends StatelessWidget {
                           color: bars[i].color,
                           width: 34,
                           borderRadius: BorderRadius.circular(6),
-                          backDrawRodData: BackgroundBarChartRodData(
-                            show: true,
-                            toY: maxY,
-                            color: const Color(0xFFF6F7F9),
-                          ),
-                          rodStackItems: const [],
+                          // NOTE: deliberately NOT using
+                          // backDrawRodData/BackgroundBarChartRodData
+                          // here — a full-height pale-gray "ghost" bar
+                          // behind every real bar reads as an unfinished
+                          // loading skeleton, not a chart. The faint
+                          // horizontal gridlines (gridData above) are
+                          // enough visual reference for scale.
                         ),
                       ],
-                      showingTooltipIndicators: const [],
                     ),
                 ],
               ),
@@ -710,8 +712,11 @@ class _CompletionChartCard extends StatelessWidget {
 }
 
 class _BarSpec {
-  const _BarSpec(this.label, this.value, this.color);
-  final String label;
+  _BarSpec(this.metric, this.value)
+    : label = dashboardMetricLabelsAr[metric]!,
+      color = dashboardMetricColors[metric]!;
+  final DashboardMetric metric;
   final int value;
+  final String label;
   final Color color;
 }

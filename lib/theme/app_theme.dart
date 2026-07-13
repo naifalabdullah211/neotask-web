@@ -34,6 +34,15 @@ class AppColors {
   static const Color statusInProgress = Color(0xFF3E6B8C); // = steel
   static const Color statusSubmitted = Color(0xFFC9972A); // = gold
 
+  /// Distinct from [statusRejected] on purpose — "متأخرة" (overdue, a
+  /// computed due-date metric) and "مرفوضة" (rejected, an actual
+  /// TaskStatus) are different concepts and must never share one color,
+  /// otherwise dashboard cards/charts showing both side by side become
+  /// visually ambiguous. Previously `overdue` inconsistently used
+  /// `Colors.orange.shade800` on stat cards but `statusRejected` on the
+  /// chart — this constant is now the single source of truth for BOTH.
+  static const Color overdue = Color(0xFFD64545);
+
   /// Monochrome-dark gradient (ink → slate → deep teal-charcoal). No
   /// bright purple/pink anchor — this is the direct fix for the
   /// "purple/pink AI gradient" defect.
@@ -160,6 +169,39 @@ class AppTheme {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard aggregate-metric colors/labels — SINGLE SOURCE OF TRUTH.
+//
+// `statusColor()`/`statusLabelAr()` below map a *TaskStatus enum value*
+// (assigned/inProgress/submitted/approved/rejected/editRequested) to a
+// color — that is a different, narrower vocabulary than what the
+// dashboard's stat cards + completion chart show, which are computed
+// AGGREGATE buckets ('total', 'pending', 'overdue', etc. — see
+// TaskProvider.statsForRange) that don't map 1:1 onto TaskStatus. Any
+// dashboard widget rendering one of these aggregate keys (a stat card OR
+// a chart bar) MUST read color/label from here, not inline a color
+// literal — this is what previously let "متأخرة" drift to two different
+// reds between the stat card and the chart.
+enum DashboardMetric { total, completed, pending, review, rejected, overdue }
+
+const Map<DashboardMetric, Color> dashboardMetricColors = {
+  DashboardMetric.total: AppColors.deepBlue,
+  DashboardMetric.completed: AppColors.statusApproved,
+  DashboardMetric.pending: AppColors.statusPending,
+  DashboardMetric.review: AppColors.statusSubmitted,
+  DashboardMetric.rejected: AppColors.statusRejected,
+  DashboardMetric.overdue: AppColors.overdue,
+};
+
+const Map<DashboardMetric, String> dashboardMetricLabelsAr = {
+  DashboardMetric.total: 'الإجمالي',
+  DashboardMetric.completed: 'مكتملة',
+  DashboardMetric.pending: 'قيد الانتظار',
+  DashboardMetric.review: 'بانتظار المراجعة',
+  DashboardMetric.rejected: 'مرفوضة',
+  DashboardMetric.overdue: 'متأخرة',
+};
 
 Color statusColor(String statusName) {
   switch (statusName) {

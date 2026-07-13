@@ -127,39 +127,33 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
             runSpacing: 10,
             children: [
               _StatCard(
-                label: 'الإجمالي',
+                metric: DashboardMetric.total,
                 value: stats['total']!,
-                color: AppColors.deepBlue,
                 icon: Icons.assignment_outlined,
               ),
               _StatCard(
-                label: 'مكتملة',
+                metric: DashboardMetric.completed,
                 value: stats['approved']!,
-                color: AppColors.statusApproved,
                 icon: Icons.check_circle_outline,
               ),
               _StatCard(
-                label: 'قيد الانتظار',
+                metric: DashboardMetric.pending,
                 value: stats['pending']!,
-                color: AppColors.statusPending,
                 icon: Icons.hourglass_empty,
               ),
               _StatCard(
-                label: 'بانتظار المراجعة',
+                metric: DashboardMetric.review,
                 value: stats['submitted']!,
-                color: AppColors.statusSubmitted,
                 icon: Icons.rate_review_outlined,
               ),
               _StatCard(
-                label: 'مرفوضة',
+                metric: DashboardMetric.rejected,
                 value: stats['rejected']!,
-                color: AppColors.statusRejected,
                 icon: Icons.cancel_outlined,
               ),
               _StatCard(
-                label: 'متأخرة',
+                metric: DashboardMetric.overdue,
                 value: stats['overdue']!,
-                color: AppColors.statusRejected.withValues(alpha: 0.85),
                 icon: Icons.warning_amber_outlined,
               ),
             ],
@@ -229,15 +223,13 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
 }
 
 class _StatCard extends StatelessWidget {
-  final String label;
+  final DashboardMetric metric;
   final int value;
-  final Color color;
   final IconData icon;
 
   const _StatCard({
-    required this.label,
+    required this.metric,
     required this.value,
-    required this.color,
     required this.icon,
   });
 
@@ -245,6 +237,11 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Color/label read from the shared dashboardMetricColors/
+    // dashboardMetricLabelsAr maps (app_theme.dart) — single source of
+    // truth shared with _ManagerCompletionChartCard below.
+    final color = dashboardMetricColors[metric]!;
+    final label = dashboardMetricLabelsAr[metric]!;
     return Container(
       width: _boxWidth,
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
@@ -324,10 +321,13 @@ class _ManagerCompletionChartCard extends StatelessWidget {
     ].fold<int>(1, (m, v) => v > m ? v : m);
     final maxY = (maxVal * 1.35).ceilToDouble();
 
+    // Same DashboardMetric enum + shared color/label maps used by the
+    // stat cards above — guarantees identical colors between the cards
+    // and this chart.
     final bars = <_ManagerBarSpec>[
-      _ManagerBarSpec('مكتملة', completed, AppColors.emerald),
-      _ManagerBarSpec('متأخرة', overdue, AppColors.statusRejected),
-      _ManagerBarSpec('قيد الانتظار', pending, AppColors.steel),
+      _ManagerBarSpec(DashboardMetric.completed, completed),
+      _ManagerBarSpec(DashboardMetric.overdue, overdue),
+      _ManagerBarSpec(DashboardMetric.pending, pending),
     ];
 
     return Container(
@@ -432,11 +432,11 @@ class _ManagerCompletionChartCard extends StatelessWidget {
                           color: bars[i].color,
                           width: 34,
                           borderRadius: BorderRadius.circular(6),
-                          backDrawRodData: BackgroundBarChartRodData(
-                            show: true,
-                            toY: maxY,
-                            color: const Color(0xFFF6F7F9),
-                          ),
+                          // Deliberately NOT using backDrawRodData/
+                          // BackgroundBarChartRodData — a full-height
+                          // pale-gray "ghost" bar behind every real bar
+                          // reads as an unfinished loading skeleton, not
+                          // a chart. Gridlines above give scale instead.
                         ),
                       ],
                     ),
@@ -481,8 +481,11 @@ class _ManagerCompletionChartCard extends StatelessWidget {
 }
 
 class _ManagerBarSpec {
-  const _ManagerBarSpec(this.label, this.value, this.color);
-  final String label;
+  _ManagerBarSpec(this.metric, this.value)
+    : label = dashboardMetricLabelsAr[metric]!,
+      color = dashboardMetricColors[metric]!;
+  final DashboardMetric metric;
   final int value;
+  final String label;
   final Color color;
 }
