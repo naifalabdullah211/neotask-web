@@ -85,20 +85,26 @@ class _DesignerHomeScreenState extends State<DesignerHomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
+        // Smaller footprint than the default NavigationBar (which uses a
+        // 32px selection indicator + 24px icons) — the designer's shell
+        // only has 3 tabs and reads better compact, matching the request
+        // to shrink these icons.
+        height: 56,
+        labelTextStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 11)),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
+            icon: Icon(Icons.dashboard_outlined, size: 20),
+            selectedIcon: Icon(Icons.dashboard, size: 20),
             label: 'الرئيسية',
           ),
           NavigationDestination(
-            icon: Icon(Icons.groups_outlined),
-            selectedIcon: Icon(Icons.groups),
+            icon: Icon(Icons.groups_outlined, size: 20),
+            selectedIcon: Icon(Icons.groups, size: 20),
             label: 'الموظفون',
           ),
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble),
+            icon: Icon(Icons.chat_bubble_outline, size: 20),
+            selectedIcon: Icon(Icons.chat_bubble, size: 20),
             label: 'المحادثات',
           ),
         ],
