@@ -32,12 +32,23 @@ class ChatThreadBody extends StatefulWidget {
     this.taskId,
     required this.currentUserUid,
     required this.otherUserUid,
+    this.readOnly = false,
   });
 
   final String conversationId;
   final String? taskId;
   final String currentUserUid;
   final String otherUserUid;
+
+  /// When true, this becomes a pure viewer: no message-input bar is
+  /// rendered (send/attach are fully absent, not just disabled) and
+  /// `markConversationRead` is never invoked. Added specifically for the
+  /// read-only `designer` role (see UserRole.designer doc comment) — a
+  /// designer must never write to Firestore, including via the implicit
+  /// "mark as read" side effect that the normal chat view performs on
+  /// every other participant's messages. Default `false` preserves the
+  /// exact existing behavior for every current call site.
+  final bool readOnly;
 
   @override
   State<ChatThreadBody> createState() => _ChatThreadBodyState();
@@ -52,6 +63,7 @@ class _ChatThreadBodyState extends State<ChatThreadBody> {
   @override
   void initState() {
     super.initState();
+    if (widget.readOnly) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<MessageProvider>().markConversationRead(
@@ -232,14 +244,16 @@ class _ChatThreadBodyState extends State<ChatThreadBody> {
                   ),
                 );
               }
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  context.read<MessageProvider>().markConversationRead(
-                    widget.conversationId,
-                    widget.currentUserUid,
-                  );
-                }
-              });
+              if (!widget.readOnly) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    context.read<MessageProvider>().markConversationRead(
+                      widget.conversationId,
+                      widget.currentUserUid,
+                    );
+                  }
+                });
+              }
               return ListView.builder(
                 controller: _scrollController,
                 padding: const EdgeInsets.all(12),
@@ -262,13 +276,14 @@ class _ChatThreadBodyState extends State<ChatThreadBody> {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
-        _MessageInputBar(
-          controller: _controller,
-          sending: _sending,
-          uploading: _uploading,
-          onSend: _send,
-          onAttach: _showAttachmentSheet,
-        ),
+        if (!widget.readOnly)
+          _MessageInputBar(
+            controller: _controller,
+            sending: _sending,
+            uploading: _uploading,
+            onSend: _send,
+            onAttach: _showAttachmentSheet,
+          ),
       ],
     );
   }
@@ -285,6 +300,7 @@ class ChatThreadScreen extends StatelessWidget {
     required this.otherUserUid,
     required this.title,
     this.subtitle,
+    this.readOnly = false,
   });
 
   final String conversationId;
@@ -293,6 +309,7 @@ class ChatThreadScreen extends StatelessWidget {
   final String otherUserUid;
   final String title;
   final String? subtitle;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -318,6 +335,7 @@ class ChatThreadScreen extends StatelessWidget {
         taskId: taskId,
         currentUserUid: currentUserUid,
         otherUserUid: otherUserUid,
+        readOnly: readOnly,
       ),
     );
   }

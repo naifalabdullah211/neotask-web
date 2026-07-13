@@ -9,6 +9,7 @@ import '../auth/register_via_invite_screen.dart';
 import '../auth/manager_setup_screen.dart';
 import '../manager/manager_home_screen.dart';
 import '../employee/employee_home_screen.dart';
+import '../designer/designer_home_screen.dart';
 
 class SplashRouter extends StatefulWidget {
   const SplashRouter({super.key});
@@ -74,6 +75,11 @@ class _SplashRouterState extends State<SplashRouter> {
         }
         if (user.role == UserRole.manager) {
           return const ManagerHomeScreen();
+        }
+        // Read-only designer/observer account (see UserRole.designer in
+        // user_model.dart) — must be checked before the employee fallback.
+        if (user.role == UserRole.designer) {
+          return const DesignerHomeScreen();
         }
         return const EmployeeHomeScreen();
       },

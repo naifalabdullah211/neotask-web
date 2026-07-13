@@ -191,4 +191,18 @@ class MessageProvider extends ChangeNotifier {
   Future<void> markConversationRead(String conversationId, String userUid) {
     return FirestoreService.markConversationRead(conversationId, userUid);
   }
+
+  /// UNSCOPED read of every conversation in the system (general DMs +
+  /// per-task + per-criterion threads) — used ONLY by the read-only
+  /// `designer` role's chat-browsing screen (see UserRole.designer /
+  /// FirestoreService.getAllLatestConversations doc comment). No other
+  /// provider consumer should call this; every manager/employee screen
+  /// remains correctly scoped to its own participant-based methods above.
+  List<ChatMessage> allLatestConversations() {
+    return FirestoreService.getAllLatestConversations();
+  }
+
+  Stream<List<ChatMessage>> watchAllLatestConversations() {
+    return FirestoreService.watchAllLatestConversations();
+  }
 }

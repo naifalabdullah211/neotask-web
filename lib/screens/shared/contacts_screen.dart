@@ -12,10 +12,18 @@ class ContactsScreen extends StatefulWidget {
     super.key,
     required this.currentUserUid,
     required this.isManager,
+    this.readOnly = false,
   });
 
   final String currentUserUid;
   final bool isManager;
+
+  /// True for the read-only `designer` role — suppresses the
+  /// "add contact" FAB. The `tel:` call button is intentionally NOT
+  /// suppressed: it launches the device's own dialer via an external
+  /// Intent and never writes to Firestore, so it does not violate the
+  /// "3-no" zero-write-access requirement.
+  final bool readOnly;
 
   @override
   State<ContactsScreen> createState() => _ContactsScreenState();
@@ -58,7 +66,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
               const SizedBox(height: 12),
               TextField(
                 controller: emailCtrl,
-                decoration: const InputDecoration(labelText: 'البريد الإلكتروني'),
+                decoration: const InputDecoration(
+                  labelText: 'البريد الإلكتروني',
+                ),
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 12),
@@ -182,7 +192,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             ),
                             title: Text(
                               c.name,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             subtitle: Text(
                               [
@@ -219,10 +231,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addContact,
-        child: const Icon(Icons.person_add_outlined),
-      ),
+      floatingActionButton: widget.readOnly
+          ? null
+          : FloatingActionButton(
+              onPressed: _addContact,
+              child: const Icon(Icons.person_add_outlined),
+            ),
     );
   }
 }

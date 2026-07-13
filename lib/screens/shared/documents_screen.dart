@@ -18,11 +18,20 @@ class DocumentsScreen extends StatefulWidget {
     required this.currentUserUid,
     required this.currentUserName,
     required this.isManager,
+    this.readOnly = false,
   });
 
   final String currentUserUid;
   final String currentUserName;
   final bool isManager;
+
+  /// True for the read-only `designer` role (see UserRole.designer):
+  /// suppresses the upload FAB entirely. Delete is already naturally
+  /// hidden for a designer since `canDelete` requires either
+  /// `isManager` (always false for a designer) or `doc.uploadedBy ==
+  /// currentUserUid` (a designer never uploads, so never matches) — no
+  /// further change to that logic was needed, only the FAB.
+  final bool readOnly;
 
   @override
   State<DocumentsScreen> createState() => _DocumentsScreenState();
@@ -142,7 +151,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   Future<void> _openDocument(DocumentItem doc) async {
-    await launchUrl(Uri.parse(doc.fileUrl), mode: LaunchMode.externalApplication);
+    await launchUrl(
+      Uri.parse(doc.fileUrl),
+      mode: LaunchMode.externalApplication,
+    );
   }
 
   Future<void> _confirmDelete(DocumentItem doc) async {
@@ -186,7 +198,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               height: 44,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 itemCount: categories.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
@@ -227,7 +242,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                             ),
                             title: Text(
                               doc.title,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             subtitle: Text(
                               '${doc.category} · ${doc.uploadedByName} · '
@@ -251,10 +268,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _uploading ? null : _pickAndUpload,
-        child: const Icon(Icons.upload_file),
-      ),
+      floatingActionButton: widget.readOnly
+          ? null
+          : FloatingActionButton(
+              onPressed: _uploading ? null : _pickAndUpload,
+              child: const Icon(Icons.upload_file),
+            ),
     );
   }
 }

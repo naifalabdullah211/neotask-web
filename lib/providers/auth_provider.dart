@@ -30,6 +30,9 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoggedIn => _currentUser != null;
   bool get isManager => _currentUser?.role == UserRole.manager;
   bool get isEmployee => _currentUser?.role == UserRole.employee;
+  // Read-only observer role — see UserRole.designer doc comment
+  // (user_model.dart) for the full 1-a/2-a/3-no design rationale.
+  bool get isDesigner => _currentUser?.role == UserRole.designer;
 
   static const _uuid = Uuid();
 

@@ -18,11 +18,17 @@ class MeetingsScreen extends StatefulWidget {
     required this.currentUserUid,
     required this.currentUserName,
     required this.isManager,
+    this.readOnly = false,
   });
 
   final String currentUserUid;
   final String currentUserName;
   final bool isManager;
+
+  /// True for the read-only `designer` role — suppresses the "create
+  /// meeting" FAB. See UserRole.designer / DocumentsScreen.readOnly for
+  /// the identical rationale.
+  final bool readOnly;
 
   @override
   State<MeetingsScreen> createState() => _MeetingsScreenState();
@@ -56,12 +62,16 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
                 children: [
                   TextField(
                     controller: titleCtrl,
-                    decoration: const InputDecoration(labelText: 'عنوان الاجتماع'),
+                    decoration: const InputDecoration(
+                      labelText: 'عنوان الاجتماع',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: descCtrl,
-                    decoration: const InputDecoration(labelText: 'الوصف (اختياري)'),
+                    decoration: const InputDecoration(
+                      labelText: 'الوصف (اختياري)',
+                    ),
                     maxLines: 2,
                   ),
                   const SizedBox(height: 12),
@@ -255,7 +265,9 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
                             ),
                             title: Text(
                               m.title,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,10 +301,12 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _createMeeting,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: widget.readOnly
+          ? null
+          : FloatingActionButton(
+              onPressed: _createMeeting,
+              child: const Icon(Icons.add),
+            ),
     );
   }
 }

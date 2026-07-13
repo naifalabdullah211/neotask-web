@@ -53,6 +53,20 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
     }
 
+    // `designer` — read-only observer role (see UserRole.designer doc
+    // comment in lib/models/user_model.dart for the full 1-a/2-a/3-no
+    // design rationale). Used ONLY to explicitly DENY writes on
+    // collections that were previously gated by `isSignedIn()` alone
+    // (which a designer, being a signed-in account, would otherwise
+    // satisfy). Collections already gated by `isManager()` or by
+    // ownership fields a designer can never legitimately hold
+    // (tasks/criteria/goals/users) need no additional check, since a
+    // designer account can never be its own author/assignee there.
+    function isDesigner() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'designer';
+    }
+
     // ---- system/manager_lock sentinel ----
     // Public-read is intentional: SplashRouter must decide "show
     // ManagerSetupScreen vs. LoginScreen" BEFORE anyone is signed in, and
@@ -197,7 +211,7 @@ service cloud.firestore {
     // ---- task_history (append-only audit log) ----
     match /task_history/{historyId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() &&
+      allow create: if isSignedIn() && !isDesigner() &&
         request.resource.data.actorUid == request.auth.uid;
       allow update, delete: if false;
     }
@@ -227,7 +241,7 @@ service cloud.firestore {
       // safely require auth. Only a pending -> used transition, only by the
       // uid that is registering, only touching the three burn-related
       // fields.
-      allow update: if isSignedIn() &&
+      allow update: if isSignedIn() && !isDesigner() &&
         resource.data.status == 'pending' &&
         request.resource.data.status == 'used' &&
         request.resource.data.usedByUid == request.auth.uid &&
@@ -241,12 +255,15 @@ service cloud.firestore {
     match /messages/{messageId} {
       allow read: if isSignedIn();
 
-      allow create: if isSignedIn() &&
+      allow create: if isSignedIn() && !isDesigner() &&
         request.resource.data.senderUid == request.auth.uid;
 
       // Only the recipient can mark a message read, and only the `readAt`
-      // field — matches markConversationRead's exact semantics.
-      allow update: if isSignedIn() &&
+      // field — matches markConversationRead's exact semantics. A designer
+      // is never a real recipient (see ChatThreadBody's `readOnly` flag,
+      // which already skips calling markConversationRead client-side), but
+      // this rule denies it independently at the server layer too (3-no).
+      allow update: if isSignedIn() && !isDesigner() &&
         resource.data.recipientUid == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
 
@@ -259,21 +276,21 @@ service cloud.firestore {
     // titles/times and an ICS feed URL the user supplied themselves.
     match /calendar_imports/{docId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() && !isDesigner();
     }
 
     match /calendar_settings/{docId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() && !isDesigner();
     }
 
     // ---- documents (shared library, manager + employee, Cloudinary-backed) ----
     match /documents/{docId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() &&
+      allow create: if isSignedIn() && !isDesigner() &&
         request.resource.data.uploadedBy == request.auth.uid;
       // Only the uploader or a manager may remove a document.
-      allow delete: if isSignedIn() &&
+      allow delete: if isSignedIn() && !isDesigner() &&
         (resource.data.uploadedBy == request.auth.uid || isManager());
       allow update: if false;
     }
@@ -281,18 +298,18 @@ service cloud.firestore {
     // ---- meetings (schedule only, no live call integration) ----
     match /meetings/{docId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() &&
+      allow create: if isSignedIn() && !isDesigner() &&
         request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isSignedIn() &&
+      allow update, delete: if isSignedIn() && !isDesigner() &&
         (resource.data.createdBy == request.auth.uid || isManager());
     }
 
     // ---- contacts ----
     match /contacts/{docId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() &&
+      allow create: if isSignedIn() && !isDesigner() &&
         request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isSignedIn() &&
+      allow update, delete: if isSignedIn() && !isDesigner() &&
         (resource.data.createdBy == request.auth.uid || isManager());
     }
 
@@ -300,9 +317,9 @@ service cloud.firestore {
     //      "{userUid}_{taskId}" — see FirestoreService.favoriteIdFor) ----
     match /favorites/{docId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() &&
+      allow create: if isSignedIn() && !isDesigner() &&
         request.resource.data.userUid == request.auth.uid;
-      allow delete: if isSignedIn() &&
+      allow delete: if isSignedIn() && !isDesigner() &&
         resource.data.userUid == request.auth.uid;
       allow update: if false;
     }
@@ -354,7 +371,7 @@ service cloud.firestore {
     //      task_history — see criterion_history_model.dart) ----
     match /criterion_history/{historyId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() &&
+      allow create: if isSignedIn() && !isDesigner() &&
         request.resource.data.actorUid == request.auth.uid;
       allow update, delete: if false;
     }

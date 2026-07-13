@@ -45,6 +45,13 @@ class CriterionDetailScreen extends StatelessWidget {
     final criterion = criterionProvider.getCriterion(criterionId);
     final currentUser = context.watch<AuthProvider>().currentUser!;
     final isManager = context.watch<AuthProvider>().isManager;
+    // Read-only designer/observer role (see UserRole.designer): the
+    // _CriterionPanel's action buttons already self-hide correctly
+    // (isManager is false and a designer is never in `assignedTo`), but
+    // the embedded chat panel needs an explicit readOnly flag so it does
+    // not expose a message-input bar or perform the implicit
+    // markConversationRead write against another participant's messages.
+    final isDesigner = context.watch<AuthProvider>().isDesigner;
 
     if (criterion == null) {
       return const Scaffold(body: Center(child: Text('المعيار غير موجود')));
@@ -91,11 +98,10 @@ class CriterionDetailScreen extends StatelessWidget {
               isManager: isManager,
             );
             final chatPanel = ChatThreadBody(
-              conversationId: ChatMessage.criterionConversationId(
-                criterionId,
-              ),
+              conversationId: ChatMessage.criterionConversationId(criterionId),
               currentUserUid: currentUser.uid,
               otherUserUid: otherUid,
+              readOnly: isDesigner,
             );
 
             if (isWide) {
@@ -122,9 +128,7 @@ class CriterionDetailScreen extends StatelessWidget {
                     ],
                   ),
                   Expanded(
-                    child: TabBarView(
-                      children: [criterionPanel, chatPanel],
-                    ),
+                    child: TabBarView(children: [criterionPanel, chatPanel]),
                   ),
                 ],
               ),
@@ -476,7 +480,11 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -489,7 +497,10 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             '$label: ',
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
           ),
           Expanded(
             child: Text(
@@ -556,7 +567,10 @@ class _HistoryTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: Icon(_icon, color: _color),
-        title: Text(_label, style: TextStyle(fontWeight: FontWeight.w600, color: _color)),
+        title: Text(
+          _label,
+          style: TextStyle(fontWeight: FontWeight.w600, color: _color),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

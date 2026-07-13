@@ -863,6 +863,32 @@ class FirestoreService {
     );
   }
 
+  /// UNSCOPED — every message in every conversation, regardless of sender/
+  /// recipient. Added specifically for the read-only `designer` role's
+  /// "1-a" requirement (read literally everything, chat content included)
+  /// — no other existing call site needs this, since every other screen
+  /// is scoped to a specific participant's own conversations. Safe to add
+  /// with no query cost: `_messagesCache` already holds every message in
+  /// memory (see the unfiltered `.collection('messages').snapshots()`
+  /// listener in `initSession()` above) — this simply exposes it without
+  /// the sender/recipient filter `getLatestMessagesForUser` applies.
+  static List<ChatMessage> getAllLatestConversations() {
+    final byConversation = <String, ChatMessage>{};
+    for (final m in _messagesCache) {
+      final existing = byConversation[m.conversationId];
+      if (existing == null || m.timestamp.isAfter(existing.timestamp)) {
+        byConversation[m.conversationId] = m;
+      }
+    }
+    return byConversation.values.toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  }
+
+  static Stream<List<ChatMessage>> watchAllLatestConversations() async* {
+    yield getAllLatestConversations();
+    yield* _messagesChanges.stream.map((_) => getAllLatestConversations());
+  }
+
   /// Latest message per conversation the given [userUid] participates in
   /// (as sender or recipient) — used to build conversation-list previews
   /// (e.g. the manager's per-employee chat list).
@@ -946,10 +972,7 @@ class FirestoreService {
 
   // ---------------- DOCUMENTS (shared library, manager + employee) ----------------
   static Future<void> saveDocument(DocumentItem doc) async {
-    await _db
-        .collection('documents')
-        .doc(doc.documentId)
-        .set(doc.toMap());
+    await _db.collection('documents').doc(doc.documentId).set(doc.toMap());
   }
 
   static Future<void> deleteDocument(String documentId) async {
@@ -1043,5 +1066,4 @@ class FirestoreService {
     yield getFavoritesForUser(userUid);
     yield* _favoritesChanges.stream.map((_) => getFavoritesForUser(userUid));
   }
-
 }

@@ -9,6 +9,7 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
 import 'manager_create_task_screen.dart';
 import 'task_review_detail_screen.dart';
+import '../designer/designer_task_view_screen.dart';
 
 enum _MgrRangeMode { day, week, month }
 
@@ -18,7 +19,13 @@ enum _MgrRangeMode { day, week, month }
 /// TaskProvider.tasksForDay/Week/Month with employeeUid == null to include
 /// ALL employees' tasks, and displays each task's assignee name.
 class ManagerCalendarScreen extends StatefulWidget {
-  const ManagerCalendarScreen({super.key});
+  const ManagerCalendarScreen({super.key, this.readOnly = false});
+
+  /// True when reached from the read-only `designer` role's drawer: hides
+  /// the "مهمة جديدة" FAB and routes taps to the read-only
+  /// DesignerTaskViewScreen instead of TaskReviewDetailScreen (which has
+  /// live approve/reject/edit-request buttons a designer must never see).
+  final bool readOnly;
 
   @override
   State<ManagerCalendarScreen> createState() => _ManagerCalendarScreenState();
@@ -78,17 +85,20 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('التقويم')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ManagerCreateTaskScreen(initialDueDate: _anchor),
+      floatingActionButton: widget.readOnly
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ManagerCreateTaskScreen(initialDueDate: _anchor),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add_task),
+              label: const Text('مهمة جديدة'),
             ),
-          );
-        },
-        icon: const Icon(Icons.add_task),
-        label: const Text('مهمة جديدة'),
-      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -97,8 +107,14 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
               child: SegmentedButton<_MgrRangeMode>(
                 segments: const [
                   ButtonSegment(value: _MgrRangeMode.day, label: Text('يومي')),
-                  ButtonSegment(value: _MgrRangeMode.week, label: Text('أسبوعي')),
-                  ButtonSegment(value: _MgrRangeMode.month, label: Text('شهري')),
+                  ButtonSegment(
+                    value: _MgrRangeMode.week,
+                    label: Text('أسبوعي'),
+                  ),
+                  ButtonSegment(
+                    value: _MgrRangeMode.month,
+                    label: Text('شهري'),
+                  ),
                 ],
                 selected: {_mode},
                 onSelectionChanged: (s) => setState(() => _mode = s.first),
@@ -142,13 +158,17 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
                           child: ListTile(
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => TaskReviewDetailScreen(task: t),
+                                builder: (_) => widget.readOnly
+                                    ? DesignerTaskViewScreen(task: t)
+                                    : TaskReviewDetailScreen(task: t),
                               ),
                             ),
                             leading: TaskUrgencyDot(task: t),
                             title: Text(
                               t.title,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             subtitle: Text(
                               '${employee?.name ?? "-"} · ${t.category} · '

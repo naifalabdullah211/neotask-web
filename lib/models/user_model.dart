@@ -1,4 +1,27 @@
-enum UserRole { manager, employee }
+// `designer` — a read-only observer role added per explicit user request
+// ("انا مصمم البرنامج... احتاج حساب اشوف فيه البرنامج من الداخل"). Answers
+// locked in before implementation:
+//   1-a: full read access to EVERY collection (tasks, goals, criteria,
+//        messages/chat content included, users, history, documents,
+//        meetings, contacts).
+//   2-a: INVISIBLE — must never appear in the employee list, task/criterion
+//        assignment dropdowns, or the reassignment-target picker. This is
+//        achieved for free: every such list is built via
+//        `FirestoreService.getAllEmployees()`, which filters strictly on
+//        `role == UserRole.employee` — a `designer` account never matches.
+//   3-no: ABSOLUTE zero write access — no create/update/delete of any
+//        kind. Enforced at BOTH layers: (a) the UI never exposes a
+//        designer to any action button (see DesignerHomeScreen and its
+//        tabs, which are purpose-built read-only screens), and (b) the
+//        Firestore security rules explicitly reject writes from this role
+//        on every collection that was previously gated only by
+//        `isSignedIn()` + self-ownership (calendar_imports/settings,
+//        documents, meetings, contacts, favorites, messages, task_history,
+//        criterion_history, invitations) — see `isDesigner()` in
+//        firestore.rules. Collections already gated by isManager() or by
+//        ownership fields a designer can never satisfy (tasks, criteria,
+//        goals, users) required no additional rule change.
+enum UserRole { manager, employee, designer }
 
 enum AccountStatus { pendingApproval, active, rejected, deleted }
 

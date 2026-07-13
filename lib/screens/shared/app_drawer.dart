@@ -27,6 +27,12 @@ class AppDrawer extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser!;
     final isManager = auth.isManager;
+    final isDesigner = auth.isDesigner;
+    // Per the designer role's "1-a" answer (read EVERYTHING) the designer
+    // must also see the manager-only Calendar entry, but must never get
+    // any of the write affordances (upload/create/add FABs) in
+    // Documents/Meetings/Contacts — see the `readOnly` params below.
+    final showCalendar = isManager || isDesigner;
 
     void push(Widget screen) {
       Navigator.of(context).pop(); // close drawer first
@@ -66,17 +72,21 @@ class AppDrawer extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    isManager ? 'مدير' : 'موظف',
+                    isManager
+                        ? 'مدير'
+                        : isDesigner
+                        ? 'مصمم (عرض فقط)'
+                        : 'موظف',
                     style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ],
               ),
             ),
-            if (isManager)
+            if (showCalendar)
               ListTile(
                 leading: const Icon(Icons.calendar_month_outlined),
                 title: const Text('التقويم'),
-                onTap: () => push(const ManagerCalendarScreen()),
+                onTap: () => push(ManagerCalendarScreen(readOnly: isDesigner)),
               ),
             ListTile(
               leading: const Icon(Icons.flag_outlined),
@@ -91,6 +101,7 @@ class AppDrawer extends StatelessWidget {
                   currentUserUid: user.uid,
                   currentUserName: user.name,
                   isManager: isManager,
+                  readOnly: isDesigner,
                 ),
               ),
             ),
@@ -102,6 +113,7 @@ class AppDrawer extends StatelessWidget {
                   currentUserUid: user.uid,
                   currentUserName: user.name,
                   isManager: isManager,
+                  readOnly: isDesigner,
                 ),
               ),
             ),
@@ -109,16 +121,31 @@ class AppDrawer extends StatelessWidget {
               leading: const Icon(Icons.contact_phone_outlined),
               title: const Text('جهات الاتصال'),
               onTap: () => push(
-                ContactsScreen(currentUserUid: user.uid, isManager: isManager),
+                ContactsScreen(
+                  currentUserUid: user.uid,
+                  isManager: isManager,
+                  readOnly: isDesigner,
+                ),
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.star_border),
-              title: const Text('المفضلة'),
-              onTap: () => push(
-                FavoritesScreen(currentUserUid: user.uid, isManager: isManager),
+            // Favorites is intentionally OMITTED for the designer role: it
+            // is a per-user starred-tasks list that would always be empty
+            // for a designer (favorites are never created by/for a
+            // non-participating uid), and its live star/unstar toggle
+            // button has no readOnly variant — rather than build one for
+            // a screen that would show nothing useful, it is simply not
+            // linked from the designer's drawer at all.
+            if (!isDesigner)
+              ListTile(
+                leading: const Icon(Icons.star_border),
+                title: const Text('المفضلة'),
+                onTap: () => push(
+                  FavoritesScreen(
+                    currentUserUid: user.uid,
+                    isManager: isManager,
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       ),
