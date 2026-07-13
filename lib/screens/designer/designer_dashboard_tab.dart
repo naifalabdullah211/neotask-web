@@ -217,43 +217,54 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
             ),
           ),
           const SizedBox(height: 16),
+          // Compact 3x2 grid — each card only takes ~1/3 of the row width
+          // (per user request: "خليها بالنص الست جنب بعض... صغير و جميل و
+          // ملفت") instead of the previous oversized cards. A tight
+          // childAspectRatio + small icon badge keeps it dense but still
+          // legible and visually distinct per status color.
           GridView.count(
             crossAxisCount: 3,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 1.3,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 1.0,
             children: [
               _StatCard(
                 label: 'الإجمالي',
                 value: stats['total']!,
                 color: AppColors.deepBlue,
+                icon: Icons.assignment_outlined,
               ),
               _StatCard(
                 label: 'مكتملة',
                 value: stats['approved']!,
                 color: AppColors.statusApproved,
+                icon: Icons.check_circle_outline,
               ),
               _StatCard(
                 label: 'قيد الانتظار',
                 value: stats['pending']!,
                 color: AppColors.statusPending,
+                icon: Icons.hourglass_empty,
               ),
               _StatCard(
                 label: 'بانتظار المراجعة',
                 value: stats['submitted']!,
                 color: AppColors.statusSubmitted,
+                icon: Icons.rate_review_outlined,
               ),
               _StatCard(
                 label: 'مرفوضة',
                 value: stats['rejected']!,
                 color: AppColors.statusRejected,
+                icon: Icons.cancel_outlined,
               ),
               _StatCard(
                 label: 'متأخرة',
                 value: stats['overdue']!,
                 color: Colors.orange.shade800,
+                icon: Icons.warning_amber_outlined,
               ),
             ],
           ),
@@ -429,38 +440,63 @@ class _StatCard extends StatelessWidget {
   final String label;
   final int value;
   final Color color;
+  final IconData icon;
 
   const _StatCard({
     required this.label,
     required this.value,
     required this.color,
+    required this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withValues(alpha: 0.14),
+            color.withValues(alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(height: 4),
           Text(
             '$value',
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 17,
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 1),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: color),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
         ],
       ),

@@ -96,14 +96,29 @@ class _LoginScreenState extends State<LoginScreen>
             constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
               children: [
-                SizedBox(
-                  width: 200,
+                Container(
+                  width: 240,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
                   child: Image.asset(
                     'assets/images/neotask_logo_full.png',
                     fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 const Text('مهامك أسهل', style: AppTextStyles.bodySm),
                 const SizedBox(height: 40),
                 _GlassCard(
@@ -121,6 +136,16 @@ class _LoginScreenState extends State<LoginScreen>
                         TextFormField(
                           controller: _emailCtrl,
                           keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          // Email addresses are always Latin-script/LTR
+                          // content. Without pinning textDirection/textAlign
+                          // explicitly, the field inherits the app's global
+                          // RTL Directionality (see main.dart), which makes
+                          // the caret jump and characters visually reorder
+                          // while typing (classic bidi glitch) — this is the
+                          // "لخبطة عند الكتابة" the user reported.
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
                           decoration: const InputDecoration(
                             labelText: 'البريد الإلكتروني',
                             prefixIcon: Icon(Icons.email_outlined),
@@ -133,6 +158,13 @@ class _LoginScreenState extends State<LoginScreen>
                         TextFormField(
                           controller: _passwordCtrl,
                           obscureText: _obscure,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _submit(),
+                          // Same LTR pin as the email field above — most
+                          // passwords are Latin/ASCII, so force LTR to avoid
+                          // the same bidi caret-jump glitch while typing.
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
                           decoration: InputDecoration(
                             labelText: 'كلمة المرور',
                             prefixIcon: const Icon(Icons.lock_outline),
