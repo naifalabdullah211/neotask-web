@@ -217,18 +217,18 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
             ),
           ),
           const SizedBox(height: 16),
-          // Compact 3x2 grid — each card only takes ~1/3 of the row width
-          // (per user request: "خليها بالنص الست جنب بعض... صغير و جميل و
-          // ملفت") instead of the previous oversized cards. A tight
-          // childAspectRatio + small icon badge keeps it dense but still
-          // legible and visually distinct per status color.
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 1.0,
+          // Fixed-size boxes via Wrap — NOT a GridView. A GridView.count
+          // divides the FULL available width into N stretched columns, so
+          // on a wide desktop browser window each colored frame becomes a
+          // huge square while the icon/number/label inside stay tiny (the
+          // exact "كبرت الاطار و صغرت الكلام" bug the user reported). Wrap
+          // instead sizes each card to its own fixed width regardless of
+          // viewport size, keeping the frame small and letting text/icon
+          // size be set proportionally to that fixed box.
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 10,
+            runSpacing: 10,
             children: [
               _StatCard(
                 label: 'الإجمالي',
@@ -449,10 +449,16 @@ class _StatCard extends StatelessWidget {
     required this.icon,
   });
 
+  // Fixed footprint (independent of screen/viewport width) — this is what
+  // keeps the colored frame small on a wide desktop browser instead of
+  // stretching to fill a GridView column.
+  static const double _boxWidth = 104;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      width: _boxWidth,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -462,7 +468,7 @@ class _StatCard extends StatelessWidget {
             color.withValues(alpha: 0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Column(
@@ -470,31 +476,31 @@ class _StatCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(5),
+            padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.16),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 14, color: color),
+            child: Icon(icon, size: 20, color: color),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             '$value',
             style: TextStyle(
-              fontSize: 17,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
-          const SizedBox(height: 1),
+          const SizedBox(height: 3),
           Text(
             label,
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
