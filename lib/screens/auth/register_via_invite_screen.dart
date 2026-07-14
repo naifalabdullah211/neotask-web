@@ -179,6 +179,19 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                         TextFormField(
                           controller: _emailCtrl,
                           keyboardType: TextInputType.emailAddress,
+                          // Same LTR pin as login_screen.dart: without
+                          // forcing textDirection/textAlign, this field
+                          // inherits the app's global RTL Directionality
+                          // (main.dart), which reorders characters visually
+                          // while typing (bidi caret-jump). On a
+                          // REGISTRATION screen this is worse than on
+                          // login: a mangled email/password is silently
+                          // accepted by Firebase Auth at account-creation
+                          // time, with no way to detect it until the user
+                          // tries to log back in with what they believe
+                          // they typed.
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
                           decoration: const InputDecoration(
                             labelText: 'البريد الإلكتروني',
                             prefixIcon: Icon(Icons.email_outlined),
@@ -191,6 +204,9 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                         TextFormField(
                           controller: _employeeNumberCtrl,
                           keyboardType: TextInputType.number,
+                          // Digits are LTR content too — same fix.
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
                           decoration: const InputDecoration(
                             labelText: 'الرقم الوظيفي',
                             prefixIcon: Icon(Icons.badge_outlined),
@@ -203,6 +219,10 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                         TextFormField(
                           controller: _passwordCtrl,
                           obscureText: _obscure,
+                          // Same LTR pin — see comment on the email field
+                          // above.
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
                           decoration: InputDecoration(
                             labelText: 'كلمة المرور',
                             prefixIcon: const Icon(Icons.lock_outline),

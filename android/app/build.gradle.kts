@@ -3,6 +3,10 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Processes android/app/google-services.json (must match the
+    // applicationId below — verified: package_name="com.neotaskpro.
+    // neotask_pro" matches applicationId exactly).
+    id("com.google.gms.google-services")
 }
 
 android {

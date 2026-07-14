@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "4737825788",
+    "project_id": "neotask1-ff5a4",
+    "storage_bucket": "neotask1-ff5a4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:4737825788:android:6955fc86153fcea1c8d079",
+        "android_client_info": {
+          "package_name": "com.neotaskpro.neotask_pro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDypu01aQmXRuEAsldumGd52jagsMk2aUo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

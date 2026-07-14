@@ -145,6 +145,23 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                             TextFormField(
                               controller: _emailCtrl,
                               keyboardType: TextInputType.emailAddress,
+                              // Same LTR pin as login_screen.dart /
+                              // register_via_invite_screen.dart: without
+                              // forcing textDirection/textAlign, this field
+                              // inherits the app's global RTL
+                              // Directionality (main.dart), causing a bidi
+                              // caret-jump glitch while typing. On an
+                              // ACCOUNT-CREATION screen this is worse than
+                              // on login — a mangled email/password is
+                              // silently accepted by Firebase Auth with no
+                              // error shown, discovered only later when the
+                              // account holder can no longer log in with
+                              // what they believe they typed (confirmed
+                              // root cause of a prior "employee can't log
+                              // in" report on the sibling invite-registration
+                              // screen).
+                              textDirection: TextDirection.ltr,
+                              textAlign: TextAlign.left,
                               decoration: const InputDecoration(
                                 labelText: 'البريد الإلكتروني',
                                 prefixIcon: Icon(Icons.email_outlined),
@@ -157,6 +174,9 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                             TextFormField(
                               controller: _employeeNumberCtrl,
                               keyboardType: TextInputType.number,
+                              // Digits are LTR content too — same fix.
+                              textDirection: TextDirection.ltr,
+                              textAlign: TextAlign.left,
                               decoration: const InputDecoration(
                                 labelText: 'الرقم الوظيفي',
                                 prefixIcon: Icon(Icons.badge_outlined),
@@ -169,6 +189,10 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                             TextFormField(
                               controller: _passwordCtrl,
                               obscureText: _obscure,
+                              // Same LTR pin — see comment on the email
+                              // field above.
+                              textDirection: TextDirection.ltr,
+                              textAlign: TextAlign.left,
                               decoration: InputDecoration(
                                 labelText: 'كلمة المرور',
                                 prefixIcon: const Icon(Icons.lock_outline),
