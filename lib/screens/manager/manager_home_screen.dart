@@ -13,7 +13,7 @@ import 'manager_review_tab.dart';
 import 'manager_employees_tab.dart';
 import 'manager_reports_tab.dart';
 import 'manager_chat_tab.dart';
-import 'manager_create_task_screen.dart';
+import 'quick_add_task_sheet.dart';
 import '../shared/search_screen.dart';
 
 class ManagerHomeScreen extends StatefulWidget {
@@ -89,17 +89,18 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           ),
         ],
       ),
+      // Circular quick-add FAB — fixed position (Scaffold.floatingActionButton
+      // does not scroll with body content by default). Under this app's
+      // forced-RTL Directionality (see main.dart), `endFloat` resolves to
+      // the bottom-LEFT corner, matching the explicit RTL requirement.
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: _index == 0 || _index == 1
-          ? FloatingActionButton.extended(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ManagerCreateTaskScreen(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.add_task),
-              label: const Text('مهمة جديدة'),
+          ? FloatingActionButton(
+              backgroundColor: AppColors.mintAccent,
+              foregroundColor: Colors.white,
+              shape: const CircleBorder(),
+              onPressed: () => QuickAddTaskSheet.show(context),
+              child: const Icon(Icons.add, size: 28),
             )
           : null,
       body: IndexedStack(index: _index, children: pages),

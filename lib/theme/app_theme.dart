@@ -23,6 +23,15 @@ class AppColors {
   static const Color emerald = Color(0xFF15803D);
   static const Color steel = Color(0xFF3E6B8C);
 
+  /// Explicit user-specified brand accent (#33D6A6) for the quick-add task
+  /// FAB ONLY. NOTE: this is intentionally a THIRD accent hue outside the
+  /// two-hue ink-navy/gold system documented above — added per explicit
+  /// request, not blended into the existing status/semantic palette. Do
+  /// not reuse this for status colors or other UI without confirming that
+  /// is intended, since it reintroduces the multi-hue pattern the rest of
+  /// this palette was deliberately designed to avoid.
+  static const Color mintAccent = Color(0xFF33D6A6);
+
   static const Color background = Color(0xFFF5F7FB);
   static const Color surface = Colors.white;
   static const Color textPrimary = Color(0xFF11182C);
