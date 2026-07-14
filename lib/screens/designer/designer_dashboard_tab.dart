@@ -428,7 +428,19 @@ class _TaskCard extends StatelessWidget {
                                     fontSize: 14,
                                   ),
                                 ),
-                                const SizedBox(height: 3),
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: [
+                                    StatusChip(statusName: task.status.name),
+                                    PriorityBadge(
+                                      priorityName: task.priority.name,
+                                      compact: true,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
                                 Text(
                                   '${task.category} · ${intl.DateFormat('yyyy/MM/dd').format(task.dueDate)}',
                                   style: const TextStyle(
@@ -438,19 +450,6 @@ class _TaskCard extends StatelessWidget {
                                 ),
                               ],
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              StatusChip(statusName: task.status.name),
-                              const SizedBox(height: 4),
-                              PriorityBadge(
-                                priorityName: task.priority.name,
-                                compact: true,
-                              ),
-                            ],
                           ),
                         ],
                       ),

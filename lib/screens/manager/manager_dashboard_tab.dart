@@ -213,18 +213,24 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
                     t.title,
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  subtitle: Text(
-                    '${t.category} · ${intl.DateFormat('yyyy/MM/dd').format(t.dueDate)}',
-                  ),
-                  trailing: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      StatusChip(statusName: t.status.name),
-                      const SizedBox(height: 4),
-                      PriorityBadge(
-                        priorityName: t.priority.name,
-                        compact: true,
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          StatusChip(statusName: t.status.name),
+                          PriorityBadge(
+                            priorityName: t.priority.name,
+                            compact: true,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${t.category} · ${intl.DateFormat('yyyy/MM/dd').format(t.dueDate)}',
                       ),
                     ],
                   ),

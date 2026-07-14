@@ -103,7 +103,16 @@ class _SubmittedTaskCard extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                const StatusChip(statusName: 'submitted'),
+                PriorityBadge(priorityName: t.priority.name, compact: true),
+              ],
+            ),
+            const SizedBox(height: 6),
             Text(
               'أُرسلت: ${t.submittedAt != null ? intl.DateFormat('yyyy/MM/dd HH:mm').format(t.submittedAt!) : '-'}',
               style: const TextStyle(fontSize: 12),
@@ -130,15 +139,6 @@ class _SubmittedTaskCard extends StatelessWidget {
                   ),
                 ),
               ),
-          ],
-        ),
-        trailing: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            const StatusChip(statusName: 'submitted'),
-            const SizedBox(height: 4),
-            PriorityBadge(priorityName: t.priority.name, compact: true),
           ],
         ),
         onTap: () => Navigator.of(context).push(
