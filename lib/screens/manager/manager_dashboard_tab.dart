@@ -7,6 +7,7 @@ import '../../providers/task_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
+import '../../widgets/date_nav_arrow_button.dart';
 import 'task_review_detail_screen.dart';
 
 enum _RangeMode { day, week, month }
@@ -65,6 +66,19 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
     }
   }
 
+  /// Arabic period noun used to build tooltip labels ('اليوم التالي',
+  /// 'الأسبوع السابق', ...) matching the currently-selected range mode.
+  String get _periodLabel {
+    switch (_mode) {
+      case _RangeMode.day:
+        return 'اليوم';
+      case _RangeMode.week:
+        return 'الأسبوع';
+      case _RangeMode.month:
+        return 'الشهر';
+    }
+  }
+
   static const _arabicMonths = [
     'يناير',
     'فبراير',
@@ -103,17 +117,18 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: () => _shift(1),
+              // RTL: right arrow = next period, left arrow = previous.
+              DateNavArrowButton.next(
+                onTap: () => _shift(1),
+                periodLabel: _periodLabel,
               ),
               Text(
                 _rangeLabel,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: () => _shift(-1),
+              DateNavArrowButton.previous(
+                onTap: () => _shift(-1),
+                periodLabel: _periodLabel,
               ),
             ],
           ),

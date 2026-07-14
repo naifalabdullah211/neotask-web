@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
 import '../../widgets/mini_week_stats_summary.dart';
+import '../../widgets/date_nav_arrow_button.dart';
 import 'task_detail_screen.dart';
 
 /// Below this task count, the list alone will not fill a typical mobile
@@ -76,6 +77,19 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
     }
   }
 
+  /// Arabic period noun used to build tooltip labels ("اليوم التالي",
+  /// "الأسبوع السابق", ...) matching the currently-selected range mode.
+  String get _periodLabel {
+    switch (_mode) {
+      case _EmpRangeMode.day:
+        return 'اليوم';
+      case _EmpRangeMode.week:
+        return 'الأسبوع';
+      case _EmpRangeMode.month:
+        return 'الشهر';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
@@ -127,17 +141,18 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: () => _shift(1),
+                // RTL: right arrow = next period, left arrow = previous.
+                DateNavArrowButton.next(
+                  onTap: () => _shift(1),
+                  periodLabel: _periodLabel,
                 ),
                 Text(
                   _rangeLabel,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () => _shift(-1),
+                DateNavArrowButton.previous(
+                  onTap: () => _shift(-1),
+                  periodLabel: _periodLabel,
                 ),
               ],
             ),

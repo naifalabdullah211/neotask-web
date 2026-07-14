@@ -109,6 +109,19 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
     }
   }
 
+  /// Arabic period noun used to build tooltip labels ('اليوم التالي',
+  /// 'الأسبوع السابق', ...) matching the currently-selected range mode.
+  String get _periodLabel {
+    switch (_mode) {
+      case _RangeMode.day:
+        return 'اليوم';
+      case _RangeMode.week:
+        return 'الأسبوع';
+      case _RangeMode.month:
+        return 'الشهر';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
@@ -194,8 +207,11 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
                 ),
                 Row(
                   children: [
+                    // RTL: right arrow = next period, left arrow =
+                    // previous.
                     _NavArrowButton(
-                      icon: Icons.chevron_right,
+                      icon: Icons.chevron_right_rounded,
+                      tooltip: '$_periodLabel التالي',
                       onTap: () => _shift(1),
                     ),
                     const SizedBox(width: 4),
@@ -209,7 +225,8 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
                     ),
                     const SizedBox(width: 4),
                     _NavArrowButton(
-                      icon: Icons.chevron_left,
+                      icon: Icons.chevron_left_rounded,
+                      tooltip: '$_periodLabel السابق',
                       onTap: () => _shift(-1),
                     ),
                   ],
@@ -312,23 +329,35 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
 /// Compact circular chevron button used for the day/week/month navigator,
 /// styled to sit on the dark gradient header (white translucent circle).
 class _NavArrowButton extends StatelessWidget {
-  const _NavArrowButton({required this.icon, required this.onTap});
+  const _NavArrowButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
 
   final IconData icon;
+  final String tooltip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.15),
-          shape: BoxShape.circle,
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Semantics(
+          label: tooltip,
+          button: true,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 18),
+          ),
         ),
-        child: Icon(icon, color: Colors.white, size: 18),
       ),
     );
   }

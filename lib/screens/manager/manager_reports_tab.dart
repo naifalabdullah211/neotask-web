@@ -6,6 +6,7 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/pdf_report_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/date_nav_arrow_button.dart';
 
 enum _ReportRange { day, week, month, employee }
 
@@ -102,6 +103,24 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
     }
   }
 
+  /// Arabic period noun used to build tooltip labels ('اليوم التالي',
+  /// 'الأسبوع السابق', ...). The chevron row is only rendered for
+  /// day/week/month ranges (see the `else` branch below), so `employee`
+  /// never actually reaches this getter, but the switch is kept
+  /// exhaustive for safety.
+  String get _periodLabel {
+    switch (_range) {
+      case _ReportRange.day:
+        return 'اليوم';
+      case _ReportRange.week:
+        return 'الأسبوع';
+      case _ReportRange.month:
+        return 'الشهر';
+      case _ReportRange.employee:
+        return 'النطاق';
+    }
+  }
+
   void _shift(int direction) {
     setState(() {
       switch (_range) {
@@ -174,17 +193,18 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: () => _shift(1),
+                // RTL: right arrow = next period, left arrow = previous.
+                DateNavArrowButton.next(
+                  onTap: () => _shift(1),
+                  periodLabel: _periodLabel,
                 ),
                 Text(
                   _rangeLabel,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () => _shift(-1),
+                DateNavArrowButton.previous(
+                  onTap: () => _shift(-1),
+                  periodLabel: _periodLabel,
                 ),
               ],
             ),
