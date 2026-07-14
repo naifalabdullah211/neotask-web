@@ -481,6 +481,19 @@ class TaskProvider extends ChangeNotifier {
     await FirestoreService.addHistoryEntry(entry);
   }
 
+  /// Completed ("مكتملة" = [TaskStatus.approved]) vs. pending (everything
+  /// else still open) counts for [employeeUid] within the calendar week
+  /// containing [anchor]. Feeds the employee tasks tab's mini weekly stat
+  /// summary (screen-filler widget shown when the task list is short).
+  /// Reuses [tasksForWeek] rather than duplicating the week-range logic.
+  Map<String, int> weeklyStatsForEmployee(String employeeUid, DateTime anchor) {
+    final weekTasks = tasksForWeek(anchor, employeeUid: employeeUid);
+    final completed = weekTasks
+        .where((t) => t.status == TaskStatus.approved)
+        .length;
+    return {'completed': completed, 'pending': weekTasks.length - completed};
+  }
+
   // ---- Simple stats helpers for manager dashboard/reports ----
   Map<String, int> statsForRange(List<AppTask> tasks) {
     return {

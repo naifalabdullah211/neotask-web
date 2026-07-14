@@ -7,7 +7,18 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
+import '../../widgets/mini_week_stats_summary.dart';
 import 'task_detail_screen.dart';
+
+/// Below this task count, the list alone will not fill a typical mobile
+/// screen — per explicit request "لا تترك أكثر من 40% من الشاشة فارغة
+/// بدون عنصر بصري" (don't leave more than 40% of the screen empty without
+/// a visual element), the mini weekly stat summary is appended below the
+/// list (or shown alone, in the empty case) once the count drops to/below
+/// this threshold. Heuristic, not a measured layout percentage — each
+/// task Card is ~96px tall vs. a ~700px usable list area on a typical
+/// phone, so 3 cards (~288px) still leaves well over 40% empty.
+const int _kFewTasksThreshold = 3;
 
 enum _EmpRangeMode { day, week, month }
 
@@ -132,79 +143,112 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
             ),
           ),
           Expanded(
-            child: tasks.isEmpty
-                ? const Center(
-                    child: Text(
-                      'لا توجد مهام في هذه الفترة',
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                  )
-                : ListView.builder(
+            child: Builder(
+              builder: (context) {
+                final weeklyStats = provider.weeklyStatsForEmployee(
+                  widget.employeeUid,
+                  DateTime.now(),
+                );
+                final statsSummary = MiniWeekStatsSummary(
+                  completedThisWeek: weeklyStats['completed']!,
+                  pendingThisWeek: weeklyStats['pending']!,
+                );
+
+                if (tasks.isEmpty) {
+                  // Fully empty range — center the empty-state message and
+                  // still show the weekly stat summary underneath so the
+                  // screen isn't left with a bare "no tasks" line.
+                  return SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
-                    itemCount: tasks.length,
-                    itemBuilder: (context, index) {
-                      final t = tasks[index];
-                      return Card(
-                        child: ListTile(
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => TaskDetailScreen(task: t),
-                            ),
-                          ),
-                          leading: TaskUrgencyDot(task: t),
-                          title: Text(
-                            t.title,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 4),
-                              Text(
-                                '${t.category} · ${intl.DateFormat('yyyy/MM/dd').format(t.dueDate)}',
-                              ),
-                              if (t.status == TaskStatus.editRequested &&
-                                  t.reviewNote != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    'ملاحظة المدير: ${t.reviewNote}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.statusPending,
-                                    ),
-                                  ),
-                                ),
-                              if (t.status == TaskStatus.rejected &&
-                                  t.reviewNote != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    'سبب الرفض: ${t.reviewNote}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.statusRejected,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          trailing: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              StatusChip(statusName: t.status.name),
-                              const SizedBox(height: 4),
-                              PriorityBadge(
-                                priorityName: t.priority.name,
-                                compact: true,
-                              ),
-                            ],
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 24),
+                        const Text(
+                          'لا توجد مهام في هذه الفترة',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 8),
+                        statsSummary,
+                      ],
+                    ),
+                  );
+                }
+
+                final showStatsBelowList = tasks.length <= _kFewTasksThreshold;
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  // +1 extra slot for the trailing stat summary when the
+                  // list is short enough to otherwise leave the screen
+                  // mostly empty.
+                  itemCount: tasks.length + (showStatsBelowList ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == tasks.length) {
+                      return statsSummary;
+                    }
+                    final t = tasks[index];
+                    return Card(
+                      child: ListTile(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TaskDetailScreen(task: t),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                        leading: TaskUrgencyDot(task: t),
+                        title: Text(
+                          t.title,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text(
+                              '${t.category} · ${intl.DateFormat('yyyy/MM/dd').format(t.dueDate)}',
+                            ),
+                            if (t.status == TaskStatus.editRequested &&
+                                t.reviewNote != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'ملاحظة المدير: ${t.reviewNote}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.statusPending,
+                                  ),
+                                ),
+                              ),
+                            if (t.status == TaskStatus.rejected &&
+                                t.reviewNote != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'سبب الرفض: ${t.reviewNote}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.statusRejected,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        trailing: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            StatusChip(statusName: t.status.name),
+                            const SizedBox(height: 4),
+                            PriorityBadge(
+                              priorityName: t.priority.name,
+                              compact: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
