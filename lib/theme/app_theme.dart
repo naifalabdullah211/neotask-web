@@ -175,6 +175,34 @@ class AppTheme {
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
+      // Unifies EVERY SegmentedButton in the app (day/week/month range
+      // navigators on the manager dashboard/reports/calendar and employee
+      // tasks tab, the priority pickers, the meetings past/upcoming
+      // toggle) into one consistent look, replacing Material 3's default
+      // fully-pill StadiumBorder + near-invisible outline-color divider —
+      // the source of the "غير متماثل" (asymmetric) gap complaint, since
+      // that divider color barely contrasts against the white background.
+      //
+      // `shape` here is the OUTER border of the whole group (all three
+      // segments share this ONE RoundedRectangleBorder — Material clips
+      // the group to it, individual middle segments get square inner
+      // corners automatically), giving a single uniform border-radius
+      // instead of a full pill. `side` is used for BOTH that outer border
+      // AND every inter-segment divider line (see Flutter's
+      // _RenderSegmentedButton.paint, which reuses `enabledBorder.side`
+      // for dividers) — a thin, visible ink-navy-tinted line replaces the
+      // old barely-visible default.
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: SegmentedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          side: BorderSide(
+            color: AppColors.deepBlue.withValues(alpha: 0.35),
+            width: 1,
+          ),
+        ),
+      ),
     );
   }
 }
