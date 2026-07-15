@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../models/task_model.dart';
@@ -12,7 +13,7 @@ import '../models/contact_model.dart';
 import '../models/favorite_model.dart';
 import '../models/goal_model.dart';
 import '../models/criterion_model.dart';
-import '../models/criterion_history_model.dart';
+import '../models/criterion_chat_model.dart';
 
 /// FirestoreService — REPLACES LocalDbService (Hive) as of this commit.
 ///
@@ -51,12 +52,27 @@ class FirestoreService {
   static List<MeetingItem> _meetingsCache = [];
   static List<ContactItem> _contactsCache = [];
   static List<FavoriteTask> _favoritesCache = [];
-  // NEW (Goal/Criteria feature — added ALONGSIDE the existing task system,
-  // per the manager's explicit answer "١- اضافه" — see goal_model.dart /
-  // criterion_model.dart doc comments for the full feature rationale).
+  // Goal/Criteria feature — added ALONGSIDE the existing task system.
+  // REBUILT (3-level Goal→Criterion→Chat hierarchy — see goal_model.dart /
+  // criterion_model.dart / criterion_chat_model.dart doc comments):
+  // `_criteriaCache` is now populated via a Firestore COLLECTION-GROUP
+  // listener (`collectionGroup('criteria')`), since Criteria are genuine
+  // subcollection documents at `goals/{goalId}/criteria/{criteriaId}`, not
+  // a single flat top-level collection any more. This lets
+  // `getCriteriaForEmployee`/`getAllCriteria` keep working as simple
+  // in-memory filters over one unified cache, exactly as before, without
+  // requiring N separate per-goal listeners.
+  //
+  // Criterion CHAT (goals/{goalId}/criteria/{criteriaId}/chat/{messageId})
+  // is deliberately NOT cached here at all — unlike every other
+  // collection in this service, it is read directly via a per-criterion
+  // Firestore stream opened only while that criterion's chat screen is
+  // visible (see watchCriterionChat/sendCriterionChatMessage below). This
+  // avoids an unbounded global listener across every chat subcollection in
+  // the database, and is safe because the chat UI is never used as a
+  // "list all conversations" screen the way tasks/messages are.
   static List<Goal> _goalsCache = [];
   static List<Criterion> _criteriaCache = [];
-  static List<CriterionHistoryEntry> _criterionHistoryCache = [];
 
   // ---- Change signal controllers (mirror Hive's box.watch() pattern) ----
   static final _usersChanges = StreamController<void>.broadcast();
@@ -165,7 +181,6 @@ class FirestoreService {
     final favoritesDone = Completer<void>();
     final goalsDone = Completer<void>();
     final criteriaDone = Completer<void>();
-    final criterionHistoryDone = Completer<void>();
 
     _authSubscriptions.add(
       _db
@@ -363,9 +378,17 @@ class FirestoreService {
           ),
     );
 
+    // Criteria are now genuine Firestore SUBCOLLECTION documents at
+    // `goals/{goalId}/criteria/{criteriaId}` (see criterion_model.dart doc
+    // comment) rather than a single flat top-level collection. A
+    // `collectionGroup('criteria')` query is the correct Firestore
+    // mechanism to listen to every criterion document across every goal
+    // at once, regardless of which goal it's nested under — required so
+    // `getCriteriaForEmployee(uid)` can still scan one unified in-memory
+    // cache exactly as before.
     _authSubscriptions.add(
       _db
-          .collection('criteria')
+          .collectionGroup('criteria')
           .snapshots()
           .listen(
             (snap) {
@@ -375,29 +398,26 @@ class FirestoreService {
               if (!criteriaDone.isCompleted) criteriaDone.complete();
               _criteriaChanges.add(null);
             },
-            onError: (_) {
+            onError: (Object error) {
+              // CRITICAL: previously this handler silently discarded the
+              // error with no logging — if this collectionGroup query was
+              // ever rejected by Firestore Security Rules (as it genuinely
+              // WAS until the top-level `match /{path=**}/criteria/{..}`
+              // rule was added — see firestore.rules), `_criteriaCache`
+              // would permanently stay empty with ZERO indication to the
+              // developer or user that anything had failed. Now logged
+              // loudly in debug builds so a future rules regression is
+              // immediately visible instead of silently invisible.
+              if (kDebugMode) {
+                debugPrint(
+                  'FirestoreService: collectionGroup("criteria") listener '
+                  'error — criteria will NOT load. This usually means '
+                  'Firestore Security Rules are rejecting the query '
+                  '(check for a top-level `match /{path=**}/criteria/{id}` '
+                  'rule). Error: $error',
+                );
+              }
               if (!criteriaDone.isCompleted) criteriaDone.complete();
-            },
-          ),
-    );
-
-    _authSubscriptions.add(
-      _db
-          .collection('criterion_history')
-          .snapshots()
-          .listen(
-            (snap) {
-              _criterionHistoryCache = snap.docs
-                  .map((d) => CriterionHistoryEntry.fromMap(d.data()))
-                  .toList();
-              if (!criterionHistoryDone.isCompleted) {
-                criterionHistoryDone.complete();
-              }
-            },
-            onError: (_) {
-              if (!criterionHistoryDone.isCompleted) {
-                criterionHistoryDone.complete();
-              }
             },
           ),
     );
@@ -415,7 +435,6 @@ class FirestoreService {
       favoritesDone.future,
       goalsDone.future,
       criteriaDone.future,
-      criterionHistoryDone.future,
     ]).timeout(const Duration(seconds: 15), onTimeout: () => []);
 
     _authInitialized = true;
@@ -443,7 +462,6 @@ class FirestoreService {
     _favoritesCache = [];
     _goalsCache = [];
     _criteriaCache = [];
-    _criterionHistoryCache = [];
     _authInitialized = false;
   }
 
@@ -532,6 +550,26 @@ class FirestoreService {
   static Future<void> markTaskViewed(String taskId) async {
     await _db.collection('tasks').doc(taskId).update({
       'viewedByEmployee': true,
+    });
+  }
+
+  /// Atomically appends one [ActivityLogEntry] to a task's `activityLog`
+  /// array field, via `FieldValue.arrayUnion` — this is a raw single-field
+  /// `.update()`, NOT a full-document `.set()` via [saveTask], specifically
+  /// so the append is safe under concurrent writes (two clients appending
+  /// at nearly the same moment both land, instead of one read-modify-write
+  /// silently clobbering the other's entry). Allowed by the employee at
+  /// ANY task status per the Part-2 requirement — see the `tasks/{taskId}`
+  /// update rule's normal-lifecycle employee branch in firestore.rules,
+  /// which allows `activityLog` in its `hasOnly()` field allowlist
+  /// unconditionally (not gated on `status`).
+  static Future<void> appendTaskActivityLogEntry(
+    String taskId,
+    ActivityLogEntry entry,
+  ) async {
+    await _db.collection('tasks').doc(taskId).update({
+      'activityLog': FieldValue.arrayUnion([entry.toMap()]),
+      'updatedAt': DateTime.now().toIso8601String(),
     });
   }
 
@@ -700,12 +738,33 @@ class FirestoreService {
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
   }
 
-  // ---------------- GOALS (new — additive feature, see goal_model.dart) ----------------
+  // ---------------- GOALS (3-level Goal→Criterion→Chat hierarchy, see
+  //      goal_model.dart) ----------------
   static Future<void> saveGoal(Goal goal) async {
     await _db.collection('goals').doc(goal.goalId).set(goal.toMap());
   }
 
+  /// Deletes [goalId] AND cascades to every Criterion subcollection
+  /// document under it, AND every chat message subcollection document
+  /// under each of those criteria. Firestore does NOT cascade-delete
+  /// subcollections automatically when a parent document is deleted — an
+  /// orphaned `goals/{goalId}/criteria/*` subtree would otherwise remain
+  /// permanently inaccessible (no rule allows reading a criteria
+  /// subcollection of a nonexistent goal via the app's normal navigation,
+  /// but the documents/storage would still exist).
   static Future<void> deleteGoal(String goalId) async {
+    final criteriaSnap = await _db
+        .collection('goals')
+        .doc(goalId)
+        .collection('criteria')
+        .get();
+    for (final c in criteriaSnap.docs) {
+      final chatSnap = await c.reference.collection('chat').get();
+      for (final m in chatSnap.docs) {
+        await m.reference.delete();
+      }
+      await c.reference.delete();
+    }
     await _db.collection('goals').doc(goalId).delete();
   }
 
@@ -723,16 +782,32 @@ class FirestoreService {
     yield* _goalsChanges.stream.map((_) => getAllGoals());
   }
 
-  // ---------------- CRITERIA (new — additive feature, see criterion_model.dart) ----------------
+  // ---------------- CRITERIA (genuine Firestore SUBCOLLECTION of a Goal,
+  //      see criterion_model.dart — `goals/{goalId}/criteria/{criteriaId}`,
+  //      NOT a flat top-level collection any more) ----------------
   static Future<void> saveCriterion(Criterion criterion) async {
     await _db
+        .collection('goals')
+        .doc(criterion.goalId)
         .collection('criteria')
         .doc(criterion.criterionId)
         .set(criterion.toMap());
   }
 
-  static Future<void> deleteCriterion(String criterionId) async {
-    await _db.collection('criteria').doc(criterionId).delete();
+  /// Deletes a Criterion AND cascades to every chat message document under
+  /// its `chat` subcollection (see [deleteGoal] doc comment — same
+  /// orphaned-subcollection concern applies at this level too).
+  static Future<void> deleteCriterion(String goalId, String criterionId) async {
+    final criterionRef = _db
+        .collection('goals')
+        .doc(goalId)
+        .collection('criteria')
+        .doc(criterionId);
+    final chatSnap = await criterionRef.collection('chat').get();
+    for (final m in chatSnap.docs) {
+      await m.reference.delete();
+    }
+    await criterionRef.delete();
   }
 
   static Criterion? getCriterion(String criterionId) {
@@ -746,16 +821,19 @@ class FirestoreService {
 
   static List<Criterion> getCriteriaForGoal(String goalId) {
     return _criteriaCache.where((c) => c.goalId == goalId).toList()
-      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
-  /// Criteria can have MULTIPLE assignees (per the manager's explicit
-  /// answer "٤- يمكن لعدة موظفين المشاركة بحسب رغبة المدير") — hence
-  /// list-membership (`contains`), never `==` equality like the single-
-  /// assignee `AppTask.assignedTo` check in `getTasksForEmployee`.
+  /// Criteria can have MULTIPLE assignees — hence list-membership
+  /// (`contains`), never `==` equality like the single-assignee
+  /// `AppTask.assignedTo` check in `getTasksForEmployee`. This is what
+  /// makes "an employee sees ONLY the criteria assigned to them" work,
+  /// regardless of which Goal each matching criterion happens to live
+  /// under (the underlying cache is populated via a collectionGroup
+  /// listener — see initAuthenticated — so this scans across ALL goals).
   static List<Criterion> getCriteriaForEmployee(String uid) {
-    return _criteriaCache.where((c) => c.assignedTo.contains(uid)).toList()
-      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    return _criteriaCache.where((c) => c.assignees.contains(uid)).toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
   static Stream<List<Criterion>> watchAllCriteria() async* {
@@ -773,23 +851,49 @@ class FirestoreService {
     yield* _criteriaChanges.stream.map((_) => getCriteriaForEmployee(uid));
   }
 
-  // ---------------- CRITERION HISTORY (new, parallel to TASK HISTORY) ----------------
-  static Future<void> addCriterionHistoryEntry(
-    CriterionHistoryEntry entry,
-  ) async {
-    await _db
-        .collection('criterion_history')
-        .doc(entry.historyId)
-        .set(entry.toMap());
-  }
-
-  static List<CriterionHistoryEntry> getHistoryForCriterion(
+  // ---------------- CRITERION CHAT (genuine Firestore SUBCOLLECTION of a
+  //      Criterion — `goals/{goalId}/criteria/{criteriaId}/chat/{messageId}`,
+  //      see criterion_chat_model.dart doc comment for why this is a
+  //      WHOLLY SEPARATE system from `messages`/ChatMessage) ----------------
+  //
+  // Deliberately NOT cached in the usual `_xCache` pattern (see the class-
+  // level doc comment above `_goalsCache`) — reads/writes here always go
+  // straight to Firestore, scoped to a single criterionId's chat screen.
+  static CollectionReference<Map<String, dynamic>> _criterionChatRef(
+    String goalId,
     String criterionId,
   ) {
-    return _criterionHistoryCache
-        .where((h) => h.criterionId == criterionId)
-        .toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return _db
+        .collection('goals')
+        .doc(goalId)
+        .collection('criteria')
+        .doc(criterionId)
+        .collection('chat');
+  }
+
+  static Future<void> sendCriterionChatMessage({
+    required String goalId,
+    required String criterionId,
+    required CriterionChatMessage message,
+  }) async {
+    await _criterionChatRef(
+      goalId,
+      criterionId,
+    ).doc(message.messageId).set(message.toMap());
+  }
+
+  static Stream<List<CriterionChatMessage>> watchCriterionChat({
+    required String goalId,
+    required String criterionId,
+  }) {
+    return _criterionChatRef(goalId, criterionId)
+        .orderBy('timestamp')
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((d) => CriterionChatMessage.fromMap(d.id, d.data()))
+              .toList(),
+        );
   }
 
   // ---------------- CALENDAR EVENTS (imported, read-only) ----------------

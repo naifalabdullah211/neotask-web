@@ -3,7 +3,9 @@ import 'package:uuid/uuid.dart';
 import '../models/task_model.dart';
 import '../models/task_history_model.dart';
 import '../services/firestore_service.dart';
+import '../theme/app_theme.dart' show statusLabelAr;
 import '../utils/recurrence_utils.dart';
+import '../utils/task_stats.dart';
 
 class TaskProvider extends ChangeNotifier {
   static const _uuid = Uuid();
@@ -22,9 +24,40 @@ class TaskProvider extends ChangeNotifier {
     });
   }
 
-  List<AppTask> tasksForEmployee(String uid) =>
-      _allTasks.where((t) => t.assignedTo == uid).toList()
-        ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+  /// SINGLE SOURCE OF TRUTH for the "completed tasks always last" ordering
+  /// rule. Applied by every task-list getter below (`tasksForEmployee`,
+  /// `tasksForDay`, `tasksForWeek`, `tasksForMonth`) so the manager
+  /// dashboard, the employee tasks tab, the manager reports tab (and, as a
+  /// side effect of sharing these same methods, the designer dashboard)
+  /// all order tasks identically without duplicating this logic per screen.
+  ///
+  /// Primary key: `dueDate` ascending (matches the prior behavior of
+  /// `tasksForEmployee`, extended here to the 3 methods that previously had
+  /// no sort at all). Secondary key: completed tasks (`PrimaryTaskStatus.
+  /// completed`, i.e. `TaskStatus.approved`) are always pushed to the end
+  /// of the list, regardless of their due date — implemented by sorting by
+  /// due date first, then partitioning into "not completed" / "completed"
+  /// groups and concatenating, which preserves the due-date order within
+  /// each group. This is purely a display-order concern and must NOT be
+  /// confused with [computeTaskStats]'s classification (see
+  /// `lib/utils/task_stats.dart`), which this function does not alter.
+  List<AppTask> _sortedWithCompletedLast(List<AppTask> tasks) {
+    final sorted = [...tasks]..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    final notCompleted = <AppTask>[];
+    final completed = <AppTask>[];
+    for (final t in sorted) {
+      if (t.primaryStatus == PrimaryTaskStatus.completed) {
+        completed.add(t);
+      } else {
+        notCompleted.add(t);
+      }
+    }
+    return [...notCompleted, ...completed];
+  }
+
+  List<AppTask> tasksForEmployee(String uid) => _sortedWithCompletedLast(
+    _allTasks.where((t) => t.assignedTo == uid).toList(),
+  );
 
   List<AppTask> get submittedForReview =>
       _allTasks.where((t) => t.status == TaskStatus.submitted).toList()..sort(
@@ -34,7 +67,7 @@ class TaskProvider extends ChangeNotifier {
       );
 
   List<AppTask> tasksForDay(DateTime day, {String? employeeUid}) {
-    return _allTasks.where((t) {
+    final filtered = _allTasks.where((t) {
       final matchesDay =
           t.dueDate.year == day.year &&
           t.dueDate.month == day.month &&
@@ -43,23 +76,25 @@ class TaskProvider extends ChangeNotifier {
           employeeUid == null || t.assignedTo == employeeUid;
       return matchesDay && matchesEmployee;
     }).toList();
+    return _sortedWithCompletedLast(filtered);
   }
 
   List<AppTask> tasksForMonth(DateTime month, {String? employeeUid}) {
-    return _allTasks.where((t) {
+    final filtered = _allTasks.where((t) {
       final matchesMonth =
           t.dueDate.year == month.year && t.dueDate.month == month.month;
       final matchesEmployee =
           employeeUid == null || t.assignedTo == employeeUid;
       return matchesMonth && matchesEmployee;
     }).toList();
+    return _sortedWithCompletedLast(filtered);
   }
 
   List<AppTask> tasksForWeek(DateTime anyDayInWeek, {String? employeeUid}) {
     final weekday = anyDayInWeek.weekday;
     final start = anyDayInWeek.subtract(Duration(days: weekday - 1));
     final end = start.add(const Duration(days: 6));
-    return _allTasks.where((t) {
+    final filtered = _allTasks.where((t) {
       final inRange =
           !t.dueDate.isBefore(DateTime(start.year, start.month, start.day)) &&
           !t.dueDate.isAfter(
@@ -69,6 +104,7 @@ class TaskProvider extends ChangeNotifier {
           employeeUid == null || t.assignedTo == employeeUid;
       return inRange && matchesEmployee;
     }).toList();
+    return _sortedWithCompletedLast(filtered);
   }
 
   Future<AppTask> createTask({
@@ -128,7 +164,7 @@ class TaskProvider extends ChangeNotifier {
       taskId,
       HistoryAction.statusChange,
       actorUid,
-      note: 'تغيير الحالة إلى ${status.name}',
+      note: 'تغيير الحالة إلى ${statusLabelAr(status.name)}',
     );
   }
 
@@ -241,8 +277,110 @@ class TaskProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> deleteTask(String taskId) async {
+  // =========================================================================
+  // PART 4 — MANAGER-ONLY priority/dueDate EDITING (NEW — additive feature)
+  // =========================================================================
+  // `priority` and `dueDate` are editable ONLY by the manager, at ANY task
+  // status (per the explicit requirement: "بغض النظر عن حالة المهمة" — this
+  // restriction is unconditional, not just post-submission). This is the
+  // ONLY method in this provider that may change either field after
+  // creation. Enforced structurally at TWO layers:
+  //   1. Caller layer (UI): only rendered/reachable from manager-only
+  //      screens (see TaskReviewDetailScreen's edit button) — no employee
+  //      screen calls this method or exposes editable priority/dueDate
+  //      fields (see task_detail_screen.dart, which only ever displays
+  //      dueDate read-only).
+  //   2. Firestore rules layer: none of the THREE employee-write branches
+  //      on `tasks/{taskId}` list `priority`/`dueDate` in their `hasOnly()`
+  //      allowlists — only the unrestricted `isManager()` branch can ever
+  //      write these fields, so even a maliciously modified client cannot
+  //      bypass this restriction. See firestore.rules doc comment on the
+  //      `tasks` update rule for the full rationale.
+  Future<void> updatePriorityAndDueDate({
+    required String taskId,
+    required String managerUid,
+    required TaskPriority priority,
+    required DateTime dueDate,
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return;
+    final updated = task.copyWith(
+      priority: priority,
+      dueDate: dueDate,
+      updatedAt: DateTime.now(),
+    );
+    await FirestoreService.saveTask(updated);
+    await _logHistory(
+      taskId,
+      HistoryAction.statusChange,
+      managerUid,
+      note:
+          'تعديل الأولوية/تاريخ الاستحقاق من المدير '
+          '(الأولوية: ${priority.name}، الاستحقاق: '
+          '${dueDate.year}/${dueDate.month.toString().padLeft(2, '0')}/'
+          '${dueDate.day.toString().padLeft(2, '0')})',
+    );
+  }
+
+  /// Manager-only task deletion. Logs a history entry BEFORE the task
+  /// document is removed (per the explicit requirement that any
+  /// delete/transfer/status-change must be recorded in the timeline) —
+  /// this entry persists in the independent `task_history` collection
+  /// (keyed by `taskId` string) even after the task document itself is
+  /// gone. Logging must happen first: once the task doc is deleted,
+  /// nothing else reads `FirestoreService.getTask(taskId)` for it again,
+  /// so ordering here only matters for audit completeness, not for
+  /// correctness of the delete itself.
+  Future<void> deleteTask(String taskId, {String? actorUid}) async {
+    if (actorUid != null) {
+      await _logHistory(
+        taskId,
+        HistoryAction.statusChange,
+        actorUid,
+        note: 'تم حذف المهمة',
+      );
+    }
     await FirestoreService.deleteTask(taskId);
+  }
+
+  // =========================================================================
+  // MANAGER-DIRECT SINGLE-TASK REASSIGNMENT (NEW — additive feature)
+  // =========================================================================
+  // Deliberately DISTINCT from the employee-initiated 3-step reassignment
+  // workflow above (requestReassignment → decideReassignmentRequest →
+  // confirmReassignmentByNewEmployee), which requires proposal + manager
+  // approval + new-employee confirmation. This method is an IMMEDIATE,
+  // unconditional manager action — no approval/confirmation steps — per
+  // the explicit requirement ("تحويل لموظف آخر" button available directly
+  // on the manager's task detail screen, changes assignedTo right away).
+  // Reuses `HistoryAction.statusChange` with a descriptive note, matching
+  // the existing precedent in `reassignAllTasksForEmployee` above, rather
+  // than adding a new enum value — avoids touching the 4 duplicated
+  // `HistoryAction` switch-statements (task_provider.dart itself plus the
+  // 3 detail-screen `_HistoryTile` widgets) for a case that is fully
+  // describable via a note string.
+  Future<void> reassignTaskDirect({
+    required String taskId,
+    required String managerUid,
+    required String newAssigneeUid,
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return;
+    if (task.assignedTo == newAssigneeUid) return;
+    final updated = task.copyWith(
+      assignedTo: newAssigneeUid,
+      // Fresh assignee should see this as a new/unread item, mirroring the
+      // same semantics used by confirmReassignmentByNewEmployee above.
+      viewedByEmployee: false,
+      updatedAt: DateTime.now(),
+    );
+    await FirestoreService.saveTask(updated);
+    await _logHistory(
+      taskId,
+      HistoryAction.statusChange,
+      managerUid,
+      note: 'تحويل المهمة مباشرة إلى موظف آخر من قبل المدير',
+    );
   }
 
   /// Marks [taskId] as viewed by its assigned employee (in-app notification
@@ -310,6 +448,38 @@ class TaskProvider extends ChangeNotifier {
 
   List<TaskHistoryEntry> historyForTask(String taskId) {
     return FirestoreService.getHistoryForTask(taskId);
+  }
+
+  // =========================================================================
+  // PART 2 — EMPLOYEE-AUTHORED ACTIVITY LOG (NEW — additive feature)
+  // =========================================================================
+  // Lets the task's assignee append a free-text status update/note AT ANY
+  // TIME, including after the task has already been submitted to the
+  // manager (`status == submitted`) or even after a terminal decision
+  // (`approved`/`rejected`) — deliberately NOT gated on `current.status`,
+  // per the explicit requirement. Each call appends exactly one entry via
+  // an atomic Firestore `FieldValue.arrayUnion` (see
+  // `FirestoreService.appendTaskActivityLogEntry`) — never a replace of
+  // the previous entry. `previousStatus`/`newStatus` both record the
+  // task's CURRENT status at the time of the note (this call never itself
+  // changes `status`) — they are intentionally equal for a pure note. The
+  // manager sees the full log (see `TaskReviewDetailScreen`) regardless of
+  // whether the task's final status has changed since.
+  Future<void> addActivityLogEntry({
+    required String taskId,
+    required String updatedBy,
+    String? note,
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return;
+    final entry = ActivityLogEntry(
+      updatedBy: updatedBy,
+      updatedAt: DateTime.now(),
+      note: note,
+      previousStatus: task.status.name,
+      newStatus: task.status.name,
+    );
+    await FirestoreService.appendTaskActivityLogEntry(taskId, entry);
   }
 
   // =========================================================================
@@ -444,14 +614,13 @@ class TaskProvider extends ChangeNotifier {
   /// Tasks with a reassignment request awaiting the MANAGER's decision.
   /// Feeds the "طلبات الإسناد" section inside the existing manager review
   /// tab (per answer ٧: shown in the current review tab, not a new one).
-  List<AppTask> get reassignmentRequestsForManager => _allTasks
-      .where((t) => t.reassignRequestedStatus == 'pending')
-      .toList()
-    ..sort(
-      (a, b) => (a.reassignRequestedAt ?? a.updatedAt).compareTo(
-        b.reassignRequestedAt ?? b.updatedAt,
-      ),
-    );
+  List<AppTask> get reassignmentRequestsForManager =>
+      _allTasks.where((t) => t.reassignRequestedStatus == 'pending').toList()
+        ..sort(
+          (a, b) => (a.reassignRequestedAt ?? a.updatedAt).compareTo(
+            b.reassignRequestedAt ?? b.updatedAt,
+          ),
+        );
 
   /// Tasks approved by the manager and awaiting THIS employee's
   /// confirmation of receipt (answer ٦).
@@ -481,40 +650,29 @@ class TaskProvider extends ChangeNotifier {
     await FirestoreService.addHistoryEntry(entry);
   }
 
-  /// Completed ("مكتملة" = [TaskStatus.approved]) vs. pending (everything
-  /// else still open) counts for [employeeUid] within the calendar week
-  /// containing [anchor]. Feeds the employee tasks tab's mini weekly stat
-  /// summary (screen-filler widget shown when the task list is short).
-  /// Reuses [tasksForWeek] rather than duplicating the week-range logic.
+  /// Completed vs. pending counts for [employeeUid] within the calendar
+  /// week containing [anchor]. Feeds the employee tasks tab's mini weekly
+  /// stat summary (screen-filler widget shown when the task list is
+  /// short). Reuses [tasksForWeek] for the date-range filter AND
+  /// [computeTaskStats] for the classification — NOT an independent
+  /// approved/not-approved check — so this widget's numbers are
+  /// guaranteed to match every other dashboard reading the same week's
+  /// tasks (see task_stats.dart doc comment for the single-source-of-
+  /// truth rationale).
   Map<String, int> weeklyStatsForEmployee(String employeeUid, DateTime anchor) {
     final weekTasks = tasksForWeek(anchor, employeeUid: employeeUid);
-    final completed = weekTasks
-        .where((t) => t.status == TaskStatus.approved)
-        .length;
-    return {'completed': completed, 'pending': weekTasks.length - completed};
-  }
-
-  // ---- Simple stats helpers for manager dashboard/reports ----
-  Map<String, int> statsForRange(List<AppTask> tasks) {
+    final stats = computeTaskStats(weekTasks);
     return {
-      'total': tasks.length,
-      'approved': tasks.where((t) => t.status == TaskStatus.approved).length,
-      'pending': tasks
-          .where(
-            (t) =>
-                t.status == TaskStatus.assigned ||
-                t.status == TaskStatus.inProgress,
-          )
-          .length,
-      'submitted': tasks.where((t) => t.status == TaskStatus.submitted).length,
-      'rejected': tasks.where((t) => t.status == TaskStatus.rejected).length,
-      'overdue': tasks
-          .where(
-            (t) =>
-                t.dueDate.isBefore(DateTime.now()) &&
-                t.status != TaskStatus.approved,
-          )
-          .length,
+      'completed': stats.completed,
+      'pending': stats.pendingDisplay + stats.submitted + stats.rejected,
     };
   }
+
+  /// SINGLE SOURCE OF TRUTH for every dashboard's stat cards + completion
+  /// chart (manager dashboard, designer dashboard) and the PDF report.
+  /// Delegates entirely to [computeTaskStats] — this method must NEVER
+  /// re-derive completed/pending/overdue with its own inline logic again
+  /// (that duplication across screens was the documented root cause of
+  /// cards/charts disagreeing and the card sum exceeding the total).
+  TaskStats statsForRange(List<AppTask> tasks) => computeTaskStats(tasks);
 }

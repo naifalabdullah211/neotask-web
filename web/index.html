@@ -31,6 +31,42 @@
 
   <title>NeoTask</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Self-hosted Firebase JS SDK modules (SAME-ORIGIN, not gstatic.com CDN).
+
+    Root cause this addresses: firebase_core_web (the Dart plugin) normally
+    fetches these modules dynamically at runtime from
+    https://www.gstatic.com/firebasejs/... via an inline-script +
+    async import() trigger. Some institutional/corporate networks and mobile
+    browser security policies (observed: hospital-managed device, iOS Safari,
+    reported by multiple users) block that third-party gstatic.com fetch or
+    the dynamically-created inline <script> pattern, even though the rest of
+    the page (served from this same web.app origin) loads fine. When that
+    fetch is blocked or hangs, FlutterFire surfaces
+    PlatformException(channel-error, "Unable to establish connection on
+    channel"), which looks like a login/credential failure but actually
+    happens before any credential is sent to Firebase's servers.
+
+    Fix: the 3 required SDK files (app/auth/firestore) are vendored into
+    web/firebase-sdk/ and served from THIS origin (web.app), with their
+    internal cross-import of firebase-app.js rewritten to a relative path.
+    Pre-populating window.firebase_core / window.firebase_auth /
+    window.firebase_firestore here makes firebase_core_web's
+    _initializeCore() short-circuit (see its check:
+    `if (globalContext['firebase_core'] != null) return;`), so it never
+    attempts the gstatic.com dynamic injection at all.
+
+    Version pinned: 11.9.1, matching firebase_core_web 2.24.0's
+    `supportedFirebaseJsSdkVersion` constant exactly (verified in
+    pubspec.lock). If firebase_core_web is ever upgraded, the files in
+    web/firebase-sdk/ must be re-fetched and re-vendored at the new version.
+  -->
+  <script type="module">
+    window.firebase_core = await import("./firebase-sdk/firebase-app.js");
+    window.firebase_auth = await import("./firebase-sdk/firebase-auth.js");
+    window.firebase_firestore = await import("./firebase-sdk/firebase-firestore.js");
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

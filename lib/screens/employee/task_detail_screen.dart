@@ -11,6 +11,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/recurrence_utils.dart';
 import '../../widgets/status_chip.dart';
+import '../../widgets/favorite_star_button.dart';
 import '../shared/chat_thread_screen.dart';
 import '../shared/request_reassignment_dialog.dart';
 
@@ -71,6 +72,52 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     if (mounted) setState(() => _busy = false);
   }
 
+  /// Part 2 — lets the employee append a status update/note to the task's
+  /// `activityLog` AT ANY TIME, regardless of `current.status` (including
+  /// after submission to the manager). Deliberately NOT gated by any
+  /// status check — the button is always rendered.
+  Future<void> _addActivityLogNote(String uid) async {
+    final noteCtrl = TextEditingController();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('إضافة تحديث / ملاحظة'),
+        content: TextField(
+          controller: noteCtrl,
+          autofocus: true,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: 'التحديث أو الملاحظة',
+            hintText: 'اكتب أي تحديث جديد يخص هذه المهمة...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(noteCtrl.text),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (note == null || note.trim().isEmpty || !mounted) return; // cancelled
+
+    setState(() => _busy = true);
+    await context.read<TaskProvider>().addActivityLogEntry(
+      taskId: widget.task.taskId,
+      updatedBy: uid,
+      note: note.trim(),
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('تم إضافة التحديث بنجاح')));
+  }
+
   Future<void> _submitForReview(String uid) async {
     final noteCtrl = TextEditingController();
     final note = await showDialog<String>(
@@ -127,7 +174,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('تفاصيل المهمة'),
-        actions: [_TaskChatButton(taskId: current.taskId, employeeUid: uid)],
+        actions: [
+          FavoriteStarButton(userUid: uid, taskId: current.taskId),
+          _TaskChatButton(taskId: current.taskId, employeeUid: uid),
+        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -209,6 +259,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 icon: const Icon(Icons.swap_horiz),
                 label: const Text('طلب إسناد المهمة لموظف آخر'),
               ),
+            const SizedBox(height: 8),
+            // Part 2 — always visible, regardless of task status (even
+            // after submission/approval/rejection).
+            OutlinedButton.icon(
+              onPressed: _busy ? null : () => _addActivityLogNote(uid),
+              icon: const Icon(Icons.note_add_outlined),
+              label: const Text('إضافة تحديث / ملاحظة'),
+            ),
             const SizedBox(height: 12),
             if (current.status == TaskStatus.assigned)
               ElevatedButton.icon(
@@ -275,6 +333,21 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   'تمت الموافقة على هذه المهمة من قِبل المدير. أحسنت!',
                   style: TextStyle(fontSize: 13),
                 ),
+              ),
+            const SizedBox(height: 20),
+            const Text(
+              'التحديثات والملاحظات',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            if (current.activityLog.isEmpty)
+              const Text(
+                'لا توجد تحديثات بعد',
+                style: TextStyle(color: AppColors.textSecondary),
+              )
+            else
+              ...current.activityLog.reversed.map(
+                (e) => _ActivityLogTile(entry: e),
               ),
             const SizedBox(height: 20),
             const Text(
@@ -368,6 +441,40 @@ class _InfoRow extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Part 2 — renders one `activityLog` entry (employee-authored update/note).
+/// Distinct from [_HistoryTile] (which renders `task_history`, a separate
+/// audit-log collection driven by lifecycle transitions) — this tile
+/// renders the embedded `activityLog` array field instead.
+class _ActivityLogTile extends StatelessWidget {
+  final ActivityLogEntry entry;
+  const _ActivityLogTile({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: AppColors.statusPending.withValues(alpha: 0.05),
+      child: ListTile(
+        dense: true,
+        leading: const Icon(Icons.note_alt_outlined),
+        title: entry.note != null && entry.note!.isNotEmpty
+            ? Text(entry.note!, style: const TextStyle(fontSize: 13))
+            : const Text(
+                '(بدون نص)',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+        subtitle: Text(
+          intl.DateFormat('yyyy/MM/dd HH:mm').format(entry.updatedAt),
+          style: const TextStyle(fontSize: 11),
         ),
       ),
     );

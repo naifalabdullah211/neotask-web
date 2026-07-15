@@ -59,13 +59,6 @@ class ChatMessage {
   /// Deterministic conversationId for the per-task thread of [taskId].
   static String taskConversationId(String taskId) => 'task_$taskId';
 
-  /// Deterministic conversationId for the per-criterion thread of
-  /// [criterionId] (see criterion_model.dart / GoalProvider). Mirrors
-  /// [taskConversationId]'s exact pattern — a Criterion's chat is between
-  /// the manager and whichever employee(s) are assigned to it.
-  static String criterionConversationId(String criterionId) =>
-      'criterion_$criterionId';
-
   ChatMessage copyWith({DateTime? readAt}) {
     return ChatMessage(
       messageId: messageId,

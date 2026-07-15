@@ -250,41 +250,44 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
             children: [
               _StatCard(
                 metric: DashboardMetric.total,
-                value: stats['total']!,
+                value: stats.total,
                 icon: Icons.assignment_outlined,
               ),
               _StatCard(
                 metric: DashboardMetric.completed,
-                value: stats['approved']!,
+                value: stats.completed,
                 icon: Icons.check_circle_outline,
               ),
               _StatCard(
                 metric: DashboardMetric.pending,
-                value: stats['pending']!,
+                value: stats.pendingDisplay,
                 icon: Icons.hourglass_empty,
               ),
               _StatCard(
                 metric: DashboardMetric.review,
-                value: stats['submitted']!,
+                value: stats.submitted,
                 icon: Icons.rate_review_outlined,
               ),
               _StatCard(
                 metric: DashboardMetric.rejected,
-                value: stats['rejected']!,
+                value: stats.rejected,
                 icon: Icons.cancel_outlined,
               ),
               _StatCard(
                 metric: DashboardMetric.overdue,
-                value: stats['overdue']!,
+                value: stats.overdue,
                 icon: Icons.warning_amber_outlined,
               ),
             ],
           ),
           const SizedBox(height: 20),
           _CompletionChartCard(
-            completed: stats['approved']!,
-            overdue: stats['overdue']!,
-            pending: stats['pending']! + stats['submitted']!,
+            completed: stats.completed,
+            overdue: stats.overdue,
+            // Must match the قيد الانتظار stat card above exactly — see
+            // manager_dashboard_tab.dart's identical fix/comment for the
+            // card/chart-mismatch root cause this resolves.
+            pending: stats.pendingDisplay,
           ),
           const SizedBox(height: 20),
           Row(
@@ -704,33 +707,45 @@ class _CompletionChartCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              for (final b in bars)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: b.color,
-                        borderRadius: BorderRadius.circular(2),
+          // COLOR-MISMATCH FIX (identical issue/fix as
+          // manager_dashboard_tab.dart's _ManagerCompletionChartCard):
+          // the chart's X-axis labels above are laid out strictly in
+          // `bars` list order (completed, overdue, pending — left to
+          // right) by fl_chart, ignoring the app's ambient RTL
+          // Directionality. This legend Row, however, DOES auto-mirror
+          // under RTL by default, which desynced the legend's visual
+          // order from the axis/bar order above it. Forcing ltr keeps
+          // both in the same order so each chip lines up under its bar.
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                for (final b in bars)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: b.color,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${b.value}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: b.color,
+                      const SizedBox(width: 6),
+                      Text(
+                        '${b.value}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: b.color,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-            ],
+                    ],
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
         ],

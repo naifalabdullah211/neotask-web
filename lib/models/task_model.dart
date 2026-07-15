@@ -9,6 +9,135 @@ enum TaskStatus {
 
 enum TaskPriority { low, medium, high }
 
+// ---------------------------------------------------------------------------
+// UNIFIED STATE-MACHINE FIX (data-consistency bug report):
+//
+// Root cause of the reported bug ("بطاقة مكتملة/قيد الانتظار تختلف عن
+// الرسم البياني، ومجموع البطاقات يتجاوز الإجمالي" — completed/pending
+// cards disagreeing with their chart bars, and the sum of all cards
+// exceeding the grand total): every screen/chart was computing its own
+// ad hoc completed/pending/overdue boolean logic independently instead
+// of reading from one shared classification. Concretely:
+//   - manager_dashboard_tab.dart's chart added `stats['submitted']` on
+//     top of `stats['pending']` for its "pending" bar, while the stat
+//     CARD showed `stats['pending']` alone — a direct card/chart
+//     mismatch.
+//   - `overdue` was computed as `dueDate.isBefore(now) && status !=
+//     approved`, which OVERLAPS with pending/submitted/rejected (a
+//     rejected task past its due date is counted as BOTH rejected AND
+//     overdue) — summing all visible cards therefore exceeds `total`.
+//   - `TaskStatus.editRequested` was not counted in ANY bucket at all,
+//     a silent gap.
+//
+// Fix: [PrimaryTaskStatus] is now the ONE authoritative, MUTUALLY
+// EXCLUSIVE classification (every task maps to exactly one value via
+// [AppTaskStatusX.primaryStatus] below), so counting tasks by this enum
+// is guaranteed by construction to sum to the task count. "Overdue" is
+// kept as a genuinely separate, date-derived flag ([AppTaskStatusX.
+// isOverdue]) that can legitimately overlap with any non-completed
+// bucket — it is intentionally EXCLUDED from any "must sum to total"
+// breakdown. See `TaskProvider.statsForRange` / `lib/utils/task_stats.
+// dart` (computeTaskStats) for the single centralized computation every
+// dashboard card, chart, and PDF report must read from.
+enum PrimaryTaskStatus { pending, inProgress, submitted, completed, rejected }
+
+extension AppTaskStatusX on AppTask {
+  /// Maps the persisted 6-value [TaskStatus] down to the 5-value
+  /// [PrimaryTaskStatus] — the SINGLE classification every stat card,
+  /// chart, and report must use instead of re-deriving its own logic.
+  ///
+  /// JUDGMENT CALL: [TaskStatus.editRequested] has no direct equivalent
+  /// in the 5-value model. It represents "the manager sent this task
+  /// back for revision; the employee has not yet pressed 'استئناف
+  /// العمل' to resume it" — an action is pending FROM the employee, but
+  /// work has not resumed (that only happens once `resumeAfterFeedback`
+  /// sets the status to `inProgress`). This is closest to `pending`
+  /// (task is sitting, awaiting the employee) — NOT `rejected` (a
+  /// terminal decision) and NOT `inProgress` (work hasn't resumed yet).
+  /// Previously this status was not counted in ANY dashboard bucket at
+  /// all; this mapping closes that gap.
+  PrimaryTaskStatus get primaryStatus {
+    switch (status) {
+      case TaskStatus.assigned:
+        return PrimaryTaskStatus.pending;
+      case TaskStatus.editRequested:
+        return PrimaryTaskStatus.pending;
+      case TaskStatus.inProgress:
+        return PrimaryTaskStatus.inProgress;
+      case TaskStatus.submitted:
+        return PrimaryTaskStatus.submitted;
+      case TaskStatus.approved:
+        return PrimaryTaskStatus.completed;
+      case TaskStatus.rejected:
+        return PrimaryTaskStatus.rejected;
+    }
+  }
+
+  /// Date-derived flag, deliberately INDEPENDENT of [primaryStatus] — a
+  /// task is "متأخرة" (overdue) once its due date has passed, as long as
+  /// it hasn't reached the terminal `completed` bucket. This is NOT one
+  /// of the 5 mutually-exclusive [PrimaryTaskStatus] values: it can
+  /// coexist with pending/inProgress/submitted/rejected. Any UI that
+  /// adds this count into a "must sum to total" breakdown re-introduces
+  /// the exact bug reported ("مجموع البطاقات يتجاوز الإجمالي").
+  bool get isOverdue =>
+      primaryStatus != PrimaryTaskStatus.completed &&
+      dueDate.isBefore(DateTime.now());
+}
+
+// ---------------------------------------------------------------------------
+// activityLog — employee-authored update/note entries (NEW feature).
+//
+// Distinct from `task_history`/`TaskHistoryEntry` (a SEPARATE Firestore
+// collection, append-only via security rules, written on every lifecycle
+// transition — submit/approve/reject/etc.). `activityLog` is instead an
+// ARRAY FIELD embedded directly inside the task document itself, written
+// via `FieldValue.arrayUnion` (see FirestoreService.appendTaskActivityLogEntry)
+// so the append is atomic at the Firestore layer regardless of client-side
+// read-modify-write races. Its purpose: let the task's assignee record a
+// free-text status update/note AT ANY TIME — including after the task has
+// already been submitted to the manager — without that action itself
+// changing the task's `status`. `previousStatus`/`newStatus` are included
+// on every entry for a uniform shape; for a pure note (no accompanying
+// status change) they are equal, which is an expected/valid case, not an
+// error — the manager must see the full log even when the final status
+// has not changed.
+class ActivityLogEntry {
+  final String updatedBy;
+  final DateTime updatedAt;
+  final String? note;
+  final String previousStatus;
+  final String newStatus;
+
+  ActivityLogEntry({
+    required this.updatedBy,
+    required this.updatedAt,
+    this.note,
+    required this.previousStatus,
+    required this.newStatus,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'updatedBy': updatedBy,
+    'updatedAt': updatedAt.toIso8601String(),
+    'note': note,
+    'previousStatus': previousStatus,
+    'newStatus': newStatus,
+  };
+
+  factory ActivityLogEntry.fromMap(Map<dynamic, dynamic> map) {
+    return ActivityLogEntry(
+      updatedBy: map['updatedBy'] as String? ?? '',
+      updatedAt: map['updatedAt'] != null
+          ? DateTime.parse(map['updatedAt'] as String)
+          : DateTime.now(),
+      note: map['note'] as String?,
+      previousStatus: map['previousStatus'] as String? ?? '',
+      newStatus: map['newStatus'] as String? ?? '',
+    );
+  }
+}
+
 enum RecurrenceType {
   none,
   daily,
@@ -87,6 +216,13 @@ class AppTask {
   final DateTime? reassignRequestedAt;
   final String? reassignRequestedStatus;
 
+  /// Employee-authored update/note entries — see [ActivityLogEntry] doc
+  /// comment above. Append-only in practice (enforced by writing via
+  /// `FieldValue.arrayUnion` at the Firestore layer, never by replacing
+  /// this list wholesale) but modeled here as a plain immutable list, kept
+  /// in `dueDate`-independent chronological (insertion) order.
+  final List<ActivityLogEntry> activityLog;
+
   AppTask({
     required this.taskId,
     required this.title,
@@ -114,6 +250,7 @@ class AppTask {
     this.reassignRequestedBy,
     this.reassignRequestedAt,
     this.reassignRequestedStatus,
+    this.activityLog = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -143,6 +280,13 @@ class AppTask {
     String? reassignRequestedBy,
     DateTime? reassignRequestedAt,
     String? reassignRequestedStatus,
+    // NOTE: this is a plain replace-if-provided param, NOT an append —
+    // actual appends to activityLog must go through
+    // `FirestoreService.appendTaskActivityLogEntry` (atomic
+    // `FieldValue.arrayUnion` write), never through this copyWith, since
+    // `copyWith`'s in-memory list has no visibility into concurrent writes
+    // from other clients.
+    List<ActivityLogEntry>? activityLog,
     // Standard `??` fallback-to-existing-value semantics cannot express
     // "explicitly set this nullable field back to null" — needed when a
     // reassignment request is rejected or finally confirmed (all 4
@@ -187,6 +331,7 @@ class AppTask {
       reassignRequestedStatus: clearReassignRequest
           ? null
           : (reassignRequestedStatus ?? this.reassignRequestedStatus),
+      activityLog: activityLog ?? this.activityLog,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
@@ -220,6 +365,7 @@ class AppTask {
       'reassignRequestedBy': reassignRequestedBy,
       'reassignRequestedAt': reassignRequestedAt?.toIso8601String(),
       'reassignRequestedStatus': reassignRequestedStatus,
+      'activityLog': activityLog.map((e) => e.toMap()).toList(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -282,6 +428,13 @@ class AppTask {
           ? DateTime.parse(map['reassignRequestedAt'] as String)
           : null,
       reassignRequestedStatus: map['reassignRequestedStatus'] as String?,
+      activityLog: map['activityLog'] != null
+          ? (map['activityLog'] as List)
+              .map(
+                (e) => ActivityLogEntry.fromMap(e as Map<dynamic, dynamic>),
+              )
+              .toList()
+          : const [],
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
           : DateTime.now(),

@@ -24,10 +24,13 @@ enum TaskUrgency { onTrack, dueSoon, overdue }
 TaskUrgency taskUrgency(AppTask task) {
   if (task.status == TaskStatus.approved) return TaskUrgency.onTrack;
 
-  final now = DateTime.now();
-  if (task.dueDate.isBefore(now)) return TaskUrgency.overdue;
+  // Overdue check delegates to the single centralized [AppTask.isOverdue]
+  // getter (task_model.dart) instead of re-deriving it independently here.
+  // This closes the duplicate-calculation gap flagged in the data-consistency
+  // bug report (requirement #3: "امسح أي حساب مستقل مكرر").
+  if (task.isOverdue) return TaskUrgency.overdue;
 
-  final remaining = task.dueDate.difference(now);
+  final remaining = task.dueDate.difference(DateTime.now());
   if (remaining.inHours <= 48) return TaskUrgency.dueSoon;
 
   return TaskUrgency.onTrack;

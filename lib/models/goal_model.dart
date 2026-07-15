@@ -1,31 +1,32 @@
 /// A "Goal" ("هدف") is a top-level container the manager creates, holding
-/// one or more Criteria ("معايير") underneath it — the Smartsheet-style
-/// row/sub-item hierarchy explicitly requested by the manager.
+/// one or more Criteria ("معايير") underneath it — a 3-level hierarchy:
+/// Goal → Criterion → Chat (see criterion_model.dart / criterion_chat_model.dart).
 ///
-/// IMPORTANT ARCHITECTURAL NOTE: per the manager's explicit answer (١ —
-/// "إضافة", i.e. ADDITION not replacement), this is a completely SEPARATE
-/// feature that lives ALONGSIDE the existing flat `AppTask` system. The
-/// existing Dashboard / Review / "مهامي" / Calendar screens are entirely
-/// unaffected and continue to operate on standalone `AppTask` records
-/// exactly as before. A Goal's Criteria are a NEW, independent object type
-/// (see criterion_model.dart) — they do NOT reuse `AppTask` internally,
-/// because a Criterion has different semantics (can be assigned to
-/// MULTIPLE employees, per answer ٤) and a different completion model
-/// (manager must give a final confirmation once all criteria are done,
-/// per answer ٣ — see GoalProvider.closeGoal).
+/// REBUILD NOTE (this replaces the earlier single-flat-collection Goal
+/// design): per the manager's explicit, detailed specification, a Goal now
+/// carries ONLY [title], [description], [startDate], and [endDate]. There
+/// is NO goal-level `isClosed`/manual-closure step anymore — the previous
+/// design's "manager must explicitly confirm completion" flag is dropped
+/// entirely, since the new spec never mentions goal-level completion, only
+/// criterion-level status (see CriterionStatus).
 ///
-/// The Goal itself has no due date or assignee of its own — it is purely
-/// a named grouping. Its effective "status" is always derived at read
-/// time from its Criteria (see GoalProvider.goalStatus), except for the
-/// final `isClosed` flag, which is the one piece of state that must be
-/// explicitly set by the manager (per answer ٣).
+/// Firestore layout (per the manager's exact spec):
+///   goals/{goalId} → title, description, startDate, endDate
+///   goals/{goalId}/criteria/{criteriaId} → ... (see criterion_model.dart)
+///   goals/{goalId}/criteria/{criteriaId}/chat/{messageId} → ... (see
+///     criterion_chat_model.dart)
+///
+/// [createdBy] is kept (not explicitly requested, but needed for the
+/// Firestore security rule that only a manager may create a Goal, and for
+/// basic audit purposes) — this is the one field retained beyond the
+/// literal spec, since it carries no UI/behavioral weight on its own.
 class Goal {
   final String goalId;
   final String title;
   final String description;
   final String createdBy; // manager uid
-  final bool isClosed; // true once the manager manually confirms completion
-  final DateTime? closedAt;
+  final DateTime startDate;
+  final DateTime endDate;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -34,8 +35,8 @@ class Goal {
     required this.title,
     required this.description,
     required this.createdBy,
-    this.isClosed = false,
-    this.closedAt,
+    required this.startDate,
+    required this.endDate,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -43,8 +44,8 @@ class Goal {
   Goal copyWith({
     String? title,
     String? description,
-    bool? isClosed,
-    DateTime? closedAt,
+    DateTime? startDate,
+    DateTime? endDate,
     DateTime? updatedAt,
   }) {
     return Goal(
@@ -52,8 +53,8 @@ class Goal {
       title: title ?? this.title,
       description: description ?? this.description,
       createdBy: createdBy,
-      isClosed: isClosed ?? this.isClosed,
-      closedAt: closedAt ?? this.closedAt,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
@@ -65,8 +66,8 @@ class Goal {
       'title': title,
       'description': description,
       'createdBy': createdBy,
-      'isClosed': isClosed,
-      'closedAt': closedAt?.toIso8601String(),
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -78,10 +79,12 @@ class Goal {
       title: map['title'] as String? ?? '',
       description: map['description'] as String? ?? '',
       createdBy: map['createdBy'] as String? ?? '',
-      isClosed: map['isClosed'] as bool? ?? false,
-      closedAt: map['closedAt'] != null
-          ? DateTime.parse(map['closedAt'] as String)
-          : null,
+      startDate: map['startDate'] != null
+          ? DateTime.parse(map['startDate'] as String)
+          : DateTime.now(),
+      endDate: map['endDate'] != null
+          ? DateTime.parse(map['endDate'] as String)
+          : DateTime.now(),
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
           : DateTime.now(),

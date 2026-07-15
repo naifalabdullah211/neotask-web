@@ -5,6 +5,7 @@ import 'package:printing/printing.dart';
 import '../models/task_model.dart';
 import '../models/user_model.dart';
 import '../utils/recurrence_utils.dart';
+import '../utils/task_stats.dart';
 
 /// Generates on-demand PDF task reports (manager-triggered only — not
 /// automatic) covering the daily/weekly/monthly/individual-employee views.
@@ -44,17 +45,35 @@ class PdfReportService {
     required String title,
     required String rangeLabel,
     required List<AppTask> tasks,
-    required Map<String, int> stats,
+    // Now takes the centralized [TaskStats] object (from
+    // `utils/task_stats.dart`) instead of a hand-rolled Map<String,int> —
+    // guarantees the PDF report's stat boxes always agree with what the
+    // on-screen dashboard cards/chart show for the identical task list,
+    // since both read from the exact same computation.
+    required TaskStats stats,
     Map<String, AppUser>? employeesById,
   }) async {
     final doc = pw.Document();
     final font = await PdfGoogleFonts.notoSansArabicRegular();
     final boldFont = await PdfGoogleFonts.notoSansArabicBold();
+    // Noto Sans Arabic only covers Arabic-script glyphs — it has NO Basic
+    // Latin letters and NO "/" punctuation glyph. Without a fallback, any
+    // Latin text ("NeoTask" header) or "/" date separator (see _fmtDate)
+    // has no glyph to draw and renders as a placeholder box (□). Noto Sans
+    // (plain, Latin-coverage sibling of the same type family) is added as
+    // fontFallback so those specific characters resolve correctly while
+    // Arabic text keeps using the primary Arabic font.
+    final latinFallback = await PdfGoogleFonts.notoSansRegular();
+    final latinFallbackBold = await PdfGoogleFonts.notoSansBold();
 
     doc.addPage(
       pw.MultiPage(
         textDirection: pw.TextDirection.rtl,
-        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
+        theme: pw.ThemeData.withFont(
+          base: font,
+          bold: boldFont,
+          fontFallback: [latinFallback, latinFallbackBold],
+        ),
         pageFormat: PdfPageFormat.a4,
         build: (context) => [
           pw.Header(
@@ -62,7 +81,11 @@ class PdfReportService {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
-                pw.Text('NeoTask', style: const pw.TextStyle(fontSize: 22)),
+                pw.Text(
+                  'NeoTask',
+                  textDirection: pw.TextDirection.ltr,
+                  style: const pw.TextStyle(fontSize: 22),
+                ),
                 pw.SizedBox(height: 4),
                 pw.Text(title, style: const pw.TextStyle(fontSize: 16)),
                 pw.Text(rangeLabel, style: const pw.TextStyle(fontSize: 11)),
@@ -73,12 +96,14 @@ class PdfReportService {
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              _statBox('الإجمالي', stats['total'] ?? 0),
-              _statBox('مكتملة', stats['approved'] ?? 0),
-              _statBox('قيد الانتظار', stats['pending'] ?? 0),
-              _statBox('بانتظار المراجعة', stats['submitted'] ?? 0),
-              _statBox('مرفوضة', stats['rejected'] ?? 0),
-              _statBox('متأخرة', stats['overdue'] ?? 0),
+              _statBox('الإجمالي', stats.total),
+              _statBox('مكتملة', stats.completed),
+              // Same merged pending+inProgress bucket ("قيد الانتظار") used
+              // on-screen — see TaskStats.pendingDisplay doc comment.
+              _statBox('قيد الانتظار', stats.pendingDisplay),
+              _statBox('بانتظار المراجعة', stats.submitted),
+              _statBox('مرفوضة', stats.rejected),
+              _statBox('متأخرة', stats.overdue),
             ],
           ),
           pw.SizedBox(height: 16),
@@ -119,9 +144,40 @@ class PdfReportService {
             ],
           ),
           pw.SizedBox(height: 20),
-          pw.Text(
-            'تم إنشاء هذا التقرير بواسطة المدير عبر منصة NeoTask بتاريخ ${_fmtDate(DateTime.now())}',
-            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+          // NOTE: deliberately NOT a single interpolated string. Embedding the
+          // Latin "NeoTask" brand name and the "/"-separated date inside one
+          // RTL paragraph triggers the `pdf` package's per-rune font-fallback
+          // splitting (see PdfGoogleFonts.notoSansArabicRegular() — it has no
+          // Latin/punctuation glyphs) combined with the bidi reordering pass,
+          // which visually reverses the embedded Latin run (observed:
+          // "NeoTask" rendered as "ksaToeN"). Isolating each Latin/digit
+          // fragment in its own pw.Text with an explicit forced
+          // TextDirection.ltr sidesteps both the bidi reordering and the
+          // fallback-splitting interaction; pw.Wrap still lays the fragments
+          // out in correct right-to-left order for the Arabic segments
+          // because it honors the ambient RTL Directionality.
+          pw.Wrap(
+            direction: pw.Axis.horizontal,
+            children: [
+              pw.Text(
+                'تم إنشاء هذا التقرير بواسطة المدير عبر منصة',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+              ),
+              pw.Text(
+                ' NeoTask ',
+                textDirection: pw.TextDirection.ltr,
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+              ),
+              pw.Text(
+                'بتاريخ',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+              ),
+              pw.Text(
+                ' ${_fmtDate(DateTime.now())}',
+                textDirection: pw.TextDirection.ltr,
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+              ),
+            ],
           ),
         ],
       ),

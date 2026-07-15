@@ -9,6 +9,7 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
 import '../../widgets/mini_week_stats_summary.dart';
 import '../../widgets/date_nav_arrow_button.dart';
+import '../../widgets/favorite_star_button.dart';
 import 'task_detail_screen.dart';
 
 /// Below this task count, the list alone will not fill a typical mobile
@@ -209,9 +210,22 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
                           ),
                         ),
                         leading: TaskUrgencyDot(task: t),
-                        title: Text(
-                          t.title,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                t.title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            FavoriteStarButton(
+                              userUid: widget.employeeUid,
+                              taskId: t.taskId,
+                              size: 20,
+                            ),
+                          ],
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

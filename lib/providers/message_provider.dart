@@ -48,23 +48,6 @@ class MessageProvider extends ChangeNotifier {
     );
   }
 
-  /// Messages for the per-criterion thread of [criterionId] — the chat
-  /// panel required alongside every Criterion (manager's answer
-  /// "٥- نص و مرفقات"). Reuses the exact same messages collection/rules
-  /// infrastructure as tasks; only the conversationId pattern differs
-  /// (see ChatMessage.criterionConversationId).
-  List<ChatMessage> criterionConversation(String criterionId) {
-    return FirestoreService.getMessagesForConversation(
-      ChatMessage.criterionConversationId(criterionId),
-    );
-  }
-
-  Stream<List<ChatMessage>> watchCriterionConversation(String criterionId) {
-    return FirestoreService.watchMessagesForConversation(
-      ChatMessage.criterionConversationId(criterionId),
-    );
-  }
-
   /// Latest message per conversation [userUid] participates in — used to
   /// render a conversation list (e.g. manager's per-employee chat list).
   List<ChatMessage> latestMessagesForUser(String userUid) {
@@ -161,39 +144,12 @@ class MessageProvider extends ChangeNotifier {
     );
   }
 
-  /// Sends a message on a Criterion's chat thread — mirrors
-  /// [sendTaskMessage] exactly, using the criterion-scoped conversationId.
-  /// NOTE: unlike tasks (single `assignedTo` uid), a Criterion may have
-  /// MULTIPLE assignees; [recipientUid] here identifies which single
-  /// counterpart this particular message is addressed to/from (the caller
-  /// — e.g. CriterionDetailScreen — decides that per the current chat
-  /// participant pair being displayed).
-  Future<void> sendCriterionMessage({
-    required String criterionId,
-    required String senderUid,
-    required String recipientUid,
-    required String text,
-    String? attachmentUrl,
-    String? attachmentName,
-    String? attachmentType,
-  }) {
-    return sendMessage(
-      conversationId: ChatMessage.criterionConversationId(criterionId),
-      senderUid: senderUid,
-      recipientUid: recipientUid,
-      text: text,
-      attachmentUrl: attachmentUrl,
-      attachmentName: attachmentName,
-      attachmentType: attachmentType,
-    );
-  }
-
   Future<void> markConversationRead(String conversationId, String userUid) {
     return FirestoreService.markConversationRead(conversationId, userUid);
   }
 
   /// UNSCOPED read of every conversation in the system (general DMs +
-  /// per-task + per-criterion threads) — used ONLY by the read-only
+  /// per-task threads) — used ONLY by the read-only
   /// `designer` role's chat-browsing screen (see UserRole.designer /
   /// FirestoreService.getAllLatestConversations doc comment). No other
   /// provider consumer should call this; every manager/employee screen

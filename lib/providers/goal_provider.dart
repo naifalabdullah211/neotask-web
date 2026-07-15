@@ -2,21 +2,35 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/goal_model.dart';
 import '../models/criterion_model.dart';
-import '../models/task_model.dart' show TaskStatus;
 import '../services/firestore_service.dart';
 
-/// Manages the [Goal] side of the new Goal→Criteria hierarchy (see
-/// goal_model.dart doc comment). Goals themselves carry very little
-/// mutable state — the interesting logic here is `closeGoal()`, which
-/// implements the manager's explicit requirement ("٣- يحتاج تأكيد") that
-/// goal completion is NEVER auto-derived from its criteria's statuses; it
-/// must always be an explicit manager action.
+/// Manages the [Goal] side of the Goal→Criteria→Chat hierarchy (see
+/// goal_model.dart doc comment).
+///
+/// REBUILD NOTE: the previous version of this provider had a manual
+/// `closeGoal`/`reopenGoal` pair implementing an explicit manager
+/// "confirm completion" step. That feature is REMOVED per the manager's
+/// new, literal specification, which defines a Goal as carrying only
+/// title/description/startDate/endDate and never mentions goal-level
+/// completion — only criterion-level [CriterionStatus].
 class GoalProvider extends ChangeNotifier {
   static const _uuid = Uuid();
 
   List<Goal> _allGoals = [];
-  List<Goal> get allGoals => List.unmodifiable(_allGoals)
-    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+  /// Returns a sorted, read-only snapshot of all goals (newest first).
+  ///
+  /// BUG FIX (retained from the crash-fix pass): the previous
+  /// implementation called `.sort()` directly on the result of
+  /// `List.unmodifiable(_allGoals)`, which is immutable — `.sort()`
+  /// mutates its receiver in place, so every call threw `Unsupported
+  /// operation: Cannot modify an unmodifiable list`. Fix: sort a mutable
+  /// copy first, then wrap the already-sorted copy as unmodifiable.
+  List<Goal> get allGoals {
+    final sorted = List<Goal>.of(_allGoals)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return List.unmodifiable(sorted);
+  }
 
   GoalProvider() {
     _listenAll();
@@ -40,6 +54,8 @@ class GoalProvider extends ChangeNotifier {
     required String title,
     required String description,
     required String createdBy,
+    required DateTime startDate,
+    required DateTime endDate,
   }) async {
     final now = DateTime.now();
     final goal = Goal(
@@ -47,7 +63,8 @@ class GoalProvider extends ChangeNotifier {
       title: title,
       description: description,
       createdBy: createdBy,
-      isClosed: false,
+      startDate: startDate,
+      endDate: endDate,
       createdAt: now,
       updatedAt: now,
     );
@@ -59,71 +76,38 @@ class GoalProvider extends ChangeNotifier {
     required String goalId,
     String? title,
     String? description,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     final goal = FirestoreService.getGoal(goalId);
     if (goal == null) return;
     final updated = goal.copyWith(
       title: title,
       description: description,
-      updatedAt: DateTime.now(),
-    );
-    await FirestoreService.saveGoal(updated);
-  }
-
-  /// Explicitly closes [goalId] — the ONLY way a Goal is ever marked
-  /// complete. This is a deliberate manager confirmation step, per answer
-  /// "٣- يحتاج تاكيد": completion is never inferred automatically just
-  /// because every Criterion under the Goal happens to be approved.
-  Future<void> closeGoal(String goalId) async {
-    final goal = FirestoreService.getGoal(goalId);
-    if (goal == null) return;
-    final updated = goal.copyWith(
-      isClosed: true,
-      closedAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-    await FirestoreService.saveGoal(updated);
-  }
-
-  /// Reopens a previously-closed Goal (e.g. the manager closed it by
-  /// mistake, or new criteria were added afterward).
-  Future<void> reopenGoal(String goalId) async {
-    final goal = FirestoreService.getGoal(goalId);
-    if (goal == null) return;
-    final updated = Goal(
-      goalId: goal.goalId,
-      title: goal.title,
-      description: goal.description,
-      createdBy: goal.createdBy,
-      isClosed: false,
-      closedAt: null,
-      createdAt: goal.createdAt,
+      startDate: startDate,
+      endDate: endDate,
       updatedAt: DateTime.now(),
     );
     await FirestoreService.saveGoal(updated);
   }
 
   Future<void> deleteGoal(String goalId) async {
-    // Cascade-delete every Criterion under this Goal so no orphaned
-    // criteria remain — mirrors the intent of `deleteAllTasksForEmployee`
-    // (bulk cleanup) but scoped to a single parent Goal instead.
-    final criteria = FirestoreService.getCriteriaForGoal(goalId);
-    for (final c in criteria) {
-      await FirestoreService.deleteCriterion(c.criterionId);
-    }
+    // FirestoreService.deleteGoal already cascades to every Criterion (and
+    // every criterion's chat messages) under this Goal — see its doc
+    // comment for why that cascade is necessary (Firestore does not
+    // auto-delete subcollections).
     await FirestoreService.deleteGoal(goalId);
   }
 
   /// Derived progress summary for [goalId] — e.g. "3/5 معايير مكتملة" —
-  /// computed purely from the live Criteria cache. This value is NEVER
-  /// written back to the Goal document itself (see `closeGoal` doc
-  /// comment above); it exists only for UI display.
-  ({int total, int approved}) progressForGoal(String goalId) {
+  /// computed purely from the live Criteria cache. Never written back to
+  /// the Goal document itself; exists only for UI display.
+  ({int total, int completed}) progressForGoal(String goalId) {
     final criteria = FirestoreService.getCriteriaForGoal(goalId);
-    final approved = criteria
-        .where((c) => c.status == TaskStatus.approved)
+    final completed = criteria
+        .where((c) => c.status == CriterionStatus.completed)
         .length;
-    return (total: criteria.length, approved: approved);
+    return (total: criteria.length, completed: completed);
   }
 
   List<Criterion> criteriaForGoal(String goalId) =>

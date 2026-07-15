@@ -10,56 +10,19 @@ import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import 'create_criterion_screen.dart';
 import 'criterion_detail_screen.dart';
+import 'edit_goal_dialog.dart';
 
-/// Detail screen for a single Goal — shows the Goal's info, its derived
-/// progress (never auto-closes the Goal — see GoalProvider.closeGoal doc
-/// comment), the list of its Criteria (each a Smartsheet-style sub-row),
-/// a manager-only "معيار جديد" FAB, and a manager-only close/reopen
-/// action requiring EXPLICIT confirmation (per answer "٣- يحتاج تأكيد").
+/// Detail screen for a single Goal — shows the Goal's info (title,
+/// description, start/end dates), the list of its Criteria, and a
+/// manager-only "معيار جديد" FAB.
+///
+/// REBUILD NOTE: per the simplified spec, a Goal has NO manual
+/// close/reopen action anymore — `isClosed`/`closedAt` were removed
+/// entirely from the Goal model.
 class GoalDetailScreen extends StatelessWidget {
   const GoalDetailScreen({super.key, required this.goalId});
 
   final String goalId;
-
-  Future<void> _confirmClose(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('تأكيد إغلاق الهدف'),
-        content: const Text(
-          'هل أنت متأكد من إغلاق هذا الهدف؟ هذا إجراء يدوي ولا يتم تلقائيًا '
-          'حتى لو تمت الموافقة على جميع المعايير.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('تأكيد الإغلاق'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && context.mounted) {
-      await context.read<GoalProvider>().closeGoal(goalId);
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('تم إغلاق الهدف')));
-      }
-    }
-  }
-
-  Future<void> _reopen(BuildContext context) async {
-    await context.read<GoalProvider>().reopenGoal(goalId);
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('تمت إعادة فتح الهدف')));
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,17 +42,24 @@ class GoalDetailScreen extends StatelessWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(goal.title),
-        actions: [
-          if (isManager)
-            IconButton(
-              tooltip: goal.isClosed ? 'إعادة فتح الهدف' : 'إغلاق الهدف',
-              icon: Icon(
-                goal.isClosed ? Icons.lock_open_outlined : Icons.lock_outline,
-              ),
-              onPressed: () =>
-                  goal.isClosed ? _reopen(context) : _confirmClose(context),
-            ),
-        ],
+        actions: isManager
+            ? [
+                IconButton(
+                  tooltip: 'تعديل الهدف',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => showEditGoalDialog(context, goal),
+                ),
+                IconButton(
+                  tooltip: 'حذف الهدف',
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () => confirmAndDeleteGoal(
+                    context,
+                    goal,
+                    onDeleted: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              ]
+            : null,
       ),
       body: SafeArea(
         child: ListView(
@@ -101,39 +71,12 @@ class GoalDetailScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            goal.title,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        if (goal.isClosed)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.statusApproved.withValues(
-                                alpha: 0.12,
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'مغلق',
-                              style: TextStyle(
-                                color: AppColors.statusApproved,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                      ],
+                    Text(
+                      goal.title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     if (goal.description.isNotEmpty) ...[
                       const SizedBox(height: 8),
@@ -143,31 +86,40 @@ class GoalDetailScreen extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.event_outlined,
+                          size: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${intl.DateFormat('yyyy/MM/dd').format(goal.startDate)}'
+                          ' - ${intl.DateFormat('yyyy/MM/dd').format(goal.endDate)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     LinearProgressIndicator(
                       value: progress.total == 0
                           ? 0
-                          : progress.approved / progress.total,
+                          : progress.completed / progress.total,
                       backgroundColor: AppColors.background,
                       color: AppColors.statusApproved,
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${progress.approved}/${progress.total} معايير مكتملة',
+                      '${progress.completed}/${progress.total} معايير مكتملة',
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    if (goal.isClosed && goal.closedAt != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'أُغلق بتاريخ ${intl.DateFormat('yyyy/MM/dd').format(goal.closedAt!)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -214,7 +166,7 @@ class _CriterionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final assigneeNames = criterion.assignedTo
+    final assigneeNames = criterion.assignees
         .map((uid) => FirestoreService.getUser(uid)?.name ?? 'موظف')
         .join('، ');
 
@@ -240,30 +192,17 @@ class _CriterionTile extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'الاستحقاق: ${intl.DateFormat('yyyy/MM/dd').format(criterion.dueDate)}',
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textSecondary,
-              ),
-            ),
             const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                StatusChip(statusName: criterion.status.name, fontSize: 11),
-                PriorityBadge(priorityName: criterion.priority.name, compact: true),
-              ],
-            ),
+            StatusChip(statusName: criterion.status.name, fontSize: 11),
           ],
         ),
         trailing: const Icon(Icons.chevron_left),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) =>
-                CriterionDetailScreen(criterionId: criterion.criterionId),
+            builder: (_) => CriterionDetailScreen(
+              goalId: criterion.goalId,
+              criterionId: criterion.criterionId,
+            ),
           ),
         ),
       ),

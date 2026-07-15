@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
-import '../../models/task_model.dart' show TaskPriority;
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/criterion_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/status_chip.dart';
 
 /// Manager-only screen for creating a new Criterion ("معيار") under a
 /// specific Goal. Unlike ManagerCreateTaskScreen (single `assignedTo`
 /// employee), this form uses MULTI-select — a criterion may be shared by
-/// several employees at once, per the manager's explicit answer "٤- يمكن
-/// لعدة موظفين المشاركة بحسب رغبة المدير".
+/// several employees at once.
+///
+/// REBUILD NOTE: per the simplified spec, a Criterion has NO due date and
+/// NO priority — only title, description, status and assignees.
 class CreateCriterionScreen extends StatefulWidget {
   const CreateCriterionScreen({super.key, required this.goalId});
 
@@ -29,8 +28,6 @@ class _CreateCriterionScreenState extends State<CreateCriterionScreen> {
   final _descCtrl = TextEditingController();
 
   final Set<String> _selectedEmployeeUids = {};
-  DateTime _dueDate = DateTime.now().add(const Duration(days: 1));
-  TaskPriority _priority = TaskPriority.medium;
   bool _saving = false;
 
   @override
@@ -38,16 +35,6 @@ class _CreateCriterionScreenState extends State<CreateCriterionScreen> {
     _titleCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickDueDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dueDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 3650)),
-    );
-    if (picked != null) setState(() => _dueDate = picked);
   }
 
   Future<void> _save() async {
@@ -68,16 +55,25 @@ class _CreateCriterionScreenState extends State<CreateCriterionScreen> {
         goalId: widget.goalId,
         title: _titleCtrl.text.trim(),
         description: _descCtrl.text.trim(),
-        assignedTo: _selectedEmployeeUids.toList(),
+        assignees: _selectedEmployeeUids.toList(),
         assignedBy: managerUid,
-        dueDate: _dueDate,
-        priority: _priority,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('تم إنشاء المعيار بنجاح')));
+    } catch (e) {
+      // CRITICAL FIX: previously there was no `catch` at all here — any
+      // failure (Firestore permission error, network error, etc.) was
+      // silently swallowed by the bare `finally`, leaving the user with no
+      // indication the save had failed and the typed criterion simply
+      // vanishing from the screen. Now shown explicitly per requirement.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر حفظ المعيار، حاول مجددًا')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -111,42 +107,6 @@ class _CreateCriterionScreenState extends State<CreateCriterionScreen> {
                 controller: _descCtrl,
                 maxLines: 3,
                 decoration: const InputDecoration(labelText: 'وصف المعيار'),
-              ),
-              const SizedBox(height: 14),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('تاريخ الاستحقاق'),
-                subtitle: Text(intl.DateFormat('yyyy/MM/dd').format(_dueDate)),
-                trailing: const Icon(Icons.calendar_today_outlined),
-                onTap: _pickDueDate,
-              ),
-              const Divider(),
-              const SizedBox(height: 6),
-              const Text(
-                'الأولوية',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              SegmentedButton<TaskPriority>(
-                segments: [
-                  ButtonSegment(
-                    value: TaskPriority.low,
-                    label: Text(priorityLabelAr('low')),
-                    icon: Icon(priorityIcon('low')),
-                  ),
-                  ButtonSegment(
-                    value: TaskPriority.medium,
-                    label: Text(priorityLabelAr('medium')),
-                    icon: Icon(priorityIcon('medium')),
-                  ),
-                  ButtonSegment(
-                    value: TaskPriority.high,
-                    label: Text(priorityLabelAr('high')),
-                    icon: Icon(priorityIcon('high')),
-                  ),
-                ],
-                selected: {_priority},
-                onSelectionChanged: (s) => setState(() => _priority = s.first),
               ),
               const SizedBox(height: 20),
               const Text(

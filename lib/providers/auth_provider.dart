@@ -367,6 +367,38 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sends a Firebase-hosted password-reset email to [email].
+  ///
+  /// Security/ownership guarantee: the employee or manager sets their OWN
+  /// new password by opening the link in that email (Firebase's own hosted
+  /// reset page) — this app, and nobody operating it (including the
+  /// manager or a developer with Admin SDK access), ever sees or chooses
+  /// that new password. This replaces any prior practice of an admin
+  /// manually overwriting a user's password for troubleshooting purposes,
+  /// which is a one-way, irreversible action and must not be used going
+  /// forward now that this self-service flow exists.
+  ///
+  /// Returns `null` on success (email dispatched). Returns an Arabic
+  /// user-facing error message on failure (e.g. malformed email, or —
+  /// intentionally — the SAME generic message is NOT returned for
+  /// `user-not-found`, to avoid leaking which emails are registered; see
+  /// `_mapAuthError` override below for this one code).
+  Future<String?> sendPasswordResetEmail(String email) async {
+    final trimmed = email.trim();
+    if (trimmed.isEmpty) return 'أدخل البريد الإلكتروني';
+    try {
+      await _fbAuth.sendPasswordResetEmail(email: trimmed);
+      return null;
+    } on fb_auth.FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        // Deliberately non-committal — do not confirm/deny whether this
+        // email has an account, to avoid enumeration of registered users.
+        return 'إذا كان هذا البريد مسجّلاً، سيصلك رابط إعادة التعيين';
+      }
+      return _mapAuthError(e);
+    }
+  }
+
   Future<void> logout() async {
     _currentUser = null;
     await FirestoreService.resetAuthenticatedState();

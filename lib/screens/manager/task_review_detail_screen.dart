@@ -4,12 +4,15 @@ import 'package:provider/provider.dart';
 import '../../models/task_history_model.dart';
 import '../../models/task_model.dart';
 import '../../models/message_model.dart';
+import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/message_provider.dart';
 import '../../providers/task_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/recurrence_utils.dart';
 import '../../widgets/status_chip.dart';
+import '../../widgets/favorite_star_button.dart';
 import '../shared/chat_thread_screen.dart';
 
 /// Full task detail + three-way review decision screen for the manager.
@@ -68,6 +71,285 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  /// Part 4 — MANAGER-ONLY edit of `priority`/`dueDate`. Available
+  /// regardless of the task's current status (per the explicit
+  /// requirement that this restriction/permission is unconditional).
+  Future<void> _editPriorityAndDueDate(AppTask current) async {
+    final managerUid = context.read<AuthProvider>().currentUser!.uid;
+    TaskPriority selectedPriority = current.priority;
+    DateTime selectedDueDate = current.dueDate;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('تعديل الأولوية وتاريخ الاستحقاق'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'الأولوية',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<TaskPriority>(
+                segments: const [
+                  ButtonSegment(value: TaskPriority.low, label: Text('منخفضة')),
+                  ButtonSegment(
+                    value: TaskPriority.medium,
+                    label: Text('متوسطة'),
+                  ),
+                  ButtonSegment(value: TaskPriority.high, label: Text('عالية')),
+                ],
+                selected: {selectedPriority},
+                onSelectionChanged: (s) =>
+                    setDialogState(() => selectedPriority = s.first),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('تاريخ الاستحقاق'),
+                subtitle: Text(
+                  intl.DateFormat('yyyy/MM/dd').format(selectedDueDate),
+                ),
+                trailing: const Icon(Icons.calendar_today_outlined),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDueDate,
+                    firstDate: DateTime.now().subtract(
+                      const Duration(days: 3650),
+                    ),
+                    lastDate: DateTime.now().add(const Duration(days: 3650)),
+                  );
+                  if (picked != null) {
+                    setDialogState(() => selectedDueDate = picked);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await context.read<TaskProvider>().updatePriorityAndDueDate(
+      taskId: current.taskId,
+      managerUid: managerUid,
+      priority: selectedPriority,
+      dueDate: selectedDueDate,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم تحديث الأولوية وتاريخ الاستحقاق')),
+    );
+  }
+
+  // ===========================================================================
+  // NEW MANAGER-ONLY ACTIONS — always available regardless of task status
+  // (تحديث الحالة / تحويل لموظف آخر / حذف المهمة / إغلاق). Distinct from the
+  // three-way review decision above (_decide), which stays gated to
+  // `status == submitted` and represents a different, narrower workflow
+  // (approve/reject/edit_request on a just-submitted task). These four
+  // actions are the general-purpose control panel requested for ANY task
+  // card tap by the manager.
+  // ===========================================================================
+
+  /// "تحديث الحالة" — direct status override to any of the 6 [TaskStatus]
+  /// values, via [TaskProvider.updateStatus] (already existed, reused
+  /// as-is). Logs to history automatically.
+  Future<void> _updateStatusAction(AppTask current, String managerUid) async {
+    TaskStatus selected = current.status;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('تحديث الحالة'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'اختر الحالة الجديدة للمهمة:',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<TaskStatus>(
+                initialValue: selected,
+                decoration: const InputDecoration(isDense: true),
+                items: TaskStatus.values
+                    .map(
+                      (s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(statusLabelAr(s.name)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setDialogState(() => selected = v);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await context.read<TaskProvider>().updateStatus(
+      current.taskId,
+      selected,
+      managerUid,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('تم تحديث الحالة إلى ${statusLabelAr(selected.name)}'),
+      ),
+    );
+  }
+
+  /// "تحويل لموظف آخر" — immediate, unconditional manager reassignment
+  /// (no approval/confirmation steps, unlike the employee-initiated
+  /// request/approve/confirm workflow used elsewhere). Only ACTIVE
+  /// employees are listed, matching the established
+  /// `getAllEmployees().where(accountStatus == active)` pattern used by
+  /// `manager_reports_tab.dart` / `request_reassignment_dialog.dart`.
+  Future<void> _transferAction(AppTask current, String managerUid) async {
+    final candidates = FirestoreService.getAllEmployees()
+        .where(
+          (u) =>
+              u.accountStatus == AccountStatus.active &&
+              u.uid != current.assignedTo,
+        )
+        .toList();
+
+    if (candidates.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لا يوجد موظفون نشطون آخرون لتحويل المهمة إليهم'),
+        ),
+      );
+      return;
+    }
+
+    AppUser? selected = candidates.first;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('تحويل المهمة لموظف آخر'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'سيتم تحويل المهمة فورًا للموظف المحدد، مع بقاء جميع تفاصيل المهمة كما هي.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<AppUser>(
+                initialValue: selected,
+                decoration: const InputDecoration(isDense: true),
+                items: candidates
+                    .map((u) => DropdownMenuItem(value: u, child: Text(u.name)))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setDialogState(() => selected = v);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('تحويل'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || selected == null || !mounted) return;
+    await context.read<TaskProvider>().reassignTaskDirect(
+      taskId: current.taskId,
+      managerUid: managerUid,
+      newAssigneeUid: selected!.uid,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('تم تحويل المهمة إلى ${selected!.name}')),
+    );
+  }
+
+  /// "حذف المهمة" — requires the EXACT confirmation text specified by the
+  /// manager before final, irreversible deletion. Logs a history entry
+  /// (via [TaskProvider.deleteTask]'s `actorUid` parameter) before the
+  /// task document is removed, then returns to the previous screen (the
+  /// task list) since the task no longer exists to display.
+  Future<void> _deleteAction(AppTask current, String managerUid) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف المهمة'),
+        content: const Text(
+          'هل أنت متأكد من حذف هذه المهمة؟ هذا الإجراء لا يمكن التراجع عنه',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.statusRejected,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await context.read<TaskProvider>().deleteTask(
+      current.taskId,
+      actorUid: managerUid,
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('تم حذف المهمة')));
   }
 
   String _decisionSuccessLabel(String decision) {
@@ -132,6 +414,13 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
       appBar: AppBar(
         title: const Text('مراجعة المهمة'),
         actions: [
+          FavoriteStarButton(userUid: managerUid, taskId: current.taskId),
+          // Part 4 — manager-only, available regardless of task status.
+          IconButton(
+            tooltip: 'تعديل الأولوية وتاريخ الاستحقاق',
+            icon: const Icon(Icons.edit_calendar_outlined),
+            onPressed: () => _editPriorityAndDueDate(current),
+          ),
           _TaskChatButton(
             taskId: current.taskId,
             managerUid: managerUid,
@@ -175,6 +464,11 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
                       value: current.category,
                     ),
                     _InfoRow(
+                      icon: Icons.flag_outlined,
+                      label: 'الأولوية',
+                      value: priorityLabelAr(current.priority.name),
+                    ),
+                    _InfoRow(
                       icon: Icons.event_outlined,
                       label: 'تاريخ الاستحقاق',
                       value: intl.DateFormat(
@@ -205,6 +499,42 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            // NEW — manager-only action panel (تحديث الحالة / تحويل لموظف
+            // آخر / حذف المهمة / إغلاق), always visible regardless of the
+            // task's status. Gated strictly on `isManager` so an employee
+            // opening the same screen (e.g. via a shared route, if ever
+            // reused) never sees these controls — matches requirement #4
+            // ("قراءة فقط" for non-managers).
+            if (context.watch<AuthProvider>().isManager)
+              _ManagerActionsPanel(
+                onUpdateStatus: () => _updateStatusAction(current, managerUid),
+                onTransfer: () => _transferAction(current, managerUid),
+                onDelete: () => _deleteAction(current, managerUid),
+                onClose: () => Navigator.of(context).pop(),
+              ),
+            if (context.watch<AuthProvider>().isManager)
+              const SizedBox(height: 16),
+            // Part 2 — full activityLog, visible regardless of the task's
+            // current/final status (manager must see this even if the
+            // status has not changed since submission).
+            const Text(
+              'التحديثات والملاحظات من الموظف',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            if (current.activityLog.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  'لا توجد تحديثات بعد',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              )
+            else
+              ...current.activityLog.reversed.map(
+                (e) => _ActivityLogTile(entry: e),
+              ),
             const SizedBox(height: 16),
             const Text(
               'سجل المهمة الكامل',
@@ -278,6 +608,87 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
               ),
             )
           : null,
+    );
+  }
+}
+
+/// Manager-only control panel: تحديث الحالة / تحويل لموظف آخر / حذف المهمة /
+/// إغلاق. Rendered unconditionally regardless of task status (unlike the
+/// `bottomNavigationBar` approve/reject/edit_request trio, which stays
+/// gated to `status == submitted`). "إغلاق" is a pure no-op navigation back
+/// to the task list — equivalent to "leave as is".
+class _ManagerActionsPanel extends StatelessWidget {
+  const _ManagerActionsPanel({
+    required this.onUpdateStatus,
+    required this.onTransfer,
+    required this.onDelete,
+    required this.onClose,
+  });
+
+  final VoidCallback onUpdateStatus;
+  final VoidCallback onTransfer;
+  final VoidCallback onDelete;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'إجراءات المدير',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onUpdateStatus,
+                    icon: const Icon(Icons.sync_alt),
+                    label: const Text('تحديث الحالة'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onTransfer,
+                    icon: const Icon(Icons.swap_horiz),
+                    label: const Text('تحويل لموظف آخر'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.statusRejected,
+                      side: const BorderSide(color: AppColors.statusRejected),
+                    ),
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('حذف المهمة'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close),
+                    label: const Text('إغلاق'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -369,6 +780,36 @@ class _InfoRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Part 2 — renders one `activityLog` entry (employee-authored update/note),
+/// distinct from [_HistoryTile] (which renders the separate `task_history`
+/// audit-log collection driven by lifecycle transitions).
+class _ActivityLogTile extends StatelessWidget {
+  final ActivityLogEntry entry;
+  const _ActivityLogTile({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: AppColors.statusPending.withValues(alpha: 0.05),
+      child: ListTile(
+        dense: true,
+        leading: const Icon(Icons.note_alt_outlined),
+        title: entry.note != null && entry.note!.isNotEmpty
+            ? Text(entry.note!, style: const TextStyle(fontSize: 13))
+            : const Text(
+                '(بدون نص)',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+        subtitle: Text(
+          intl.DateFormat('yyyy/MM/dd HH:mm').format(entry.updatedAt),
+          style: const TextStyle(fontSize: 11),
+        ),
       ),
     );
   }

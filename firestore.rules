@@ -162,14 +162,26 @@ service cloud.firestore {
         request.resource.data.assignedBy == request.auth.uid;
 
       // Manager: unrestricted update (review decisions, edits, reassignment
-      // approve/reject, etc.).
+      // approve/reject, priority/dueDate changes, etc.) — this is the ONLY
+      // branch that may ever touch `priority` or `dueDate` (see Part 4:
+      // these two fields are manager-only at ALL times, regardless of the
+      // task's status — enforced here structurally, since NONE of the
+      // three employee branches below list `priority`/`dueDate` in their
+      // `hasOnly()` allowlists, so an employee write touching either field
+      // is rejected outright by `hasOnly()` failing, independent of
+      // `status`).
       //
       // Employee — THREE distinct self-service branches (none may change
-      // `assignedBy`, and none of the manager-only review-decision fields
-      // reviewedBy/reviewDecision/reviewNote/revisionCount may be touched):
+      // `assignedBy`, `priority`, or `dueDate`, and none of the
+      // manager-only review-decision fields reviewedBy/reviewDecision/
+      // reviewNote/revisionCount may be touched):
       //
       //   (a) Normal lifecycle — the assignee updates their own task's
-      //       status/submission fields. `assignedTo` unchanged.
+      //       status/submission fields, OR appends an `activityLog` entry
+      //       (Part 2 — allowed unconditionally, i.e. regardless of
+      //       `status`, including after submission/approval/rejection;
+      //       NOT gated behind a status check in this branch). `assignedTo`
+      //       unchanged.
       //   (b) Reassignment REQUEST (NEW feature) — the CURRENT assignee
       //       proposes handing the task to someone else. `assignedTo` is
       //       NOT changed by this branch (per answer ٦: only the new
@@ -187,7 +199,7 @@ service cloud.firestore {
          request.resource.data.assignedTo == resource.data.assignedTo &&
          request.resource.data.assignedBy == resource.data.assignedBy &&
          request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['status', 'submittedAt', 'submissionNote', 'updatedAt', 'viewedByEmployee'])) ||
+           .hasOnly(['status', 'submittedAt', 'submissionNote', 'updatedAt', 'viewedByEmployee', 'activityLog'])) ||
         (isSignedIn() &&
          resource.data.assignedTo == request.auth.uid &&
          request.resource.data.assignedTo == resource.data.assignedTo &&
@@ -324,56 +336,86 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    // ---- goals (new — additive Goal/Criteria hierarchy, see
-    //      goal_model.dart. ADDITIVE per the manager's answer "١- اضافه":
-    //      lives entirely alongside `tasks`, does not replace it) ----
-    // Only a manager may create/delete a Goal. `isClosed`/`closedAt` are
-    // manager-only fields too (per answer "٣- يحتاج تاكيد": closure is
-    // always an explicit manager confirmation, never automatic) — since
-    // Goals have no employee-writable fields at all, update is
-    // manager-only outright (no employee branch needed, unlike tasks).
+    // ---- goals / criteria / chat (REBUILT genuine nested subcollection
+    //      hierarchy, see goal_model.dart / criterion_model.dart /
+    //      criterion_chat_model.dart):
+    //        goals/{goalId}
+    //          -> title, description, createdBy, startDate, endDate
+    //        goals/{goalId}/criteria/{criteriaId}
+    //          -> title, description, status, assignees: [uid, ...]
+    //        goals/{goalId}/criteria/{criteriaId}/chat/{messageId}
+    //          -> senderId, text, timestamp
+    //      REBUILD NOTE: no `isClosed`/`closedAt` on Goal and no manager
+    //      approve/reject review gate or history log on Criterion
+    //      anymore — both were removed per the simplified spec. Any
+    //      assignee OR the manager may freely update `status`.
+    // ---- criteria collection-group read authorization ----
+    // CRITICAL: FirestoreService listens via `collectionGroup('criteria')`
+    // (a single cross-goal query spanning every goals/{goalId}/criteria
+    // subcollection at once — see firestore_service.dart _listenAuth()).
+    // Per Firebase's OWN documentation ("Structuring Cloud Firestore
+    // Security Rules", https://firebase.google.com/docs/firestore/security/rules-structure):
+    // "To authorize collection group queries, a top-level recursive
+    // wildcard match block is required. Standard nested match statements
+    // apply rules only to specific paths relative to their parents and do
+    // NOT automatically cover collection group queries." — i.e. the nested
+    // `allow read` inside `match /goals/{goalId} { match /criteria/{..} }`
+    // below is NOT sufficient on its own to authorize this query; it only
+    // authorizes a direct/scoped read like `goals/{knownGoalId}/criteria`.
+    // This top-level block is what actually grants the collectionGroup
+    // read. Empirically verified: the collectionGroup('criteria') read was
+    // rejected with HTTP 403 PERMISSION_DENIED for a real authenticated
+    // manager BEFORE this block was added (see test_read_criteria.py).
+    // Writes are unaffected/unchanged — they are always single-document
+    // ops via a known goalId, never collection-group queries, so the
+    // nested match's create/update/delete rules below remain sufficient.
+    match /{path=**}/criteria/{criterionId} {
+      allow read: if isSignedIn();
+    }
+
     match /goals/{goalId} {
       allow read: if isSignedIn();
       allow create: if isManager() &&
         request.resource.data.createdBy == request.auth.uid;
       allow update: if isManager();
       allow delete: if isManager();
-    }
 
-    // ---- criteria (sub-items of a goal, see criterion_model.dart) ----
-    // KEY DIFFERENCE from `tasks`: `assignedTo` is a LIST (multiple
-    // employees may share one criterion, per answer "٤- يمكن لعدة موظفين
-    // المشاركة"), so the employee-update branch must check list
-    // membership via `hasAny([request.auth.uid])`, not `==` equality.
-    match /criteria/{criterionId} {
-      allow read: if isSignedIn();
+      match /criteria/{criterionId} {
+        allow read: if isSignedIn();
 
-      allow create: if isManager() &&
-        request.resource.data.assignedBy == request.auth.uid;
+        allow create: if isManager() &&
+          request.resource.data.assignedBy == request.auth.uid;
 
-      // Manager: unrestricted update (review decisions, edits, etc.).
-      // Employee: may update ONLY a criterion they are a member of
-      // (list-membership, not equality), and ONLY the same employee-owned
-      // fields as the `tasks` rule above — cannot alter assignment or
-      // manager-only review fields.
-      allow update: if isManager() ||
-        (isSignedIn() &&
-         resource.data.assignedTo.hasAny([request.auth.uid]) &&
-         request.resource.data.assignedTo == resource.data.assignedTo &&
-         request.resource.data.assignedBy == resource.data.assignedBy &&
-         request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['status', 'submittedAt', 'submissionNote', 'updatedAt']));
+        // Manager: unrestricted update. Employee: may update ONLY a
+        // criterion they are a member of (list-membership via
+        // `hasAny`, not `==` equality), and ONLY the `status` field —
+        // cannot alter assignment/title/description.
+        allow update: if isManager() ||
+          (isSignedIn() &&
+           resource.data.assignees.hasAny([request.auth.uid]) &&
+           request.resource.data.assignees == resource.data.assignees &&
+           request.resource.data.assignedBy == resource.data.assignedBy &&
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'updatedAt']));
 
-      allow delete: if isManager();
-    }
+        allow delete: if isManager();
 
-    // ---- criterion_history (append-only audit log, parallel to
-    //      task_history — see criterion_history_model.dart) ----
-    match /criterion_history/{historyId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && !isDesigner() &&
-        request.resource.data.actorUid == request.auth.uid;
-      allow update, delete: if false;
+        match /chat/{messageId} {
+          // Any signed-in user who is either the manager or a listed
+          // assignee on the parent criterion may read/write the chat.
+          // Messages are append-only (no edit/delete of prior messages).
+          allow read: if isSignedIn() &&
+            (isManager() ||
+             get(/databases/$(database)/documents/goals/$(goalId)/criteria/$(criterionId))
+               .data.assignees.hasAny([request.auth.uid]));
+          allow create: if isSignedIn() &&
+            request.resource.data.senderId == request.auth.uid &&
+            (isManager() ||
+             get(/databases/$(database)/documents/goals/$(goalId)/criteria/$(criterionId))
+               .data.assignees.hasAny([request.auth.uid]));
+          allow update, delete: if false;
+        }
+      }
     }
   }
 }

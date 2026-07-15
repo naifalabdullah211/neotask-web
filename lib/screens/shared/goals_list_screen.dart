@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/goal_provider.dart';
@@ -45,16 +46,12 @@ class GoalsListScreen extends StatelessWidget {
                         vertical: 8,
                       ),
                       leading: CircleAvatar(
-                        backgroundColor: goal.isClosed
-                            ? AppColors.statusApproved.withValues(alpha: 0.15)
-                            : AppColors.deepBlue.withValues(alpha: 0.12),
-                        child: Icon(
-                          goal.isClosed
-                              ? Icons.flag_circle
-                              : Icons.flag_outlined,
-                          color: goal.isClosed
-                              ? AppColors.statusApproved
-                              : AppColors.deepBlue,
+                        backgroundColor: AppColors.deepBlue.withValues(
+                          alpha: 0.12,
+                        ),
+                        child: const Icon(
+                          Icons.flag_outlined,
+                          color: AppColors.deepBlue,
                         ),
                       ),
                       title: Text(
@@ -62,8 +59,9 @@ class GoalsListScreen extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Text(
-                        '${progress.approved}/${progress.total} معايير مكتملة'
-                        '${goal.isClosed ? " • مغلق" : ""}',
+                        '${progress.completed}/${progress.total} معايير مكتملة • '
+                        '${DateFormat('yyyy/MM/dd').format(goal.startDate)} - '
+                        '${DateFormat('yyyy/MM/dd').format(goal.endDate)}',
                         style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,

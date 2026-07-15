@@ -8,6 +8,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
+import '../../widgets/favorite_star_button.dart';
 import 'task_review_detail_screen.dart';
 
 /// Manager review queue — shows tasks submitted by employees needing a
@@ -89,6 +90,7 @@ class _SubmittedTaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = task;
+    final managerUid = context.read<AuthProvider>().currentUser!.uid;
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
@@ -96,9 +98,16 @@ class _SubmittedTaskCard extends StatelessWidget {
           vertical: 8,
         ),
         leading: TaskUrgencyDot(task: t),
-        title: Text(
-          t.title,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                t.title,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            FavoriteStarButton(userUid: managerUid, taskId: t.taskId, size: 20),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

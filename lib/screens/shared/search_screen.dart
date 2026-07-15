@@ -84,7 +84,7 @@ class _SearchScreenState extends State<SearchScreen> {
           .where(
             (c) =>
                 c.title.toLowerCase().contains(lower) ||
-                c.assignedTo.any((uid) => matchedEmployeeUids.contains(uid)),
+                c.assignees.any((uid) => matchedEmployeeUids.contains(uid)),
           )
           .toList();
 
@@ -244,18 +244,14 @@ class _CriterionResultTile extends StatelessWidget {
     return ListTile(
       leading: const Icon(Icons.checklist_rtl_outlined),
       title: Text(criterion.title),
-      subtitle: Row(
-        children: [
-          StatusChip(statusName: criterion.status.name, fontSize: 10),
-          const SizedBox(width: 6),
-          PriorityBadge(priorityName: criterion.priority.name, compact: true),
-        ],
-      ),
+      subtitle: StatusChip(statusName: criterion.status.name, fontSize: 10),
       trailing: const Icon(Icons.chevron_left),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) =>
-              CriterionDetailScreen(criterionId: criterion.criterionId),
+          builder: (_) => CriterionDetailScreen(
+            goalId: criterion.goalId,
+            criterionId: criterion.criterionId,
+          ),
         ),
       ),
     );

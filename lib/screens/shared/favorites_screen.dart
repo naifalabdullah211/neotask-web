@@ -7,6 +7,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
+import '../../widgets/favorite_star_button.dart';
 import '../employee/task_detail_screen.dart';
 import '../manager/task_review_detail_screen.dart';
 
@@ -84,14 +85,9 @@ class FavoritesScreen extends StatelessWidget {
                         children: [
                           TaskUrgencyDot(task: t),
                           const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.star,
-                              color: AppColors.statusPending,
-                            ),
-                            onPressed: () => context
-                                .read<FavoriteProvider>()
-                                .toggleFavorite(currentUserUid, t.taskId),
+                          FavoriteStarButton(
+                            userUid: currentUserUid,
+                            taskId: t.taskId,
                           ),
                         ],
                       ),

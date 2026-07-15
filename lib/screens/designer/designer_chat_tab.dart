@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/message_model.dart';
-import '../../providers/criterion_provider.dart';
 import '../../providers/message_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
@@ -10,14 +9,22 @@ import '../../theme/app_theme.dart';
 import '../shared/chat_thread_screen.dart';
 
 /// Read-only "every conversation in the system" tab for the `designer`
-/// observer role — satisfies the "1-a" answer that chat/task-chat/
-/// criterion-chat CONTENT must also be fully readable, not just
-/// task/goal data. Unlike ManagerChatTab (scoped to the manager as
-/// participant via `latestMessagesForUser`), this consumes the new
-/// UNSCOPED `MessageProvider.watchAllLatestConversations()` so every
-/// general DM, per-task thread, and per-criterion thread appears here
-/// regardless of which two real participants it belongs to. Tapping a
-/// row always opens [ChatThreadScreen] with `readOnly: true`.
+/// observer role — satisfies the "1-a" answer that chat/task-chat
+/// CONTENT must also be fully readable, not just task/goal data. Unlike
+/// ManagerChatTab (scoped to the manager as participant via
+/// `latestMessagesForUser`), this consumes the new UNSCOPED
+/// `MessageProvider.watchAllLatestConversations()` so every general DM
+/// and per-task thread appears here regardless of which two real
+/// participants it belongs to. Tapping a row always opens
+/// [ChatThreadScreen] with `readOnly: true`.
+///
+/// REBUILD NOTE: criterion-chat (goals/{goalId}/criteria/{criteriaId}/
+/// chat/{messageId}) now lives in its own dedicated Firestore
+/// subcollection, entirely outside the `messages` collection this tab
+/// reads from, so it no longer surfaces here. The designer's read-only
+/// visibility into criterion chats is an OPEN GAP that still needs a
+/// separate solution (e.g. a dedicated designer screen that walks every
+/// goal/criterion and opens its chat subcollection read-only).
 class DesignerChatTab extends StatelessWidget {
   const DesignerChatTab({super.key, required this.designerUid});
 
@@ -27,14 +34,12 @@ class DesignerChatTab extends StatelessWidget {
   /// only to satisfy ChatThreadScreen's required otherUserUid param — since
   /// the thread is readOnly, no message is ever sent to it) for a given
   /// conversationId, based on its deterministic prefix pattern (see
-  /// ChatMessage.generalConversationId / taskConversationId /
-  /// criterionConversationId).
+  /// ChatMessage.generalConversationId / taskConversationId).
   ({String title, String subtitle, String otherUid, String? taskId}) _resolve(
     BuildContext context,
     String conversationId,
   ) {
     final taskProvider = context.read<TaskProvider>();
-    final criterionProvider = context.read<CriterionProvider>();
 
     if (conversationId.startsWith('general_')) {
       final uid = conversationId.substring('general_'.length);
@@ -58,21 +63,6 @@ class DesignerChatTab extends StatelessWidget {
         taskId: taskId,
       );
     }
-    if (conversationId.startsWith('criterion_')) {
-      final criterionId = conversationId.substring('criterion_'.length);
-      final criterion = criterionProvider.getCriterion(criterionId);
-      final manager = FirestoreService.getManager();
-      final firstAssignee =
-          (criterion != null && criterion.assignedTo.isNotEmpty)
-          ? criterion.assignedTo.first
-          : '';
-      return (
-        title: criterion?.title ?? 'محادثة معيار',
-        subtitle: 'محادثة معيار',
-        otherUid: manager?.uid ?? firstAssignee,
-        taskId: null,
-      );
-    }
     return (
       title: conversationId,
       subtitle: 'محادثة',
@@ -83,10 +73,9 @@ class DesignerChatTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Keep TaskProvider/CriterionProvider "watched" so title/subject
-    // resolution stays fresh as tasks/criteria change.
+    // Keep TaskProvider "watched" so title/subject resolution stays fresh
+    // as tasks change.
     context.watch<TaskProvider>();
-    context.watch<CriterionProvider>();
 
     return StreamBuilder<List<ChatMessage>>(
       stream: context.read<MessageProvider>().watchAllLatestConversations(),

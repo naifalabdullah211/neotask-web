@@ -19,6 +19,13 @@ class AppColors {
   static const Color gold = Color(0xFFC9972A);
   static const Color goldLight = Color(0xFFE8C468);
 
+  /// Explicit RCJY brand gold (#E8B84B) — used ONLY for the "favorite"
+  /// star icon (filled state) across the app, per explicit hex-value
+  /// request. Distinct from `gold`/`goldLight` above (which remain the
+  /// general premium accent) so the favorite star has one fixed, exact
+  /// brand color regardless of future palette adjustments.
+  static const Color favoriteGold = Color(0xFFE8B84B);
+
   // Replaces the old candy-bright `green` / `lightBlue`.
   static const Color emerald = Color(0xFF15803D);
   static const Color steel = Color(0xFF3E6B8C);
@@ -243,12 +250,14 @@ const Map<DashboardMetric, String> dashboardMetricLabelsAr = {
 Color statusColor(String statusName) {
   switch (statusName) {
     case 'assigned':
+    case 'notStarted':
       return AppColors.textSecondary;
     case 'inProgress':
       return AppColors.statusInProgress;
     case 'submitted':
       return AppColors.statusSubmitted;
     case 'approved':
+    case 'completed':
       return AppColors.statusApproved;
     case 'rejected':
       return AppColors.statusRejected;
@@ -263,12 +272,16 @@ String statusLabelAr(String statusName) {
   switch (statusName) {
     case 'assigned':
       return 'مُسندة';
+    case 'notStarted':
+      return 'لم يبدأ';
     case 'inProgress':
       return 'قيد التنفيذ';
     case 'submitted':
       return 'بانتظار المراجعة';
     case 'approved':
       return 'مكتملة';
+    case 'completed':
+      return 'مكتمل';
     case 'rejected':
       return 'مرفوضة';
     case 'editRequested':
