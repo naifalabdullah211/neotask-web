@@ -14,6 +14,9 @@ import '../models/favorite_model.dart';
 import '../models/goal_model.dart';
 import '../models/criterion_model.dart';
 import '../models/criterion_chat_model.dart';
+import '../models/poll_model.dart';
+import '../models/poll_vote_model.dart';
+import '../models/notification_model.dart';
 
 /// FirestoreService — REPLACES LocalDbService (Hive) as of this commit.
 ///
@@ -73,6 +76,16 @@ class FirestoreService {
   // "list all conversations" screen the way tasks/messages are.
   static List<Goal> _goalsCache = [];
   static List<Criterion> _criteriaCache = [];
+  // Poll feature ("تصويت") — added ALONGSIDE the existing task/goal system.
+  // `_pollsCache` is the top-level `polls` collection. Votes are
+  // DELIBERATELY NOT cached the same way (see poll_model.dart doc comment
+  // on why they are a per-employee-readable subcollection, not a flat
+  // cache every signed-in client would need permission to read in full —
+  // that would defeat the secrecy requirement). Votes are read directly
+  // per-poll via `watchVotesForPoll`/`watchMyVote`, mirroring the
+  // Criterion-chat "not globally cached" precedent above.
+  static List<AppPoll> _pollsCache = [];
+  static List<AppNotification> _notificationsCache = [];
 
   // ---- Change signal controllers (mirror Hive's box.watch() pattern) ----
   static final _usersChanges = StreamController<void>.broadcast();
@@ -86,6 +99,8 @@ class FirestoreService {
   static final _favoritesChanges = StreamController<void>.broadcast();
   static final _goalsChanges = StreamController<void>.broadcast();
   static final _criteriaChanges = StreamController<void>.broadcast();
+  static final _pollsChanges = StreamController<void>.broadcast();
+  static final _notificationsChanges = StreamController<void>.broadcast();
 
   // NOTE: session/identity is now handled entirely by FirebaseAuth
   // (see AuthProvider + FirebaseAuth.instance.authStateChanges()) — this
@@ -181,6 +196,8 @@ class FirestoreService {
     final favoritesDone = Completer<void>();
     final goalsDone = Completer<void>();
     final criteriaDone = Completer<void>();
+    final pollsDone = Completer<void>();
+    final notificationsDone = Completer<void>();
 
     _authSubscriptions.add(
       _db
@@ -422,6 +439,53 @@ class FirestoreService {
           ),
     );
 
+    // ---- polls (top-level; votes deliberately NOT cached here — see
+    //      poll_model.dart doc comment) ----
+    _authSubscriptions.add(
+      _db
+          .collection('polls')
+          .snapshots()
+          .listen(
+            (snap) {
+              _pollsCache = snap.docs
+                  .map((d) => AppPoll.fromMap(d.data()))
+                  .toList();
+              if (!pollsDone.isCompleted) pollsDone.complete();
+              _pollsChanges.add(null);
+            },
+            onError: (_) {
+              if (!pollsDone.isCompleted) pollsDone.complete();
+            },
+          ),
+    );
+
+    // ---- notifications (top-level; every signed-in user's own
+    //      notifications are filtered client-side by `recipientUid` — same
+    //      unfiltered-listen + client-side-filter pattern as every other
+    //      collection in this service, see the class-level security-rules
+    //      doc comment) ----
+    _authSubscriptions.add(
+      _db
+          .collection('notifications')
+          .snapshots()
+          .listen(
+            (snap) {
+              _notificationsCache = snap.docs
+                  .map((d) => AppNotification.fromMap(d.data()))
+                  .toList();
+              if (!notificationsDone.isCompleted) {
+                notificationsDone.complete();
+              }
+              _notificationsChanges.add(null);
+            },
+            onError: (_) {
+              if (!notificationsDone.isCompleted) {
+                notificationsDone.complete();
+              }
+            },
+          ),
+    );
+
     await Future.wait([
       usersDone.future,
       tasksDone.future,
@@ -435,6 +499,8 @@ class FirestoreService {
       favoritesDone.future,
       goalsDone.future,
       criteriaDone.future,
+      pollsDone.future,
+      notificationsDone.future,
     ]).timeout(const Duration(seconds: 15), onTimeout: () => []);
 
     _authInitialized = true;
@@ -462,6 +528,8 @@ class FirestoreService {
     _favoritesCache = [];
     _goalsCache = [];
     _criteriaCache = [];
+    _pollsCache = [];
+    _notificationsCache = [];
     _authInitialized = false;
   }
 
@@ -1169,5 +1237,186 @@ class FirestoreService {
   ) async* {
     yield getFavoritesForUser(userUid);
     yield* _favoritesChanges.stream.map((_) => getFavoritesForUser(userUid));
+  }
+
+  // ---------------- POLLS ("تصويت") ----------------
+  static Future<void> savePoll(AppPoll poll) async {
+    await _db.collection('polls').doc(poll.pollId).set(poll.toMap());
+  }
+
+  static AppPoll? getPoll(String pollId) {
+    for (final p in _pollsCache) {
+      if (p.pollId == pollId) return p;
+    }
+    return null;
+  }
+
+  static List<AppPoll> getAllPolls() => List.unmodifiable(_pollsCache);
+
+  /// Polls where [employeeUid] is a selected participant — used by the
+  /// employee-side "تصويت" tab. Simple `.contains()` filter over the
+  /// already-live cache (no composite Firestore index needed — mirrors
+  /// `getCriteriaForEmployee`'s list-membership pattern).
+  static List<AppPoll> getPollsForEmployee(String employeeUid) {
+    return _pollsCache
+        .where((p) => p.participantUids.contains(employeeUid))
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  static Stream<List<AppPoll>> watchAllPolls() async* {
+    yield getAllPolls();
+    yield* _pollsChanges.stream.map((_) => getAllPolls());
+  }
+
+  static Stream<List<AppPoll>> watchPollsForEmployee(
+    String employeeUid,
+  ) async* {
+    yield getPollsForEmployee(employeeUid);
+    yield* _pollsChanges.stream.map((_) => getPollsForEmployee(employeeUid));
+  }
+
+  // ---------------- POLL VOTES (subcollection `polls/{pollId}/votes`,
+  //      deliberately NOT globally cached — see poll_model.dart doc
+  //      comment on why full-vote visibility must be scoped per-poll and
+  //      per-role rather than a single flat client-side cache every
+  //      signed-in user could read from) ----------------
+  static CollectionReference<Map<String, dynamic>> _pollVotesRef(
+    String pollId,
+  ) {
+    return _db.collection('polls').doc(pollId).collection('votes');
+  }
+
+  /// Casts OR changes [employeeUid]'s vote on [pollId] — a plain `.set()`
+  /// upsert keyed by the deterministic employeeUid document ID, so
+  /// "change my vote" never needs a query-then-update round trip (mirrors
+  /// `favoriteIdFor`'s deterministic-ID rationale). Deadline/status
+  /// enforcement (no voting after close) is done by the CALLER
+  /// (PollProvider.castVote) checking the live poll before calling this,
+  /// AND independently by the Firestore security rule (see firestore.rules
+  /// `polls/{pollId}/votes/{uid}` create/update rule, which re-checks
+  /// `resource.data.deadline`/`status` server-side so a stale client can
+  /// never bypass the deadline by racing a local check).
+  static Future<void> castOrChangeVote(String pollId, PollVote vote) async {
+    await _pollVotesRef(pollId).doc(vote.employeeUid).set(vote.toMap());
+  }
+
+  /// One-time read of every vote on [pollId] — used ONLY by the manager's
+  /// live poll-detail view and by the auto-close result computation, both
+  /// of which need the FULL set of votes at a point in time rather than a
+  /// live per-vote stream. A `.snapshots()` stream variant
+  /// ([watchVotesForPoll]) is provided separately for the manager's
+  /// "live while open" detail screen.
+  static Future<List<PollVote>> getVotesForPoll(String pollId) async {
+    final snap = await _pollVotesRef(pollId).get();
+    return snap.docs.map((d) => PollVote.fromMap(d.data())).toList();
+  }
+
+  /// Live stream of every vote on [pollId] — manager-only in practice
+  /// (see firestore.rules: only the poll's `createdBy` manager may list
+  /// this subcollection in full; an employee's read is restricted to
+  /// their OWN vote document only, via [watchMyVote] below).
+  static Stream<List<PollVote>> watchVotesForPoll(String pollId) {
+    return _pollVotesRef(pollId).snapshots().map(
+      (snap) => snap.docs.map((d) => PollVote.fromMap(d.data())).toList(),
+    );
+  }
+
+  /// A single employee's own vote on [pollId] — this is the ONLY vote
+  /// read path available to a participating employee (enforced by the
+  /// security rule restricting `get`/`list` on this subcollection to
+  /// `request.auth.uid == voteDocId` for non-managers), which is precisely
+  /// what makes "the employee never sees anyone else's vote" hold even
+  /// though the app has no separate backend server.
+  static Stream<PollVote?> watchMyVote(String pollId, String employeeUid) {
+    return _pollVotesRef(pollId)
+        .doc(employeeUid)
+        .snapshots()
+        .map((snap) => snap.exists ? PollVote.fromMap(snap.data()!) : null);
+  }
+
+  /// Persists the computed closure fields on [pollId] in one atomic
+  /// update — called exactly once per poll, by whichever client's lazy
+  /// auto-close check (see PollProvider._maybeAutoClose) is first to
+  /// observe `deadline` has passed. A `status == 'open'` precondition is
+  /// enforced by the security rule (see firestore.rules), so even if two
+  /// clients race this simultaneously, only the first write is accepted —
+  /// the second is rejected outright by the rule's `resource.data.status
+  /// == 'open'` check, preventing a double-close / duplicate-notification
+  /// race.
+  static Future<void> closePoll({
+    required String pollId,
+    required PollResult result,
+    required int yesCount,
+    required int noCount,
+  }) async {
+    await _db.collection('polls').doc(pollId).update({
+      'status': PollStatus.closed.name,
+      'result': result.name,
+      'yesCount': yesCount,
+      'noCount': noCount,
+      'closedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Applies the manager's manual decision on a tied poll — the ONLY
+  /// write allowed to change `result` on an ALREADY-closed poll (per
+  /// requirement #3's tie-handling clause). `status` remains `closed`
+  /// throughout; only `result`/`managerDecisionBy`/`managerDecisionAt`
+  /// change.
+  static Future<void> applyManagerTieDecision({
+    required String pollId,
+    required PollResult decision,
+    required String managerUid,
+  }) async {
+    await _db.collection('polls').doc(pollId).update({
+      'result': decision.name,
+      'managerDecisionBy': managerUid,
+      'managerDecisionAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  // ---------------- NOTIFICATIONS (NEW system — see notification_model.dart
+  //      doc comment for why this did not previously exist in this
+  //      codebase and is being introduced specifically for the Poll
+  //      feature's §3 requirement) ----------------
+  static Future<void> saveNotification(AppNotification notif) async {
+    await _db
+        .collection('notifications')
+        .doc(notif.notificationId)
+        .set(notif.toMap());
+  }
+
+  static List<AppNotification> getNotificationsForUser(String uid) {
+    return _notificationsCache.where((n) => n.recipientUid == uid).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  static int getUnreadNotificationCountForUser(String uid) {
+    return _notificationsCache
+        .where((n) => n.recipientUid == uid && n.readAt == null)
+        .length;
+  }
+
+  static Stream<List<AppNotification>> watchNotificationsForUser(
+    String uid,
+  ) async* {
+    yield getNotificationsForUser(uid);
+    yield* _notificationsChanges.stream.map(
+      (_) => getNotificationsForUser(uid),
+    );
+  }
+
+  static Stream<int> watchUnreadNotificationCountForUser(String uid) async* {
+    yield getUnreadNotificationCountForUser(uid);
+    yield* _notificationsChanges.stream.map(
+      (_) => getUnreadNotificationCountForUser(uid),
+    );
+  }
+
+  static Future<void> markNotificationRead(String notificationId) async {
+    await _db.collection('notifications').doc(notificationId).update({
+      'readAt': DateTime.now().toIso8601String(),
+    });
   }
 }

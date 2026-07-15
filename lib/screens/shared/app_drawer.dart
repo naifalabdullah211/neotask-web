@@ -8,6 +8,7 @@ import 'contacts_screen.dart';
 import 'favorites_screen.dart';
 import 'goals_list_screen.dart';
 import '../manager/manager_calendar_screen.dart';
+import '../manager/manager_polls_tab.dart';
 
 /// Shared side-menu ("Drawer") giving BOTH manager and employee access to
 /// the secondary feature set that does not fit into the bottom
@@ -93,6 +94,20 @@ class AppDrawer extends StatelessWidget {
               title: const Text('الأهداف'),
               onTap: () => push(const GoalsListScreen()),
             ),
+            // "تصويت" (Polls) — manager-only per the feature's explicit
+            // requirement (poll creation, per-employee vote detail by name,
+            // and the archive are all manager-facing). Not shown to the
+            // designer's read-only drawer since ManagerPollsTab carries a
+            // create-poll FAB with no readOnly variant, and not shown to
+            // employees here since they already have their own "تصويت"
+            // bottom-nav tab (employee_home_screen.dart) with the
+            // vote-only, secrecy-respecting view.
+            if (isManager)
+              ListTile(
+                leading: const Icon(Icons.how_to_vote_outlined),
+                title: const Text('تصويت'),
+                onTap: () => push(const ManagerPollsTab()),
+              ),
             ListTile(
               leading: const Icon(Icons.folder_outlined),
               title: const Text('المستندات'),

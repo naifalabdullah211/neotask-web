@@ -417,5 +417,129 @@ service cloud.firestore {
         }
       }
     }
+
+    // ---- polls ("تصويت") — see poll_model.dart / poll_vote_model.dart ----
+    match /polls/{pollId} {
+      // Same unfiltered-listen + client-side-filter architecture as
+      // tasks/messages above (see class-level doc comment): the poll
+      // DOCUMENT ITSELF (title/description/deadline/status/result/counts)
+      // carries no secret content — only the per-employee VOTE (below) is
+      // secrecy-sensitive. RESIDUAL LIMITATION (flagged, consistent with
+      // the existing tasks/messages limitation documented above): any
+      // signed-in employee can technically read a poll document they were
+      // NOT selected for, since `getPollsForEmployee` filters client-side
+      // over an unfiltered listener. This does not leak anyone's vote.
+      allow read: if isSignedIn();
+
+      allow create: if isManager() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.status == 'open' &&
+        request.resource.data.deadline is string;
+
+      // Two disjoint update paths:
+      //   (a) AUTO-CLOSE — per PollProvider's lazy client-side deadline
+      //       check (no Cloud Functions/cron in this project — see
+      //       poll_model.dart doc comment), ANY signed-in user's client
+      //       may be the one that observes the deadline has passed and
+      //       performs the closing write. Restricted to an open->closed
+      //       transition touching ONLY the closure fields.
+      //       RESIDUAL LIMITATION (flagged, not eliminated): this rule
+      //       cannot verify that yesCount/noCount/result were computed
+      //       correctly from the votes subcollection — it only enforces
+      //       the STRUCTURE of the write (which fields, which status
+      //       transition), matching this file's existing trust model for
+      //       client-computed values (e.g. task status transitions).
+      //   (b) MANAGER TIE DECISION — only the poll's own manager, only on
+      //       an ALREADY-closed poll, only touching result/decision
+      //       fields (status remains 'closed' throughout, per the
+      //       permanent-archive requirement).
+      allow update: if
+        (isSignedIn() &&
+         resource.data.status == 'open' &&
+         request.resource.data.status == 'closed' &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'result', 'yesCount', 'noCount', 'closedAt'])) ||
+        (isManager() &&
+         resource.data.createdBy == request.auth.uid &&
+         resource.data.status == 'closed' &&
+         request.resource.data.status == 'closed' &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['result', 'managerDecisionBy', 'managerDecisionAt']));
+
+      allow delete: if isManager() && resource.data.createdBy == request.auth.uid;
+
+      // ---- votes (genuine SUBCOLLECTION, doc ID == employeeUid — see
+      //      poll_vote_model.dart doc comment on why this is NOT an
+      //      embedded map: field-level secrecy is impossible under
+      //      Firestore's document-level rules, so each vote is its own
+      //      document with its own read rule) ----
+      match /votes/{employeeUid} {
+        // The core secrecy enforcement: an employee may read ONLY their
+        // own vote document; the poll's manager may read every vote (used
+        // by the manager's live per-employee status view, requirement
+        // #4, and the full-detail notification, requirement #3).
+        allow read: if isSignedIn() &&
+          (employeeUid == request.auth.uid ||
+           (isManager() &&
+            get(/databases/$(database)/documents/polls/$(pollId)).data.createdBy == request.auth.uid));
+
+        // Cast or CHANGE a vote — only the voting employee themselves,
+        // only while the poll is genuinely still open, and only if they
+        // are one of the poll's selected participants.
+        // RESIDUAL LIMITATION (flagged, not eliminated): the poll's
+        // `deadline` is stored as an ISO-8601 STRING (matching every
+        // other date field in this codebase — dueDate, startDate, etc. —
+        // none of which are rule-enforced for recency either), and
+        // Firestore rules cannot parse/compare date strings against
+        // `request.time`. Enforcement here is therefore via the `status
+        // == 'open'` field only, NOT a direct deadline comparison. Given
+        // the lazy client-side auto-close design (any client opening the
+        // app past the deadline immediately flips `status` to 'closed'),
+        // the exposure window is bounded to "between the deadline passing
+        // and the next client happening to load the poll" — a real,
+        // acknowledged gap, not a false guarantee.
+        allow create, update: if isSignedIn() &&
+          employeeUid == request.auth.uid &&
+          request.resource.data.employeeUid == request.auth.uid &&
+          get(/databases/$(database)/documents/polls/$(pollId)).data.status == 'open' &&
+          get(/databases/$(database)/documents/polls/$(pollId)).data.participantUids.hasAny([request.auth.uid]);
+
+        allow delete: if false;
+      }
+    }
+
+    // ---- notifications (NEW system — see notification_model.dart doc
+    //      comment for why this did not exist prior to the Poll feature)
+    match /notifications/{notificationId} {
+      // Same unfiltered-listen + client-side-filter pattern as
+      // tasks/messages/polls above. RESIDUAL LIMITATION (flagged,
+      // consistent with the rest of this file): any signed-in user can
+      // technically read another user's notification documents, since a
+      // per-document `recipientUid == request.auth.uid` read filter would
+      // break the unfiltered `.snapshots()` listener this app's
+      // architecture relies on everywhere (see class-level doc comment,
+      // "queries are all-or-nothing"). No collection in this app achieves
+      // true per-user read isolation under this architecture; this is not
+      // a newly-introduced weakness, it matches the existing baseline.
+      allow read: if isSignedIn();
+
+      // Any signed-in client may create a notification for ANY
+      // recipientUid — REQUIRED by this feature's own architecture: the
+      // client that happens to trigger a poll's auto-close (which may be
+      // an EMPLOYEE's device, not the manager's) is the one that must
+      // write both the manager's and every participant's notification
+      // documents at that moment (no backend/Cloud Function exists to do
+      // this centrally — see poll_model.dart doc comment). This is a
+      // genuine, deliberate trust concession specific to this
+      // no-backend architecture, not an oversight.
+      allow create: if isSignedIn() && !isDesigner();
+
+      // Only the recipient may mark their own notification read.
+      allow update: if isSignedIn() &&
+        resource.data.recipientUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+
+      allow delete: if false;
+    }
   }
 }

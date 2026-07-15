@@ -6,6 +6,7 @@ import '../../providers/message_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/notification_bell.dart';
 import '../shared/splash_router.dart';
 import '../shared/app_drawer.dart';
 import 'manager_dashboard_tab.dart';
@@ -74,6 +75,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
               ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
             },
           ),
+          NotificationBell(userUid: managerUid),
           IconButton(
             tooltip: 'تسجيل الخروج',
             icon: const Icon(Icons.logout),

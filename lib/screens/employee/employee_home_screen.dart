@@ -4,11 +4,13 @@ import '../../providers/auth_provider.dart';
 import '../../providers/message_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/notification_bell.dart';
 import '../shared/splash_router.dart';
 import '../shared/app_drawer.dart';
 import 'employee_tasks_tab.dart';
 import 'employee_calendar_tab.dart';
 import 'employee_chat_tab.dart';
+import 'employee_polls_tab.dart';
 import '../shared/search_screen.dart';
 
 class EmployeeHomeScreen extends StatefulWidget {
@@ -21,7 +23,7 @@ class EmployeeHomeScreen extends StatefulWidget {
 class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
   int _index = 0;
 
-  static const _titles = ['مهامي', 'التقويم', 'المحادثة'];
+  static const _titles = ['مهامي', 'التقويم', 'المحادثة', 'تصويت'];
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +58,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
               ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
             },
           ),
+          NotificationBell(userUid: employeeUid),
           IconButton(
             tooltip: 'تسجيل الخروج',
             icon: const Icon(Icons.logout),
@@ -77,6 +80,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
           EmployeeTasksTab(employeeUid: employeeUid),
           EmployeeCalendarTab(employeeUid: employeeUid),
           EmployeeChatTab(employeeUid: employeeUid),
+          EmployeePollsTab(employeeUid: employeeUid),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -116,6 +120,11 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
                 label: 'المحادثة',
               );
             },
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.how_to_vote_outlined),
+            selectedIcon: Icon(Icons.how_to_vote),
+            label: 'تصويت',
           ),
         ],
       ),
