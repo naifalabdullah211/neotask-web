@@ -32,6 +32,8 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
   final _descCtrl = TextEditingController();
 
   final Set<String> _selectedEmployeeUids = {};
+  final _employeeSearchCtrl = TextEditingController();
+  String _employeeSearchQuery = '';
 
   // No default deadline is pre-filled deliberately — an empty/null
   // deadline forces the manager to make an explicit choice, reinforcing
@@ -51,6 +53,7 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
+    _employeeSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -223,7 +226,16 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final employees = context.read<PollProvider>().getActiveEmployees();
+    final allEmployees = context.read<PollProvider>().getActiveEmployees();
+    final query = _employeeSearchQuery.trim();
+    final employees = query.isEmpty
+        ? allEmployees
+        : allEmployees.where((u) {
+            final name = u.name.toLowerCase();
+            final number = u.employeeNumber.toLowerCase();
+            final q = query.toLowerCase();
+            return name.contains(q) || number.contains(q);
+          }).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -326,9 +338,34 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
               ),
               const SizedBox(height: 20),
 
-              const Text(
-                'الموظفون المشاركون في التصويت',
-                style: TextStyle(fontWeight: FontWeight.w600),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'الموظفون المشاركون في التصويت',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (_selectedEmployeeUids.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.deepBlue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'تم اختيار ${_selectedEmployeeUids.length}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.deepBlue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 4),
               const Text(
@@ -336,7 +373,7 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 8),
-              if (employees.isEmpty)
+              if (allEmployees.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: Text(
@@ -344,28 +381,68 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
                     style: TextStyle(color: AppColors.statusRejected),
                   ),
                 )
-              else
-                Card(
-                  child: Column(
-                    children: employees.map((AppUser u) {
-                      final selected = _selectedEmployeeUids.contains(u.uid);
-                      return CheckboxListTile(
-                        value: selected,
-                        title: Text(u.name),
-                        subtitle: Text(u.employeeNumber),
-                        onChanged: (checked) {
-                          setState(() {
-                            if (checked == true) {
-                              _selectedEmployeeUids.add(u.uid);
-                            } else {
-                              _selectedEmployeeUids.remove(u.uid);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
+              else ...[
+                // Search field — lets the manager filter the (potentially
+                // long) employee list by name or employee number instead
+                // of having to scroll through every CheckboxListTile
+                // looking for a specific person.
+                TextField(
+                  controller: _employeeSearchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'بحث عن موظف بالاسم أو الرقم الوظيفي...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _employeeSearchQuery.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              _employeeSearchCtrl.clear();
+                              setState(() => _employeeSearchQuery = '');
+                            },
+                          ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
+                  onChanged: (v) => setState(() => _employeeSearchQuery = v),
                 ),
+                const SizedBox(height: 8),
+                if (employees.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'لا يوجد موظف مطابق لعملية البحث.',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  )
+                else
+                  Card(
+                    child: Column(
+                      children: employees.map((AppUser u) {
+                        final selected = _selectedEmployeeUids.contains(u.uid);
+                        return CheckboxListTile(
+                          value: selected,
+                          title: Text(u.name),
+                          subtitle: Text(u.employeeNumber),
+                          onChanged: (checked) {
+                            setState(() {
+                              if (checked == true) {
+                                _selectedEmployeeUids.add(u.uid);
+                              } else {
+                                _selectedEmployeeUids.remove(u.uid);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+              ],
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _saving ? null : _save,
