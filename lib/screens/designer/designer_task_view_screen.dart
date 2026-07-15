@@ -228,6 +228,8 @@ class _HistoryTile extends StatelessWidget {
         return Icons.cancel_outlined;
       case HistoryAction.reassignConfirmed:
         return Icons.assignment_turned_in_outlined;
+      case HistoryAction.comment:
+        return Icons.chat_bubble_outline;
     }
   }
 
@@ -251,6 +253,8 @@ class _HistoryTile extends StatelessWidget {
         return 'رفض الإسناد';
       case HistoryAction.reassignConfirmed:
         return 'تأكيد استلام الموظف الجديد';
+      case HistoryAction.comment:
+        return 'تعليق جديد';
     }
   }
 

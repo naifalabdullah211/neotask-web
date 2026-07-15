@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 import '../../models/notification_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../employee/task_detail_screen.dart';
 import '../manager/manager_poll_detail_screen.dart';
+import '../manager/task_review_detail_screen.dart';
 
 /// In-app notification inbox — accessible from the [NotificationBell] in
 /// both `manager_home_screen.dart` and `employee_home_screen.dart`.
@@ -88,6 +91,23 @@ class NotificationCenterScreen extends StatelessWidget {
                         ),
                       );
                     }
+                    // NEW — Quick Comments feature: tapping a task-comment
+                    // notification jumps straight to that task's detail
+                    // screen (manager -> TaskReviewDetailScreen, employee
+                    // -> TaskDetailScreen), matching the poll-notification
+                    // navigation pattern above.
+                    if (n.relatedTaskId != null && context.mounted) {
+                      final task = FirestoreService.getTask(n.relatedTaskId!);
+                      if (task != null && context.mounted) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => isManager
+                                ? TaskReviewDetailScreen(task: task)
+                                : TaskDetailScreen(task: task),
+                          ),
+                        );
+                      }
+                    }
                   },
                 );
               },
@@ -114,12 +134,15 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isTieDecision =
         notification.type == NotificationType.pollTieNeedsDecision;
+    final isTaskComment = notification.type == NotificationType.taskComment;
     final Color accent = isTieDecision
         ? AppColors.statusPending
         : (notification.isRead ? AppColors.textSecondary : AppColors.deepBlue);
     final IconData icon = isTieDecision
         ? Icons.gavel_outlined
-        : Icons.how_to_vote_outlined;
+        : (isTaskComment
+              ? Icons.chat_bubble_outline
+              : Icons.how_to_vote_outlined);
 
     return Card(
       color: notification.isRead ? null : accent.withValues(alpha: 0.06),

@@ -515,11 +515,14 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
               ),
             if (context.watch<AuthProvider>().isManager)
               const SizedBox(height: 16),
-            // Part 2 — full activityLog, visible regardless of the task's
-            // current/final status (manager must see this even if the
-            // status has not changed since submission).
+            // "التعليقات" (Quick Comments) — MERGED with the former
+            // employee-only "التحديثات والملاحظات من الموظف" section, since
+            // both display the same underlying `activityLog` array and
+            // serve the same purpose (short, contextual notes on the
+            // task). Now writable by BOTH manager and employee — see
+            // TaskProvider.addComment doc comment for the full rationale.
             const Text(
-              'التحديثات والملاحظات من الموظف',
+              'التعليقات',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -527,7 +530,7 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 4),
                 child: Text(
-                  'لا توجد تحديثات بعد',
+                  'لا توجد تعليقات بعد',
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
               )
@@ -535,6 +538,14 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
               ...current.activityLog.reversed.map(
                 (e) => _ActivityLogTile(entry: e),
               ),
+            const SizedBox(height: 8),
+            _CommentInputBox(
+              onSubmit: (text) => context.read<TaskProvider>().addComment(
+                taskId: current.taskId,
+                authorUid: managerUid,
+                text: text,
+              ),
+            ),
             const SizedBox(height: 16),
             const Text(
               'سجل المهمة الكامل',
@@ -785,15 +796,22 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// Part 2 — renders one `activityLog` entry (employee-authored update/note),
-/// distinct from [_HistoryTile] (which renders the separate `task_history`
-/// audit-log collection driven by lifecycle transitions).
+/// Renders one `activityLog` entry — now used for BOTH the legacy
+/// employee-authored update/note feature and the new Quick Comments
+/// feature (comments from manager OR employee), which were merged into
+/// this single array/tile per the explicit "check overlap, merge instead
+/// of duplicating" instruction. Distinct from [_HistoryTile] (which
+/// renders the separate `task_history` audit-log collection driven by
+/// lifecycle transitions). Shows author name + timestamp + text, per the
+/// Quick Comments requirement.
 class _ActivityLogTile extends StatelessWidget {
   final ActivityLogEntry entry;
   const _ActivityLogTile({required this.entry});
 
   @override
   Widget build(BuildContext context) {
+    final authorName =
+        FirestoreService.getUser(entry.updatedBy)?.name ?? 'مستخدم';
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       color: AppColors.statusPending.withValues(alpha: 0.05),
@@ -807,10 +825,86 @@ class _ActivityLogTile extends StatelessWidget {
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
         subtitle: Text(
-          intl.DateFormat('yyyy/MM/dd HH:mm').format(entry.updatedAt),
-          style: const TextStyle(fontSize: 11),
+          '$authorName • '
+          '${intl.DateFormat('yyyy/MM/dd HH:mm').format(entry.updatedAt)}',
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
       ),
+    );
+  }
+}
+
+/// Inline "تعليقات سريعة" input box: a plain multi-line [TextField] plus an
+/// "إرسال" (Send) [FilledButton] — deliberately NOT a modal dialog (unlike
+/// the legacy `_addActivityLogNote` flow this feature supersedes on the
+/// employee screen), per the explicit requirement of a simple inline text
+/// box + Send button under the comment list. Duplicated verbatim in
+/// `task_detail_screen.dart`, matching this codebase's existing convention
+/// of per-screen private widgets (see `_ActivityLogTile`/`_HistoryTile`).
+class _CommentInputBox extends StatefulWidget {
+  const _CommentInputBox({required this.onSubmit});
+
+  final Future<void> Function(String text) onSubmit;
+
+  @override
+  State<_CommentInputBox> createState() => _CommentInputBoxState();
+}
+
+class _CommentInputBoxState extends State<_CommentInputBox> {
+  final _controller = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    await widget.onSubmit(text);
+    if (!mounted) return;
+    _controller.clear();
+    setState(() => _sending = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _controller,
+          enabled: !_sending,
+          minLines: 1,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'اكتب تعليقًا سريعًا...',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: _sending ? null : _send,
+            icon: _sending
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.send, size: 18),
+            label: const Text('إرسال'),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -839,6 +933,8 @@ class _HistoryTile extends StatelessWidget {
         return Icons.cancel_outlined;
       case HistoryAction.reassignConfirmed:
         return Icons.assignment_turned_in_outlined;
+      case HistoryAction.comment:
+        return Icons.chat_bubble_outline;
     }
   }
 
@@ -862,6 +958,8 @@ class _HistoryTile extends StatelessWidget {
         return 'رفض الإسناد';
       case HistoryAction.reassignConfirmed:
         return 'تأكيد استلام الموظف الجديد';
+      case HistoryAction.comment:
+        return 'تعليق جديد';
     }
   }
 

@@ -20,7 +20,14 @@
 /// the final result — enforced by constructing genuinely different
 /// [payload] maps server-side (client-side here, no backend), not by a
 /// shared document with a permissions filter.
-enum NotificationType { pollClosed, pollTieNeedsDecision }
+enum NotificationType {
+  pollClosed,
+  pollTieNeedsDecision,
+  // NEW — Quick Comments feature (تعليقات سريعة): fired when the manager
+  // or the assigned employee adds a comment on a task, notifying the
+  // OTHER party. See TaskProvider.addComment.
+  taskComment,
+}
 
 class AppNotification {
   final String notificationId;
@@ -29,6 +36,7 @@ class AppNotification {
   final String title;
   final String body;
   final String? relatedPollId;
+  final String? relatedTaskId; // NEW — Quick Comments feature
   final Map<String, dynamic>? payload; // e.g. per-employee vote breakdown
   final DateTime createdAt;
   final DateTime? readAt;
@@ -40,6 +48,7 @@ class AppNotification {
     required this.title,
     required this.body,
     this.relatedPollId,
+    this.relatedTaskId,
     this.payload,
     required this.createdAt,
     this.readAt,
@@ -55,6 +64,7 @@ class AppNotification {
       title: title,
       body: body,
       relatedPollId: relatedPollId,
+      relatedTaskId: relatedTaskId,
       payload: payload,
       createdAt: createdAt,
       readAt: readAt ?? this.readAt,
@@ -69,6 +79,7 @@ class AppNotification {
       'title': title,
       'body': body,
       'relatedPollId': relatedPollId,
+      'relatedTaskId': relatedTaskId,
       'payload': payload,
       'createdAt': createdAt.toIso8601String(),
       'readAt': readAt?.toIso8601String(),
@@ -86,6 +97,7 @@ class AppNotification {
       title: map['title'] as String? ?? '',
       body: map['body'] as String? ?? '',
       relatedPollId: map['relatedPollId'] as String?,
+      relatedTaskId: map['relatedTaskId'] as String?,
       payload: (map['payload'] as Map?)?.cast<String, dynamic>(),
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)

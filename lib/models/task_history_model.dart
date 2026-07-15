@@ -11,6 +11,11 @@ enum HistoryAction {
   reassignApproved, // manager approved; awaiting B's confirmation
   reassignRejected, // manager rejected; task stays with A, no reason required
   reassignConfirmed, // B confirmed receipt; assignedTo is now B
+  // NEW — Quick Comments feature (تعليقات سريعة). Logged once per comment
+  // (manager OR employee), on top of the `activityLog` array write, so the
+  // comment also appears in the append-only, top-level task_history feed
+  // alongside submit/approve/reject/etc. — see TaskProvider.addComment.
+  comment,
 }
 
 class TaskHistoryEntry {

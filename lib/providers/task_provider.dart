@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
+import '../models/notification_model.dart';
 import '../models/task_model.dart';
 import '../models/task_history_model.dart';
 import '../services/firestore_service.dart';
@@ -480,6 +481,80 @@ class TaskProvider extends ChangeNotifier {
       newStatus: task.status.name,
     );
     await FirestoreService.appendTaskActivityLogEntry(taskId, entry);
+  }
+
+  // =========================================================================
+  // QUICK COMMENTS — "تعليقات سريعة" (NEW — additive feature)
+  // =========================================================================
+  // Deliberately MERGED into the existing `activityLog`/`ActivityLogEntry`
+  // storage above rather than introducing a parallel `Comment` model or
+  // Firestore field, per the explicit instruction to check for functional
+  // overlap and merge instead of duplicating. This is safe/legal under the
+  // CURRENT (already-live) firestore.rules with NO rules edit or redeploy
+  // required, because:
+  //   - The employee's normal-lifecycle update branch already allows
+  //     `activityLog` unconditionally in its `hasOnly()` allowlist.
+  //   - The manager's update branch (`allow update: if isManager();`) has
+  //     no field restriction at all, so it was already able to write
+  //     `activityLog` too — it simply never had UI to do so before now.
+  // On top of the `activityLog` append (for the "التعليقات" list UI), this
+  // ALSO writes a `TaskHistoryEntry` (HistoryAction.comment) so the
+  // comment shows up in "سجل المهمة الكامل" exactly like submit/approve/
+  // reject events (requirement #4) — and dispatches an `AppNotification`
+  // to the OTHER party (manager<->employee), reusing the exact
+  // save-notification pattern already used by PollProvider (requirement
+  // #3). "Any other participant" beyond manager/employee does not
+  // currently exist on AppTask (no participants list), so the notified
+  // "other party" is determined purely from assignedBy/assignedTo.
+  Future<void> addComment({
+    required String taskId,
+    required String authorUid,
+    required String text,
+  }) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return;
+
+    final entry = ActivityLogEntry(
+      updatedBy: authorUid,
+      updatedAt: DateTime.now(),
+      note: trimmed,
+      previousStatus: task.status.name,
+      newStatus: task.status.name,
+    );
+    await FirestoreService.appendTaskActivityLogEntry(taskId, entry);
+    await _logHistory(taskId, HistoryAction.comment, authorUid, note: trimmed);
+    await _notifyOtherPartyOfComment(task, authorUid, trimmed);
+  }
+
+  /// Notifies whichever of manager/employee did NOT author the comment.
+  Future<void> _notifyOtherPartyOfComment(
+    AppTask task,
+    String authorUid,
+    String text,
+  ) async {
+    final recipientUid = authorUid == task.assignedBy
+        ? task.assignedTo
+        : task.assignedBy;
+    if (recipientUid.isEmpty || recipientUid == authorUid) return;
+
+    final author = FirestoreService.getUser(authorUid);
+    final authorName = author?.name ?? 'مستخدم';
+    final preview = text.length > 80 ? '${text.substring(0, 80)}...' : text;
+
+    await FirestoreService.saveNotification(
+      AppNotification(
+        notificationId: _uuid.v4(),
+        recipientUid: recipientUid,
+        type: NotificationType.taskComment,
+        title: 'تعليق جديد على مهمة: ${task.title}',
+        body: '$authorName: $preview',
+        relatedTaskId: task.taskId,
+        payload: {'authorUid': authorUid, 'authorName': authorName},
+        createdAt: DateTime.now(),
+      ),
+    );
   }
 
   // =========================================================================
