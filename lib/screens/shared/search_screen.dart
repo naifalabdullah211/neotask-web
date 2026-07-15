@@ -276,9 +276,9 @@ class _TaskResultTile extends StatelessWidget {
         ],
       ),
       trailing: const Icon(Icons.chevron_left),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task)),
-      ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task))),
     );
   }
 }

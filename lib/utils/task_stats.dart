@@ -46,7 +46,8 @@ class TaskStats {
 
   /// Sum of the 5 mutually-exclusive primary-status buckets. Must always
   /// equal [total] by construction — verified by the widget/unit test.
-  int get breakdownSum => pending + inProgress + submitted + completed + rejected;
+  int get breakdownSum =>
+      pending + inProgress + submitted + completed + rejected;
 
   /// UI-facing merged bucket: "قيد الانتظار" as shown on the existing
   /// dashboard stat card historically covers BOTH not-yet-started
@@ -60,6 +61,52 @@ class TaskStats {
   /// of the card's `pending` value). Use this — never re-add `submitted`
   /// or hand-roll `pending + inProgress` at a call site.
   int get pendingDisplay => pending + inProgress;
+}
+
+/// On-time-completion percentage stats for a set of tasks — SINGLE SOURCE
+/// OF TRUTH for this metric, used by BOTH the employee mini summary card
+/// and the employee stats detail page (manager_employees_tab.dart /
+/// employee_stats_detail_screen.dart), so the two levels can never drift
+/// out of sync with each other.
+///
+/// Formula (per explicit spec): (tasks completed on/before their dueDate)
+/// ÷ (total completed tasks) × 100. Only tasks whose [AppTask.primaryStatus]
+/// is [PrimaryTaskStatus.completed] are considered — non-completed tasks
+/// have no meaningful "on time" verdict yet and are excluded from both the
+/// numerator and denominator (NOT counted as late).
+///
+/// "Completion timestamp" is not a dedicated field on [AppTask] — the
+/// closest proxy is `reviewedAt` (set when the manager runs the formal
+/// approve/reject decision flow), falling back to `updatedAt` for the rare
+/// case a task was approved via a path that doesn't set `reviewedAt` (e.g.
+/// a direct Kanban status drag). This fallback is a documented judgment
+/// call, not a verified guarantee — flagged here for future revisit if a
+/// dedicated `completedAt` field is ever added to the model.
+class OnTimeStats {
+  const OnTimeStats({required this.completedCount, required this.onTimeCount});
+
+  final int completedCount;
+  final int onTimeCount;
+
+  /// Null when there are no completed tasks yet (percentage is undefined,
+  /// not zero — callers must render a neutral "لا توجد بيانات كافية" state
+  /// rather than a misleading 0%).
+  double? get percent =>
+      completedCount == 0 ? null : (onTimeCount / completedCount) * 100;
+}
+
+OnTimeStats computeOnTimeStats(List<AppTask> tasks) {
+  var completedCount = 0;
+  var onTimeCount = 0;
+  for (final t in tasks) {
+    if (t.primaryStatus != PrimaryTaskStatus.completed) continue;
+    completedCount++;
+    final completionDate = t.reviewedAt ?? t.updatedAt;
+    if (!completionDate.isAfter(t.dueDate)) {
+      onTimeCount++;
+    }
+  }
+  return OnTimeStats(completedCount: completedCount, onTimeCount: onTimeCount);
 }
 
 /// Computes [TaskStats] for [tasks] — the ONLY function in the codebase

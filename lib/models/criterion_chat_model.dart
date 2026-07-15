@@ -34,7 +34,10 @@ class CriterionChatMessage {
     };
   }
 
-  factory CriterionChatMessage.fromMap(String messageId, Map<dynamic, dynamic> map) {
+  factory CriterionChatMessage.fromMap(
+    String messageId,
+    Map<dynamic, dynamic> map,
+  ) {
     return CriterionChatMessage(
       messageId: messageId,
       senderId: map['senderId'] as String? ?? '',

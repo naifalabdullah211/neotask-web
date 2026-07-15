@@ -40,9 +40,7 @@ class PremiumMeshBackground extends StatelessWidget {
           ),
           // Fine diagonal line texture — subtle, low-alpha, gives the
           // dark surface a woven/engraved quality instead of flat gradient.
-          Positioned.fill(
-            child: CustomPaint(painter: _HairlinePainter()),
-          ),
+          Positioned.fill(child: CustomPaint(painter: _HairlinePainter())),
           // Bottom vignette to deepen the lower edge (grounds content
           // placed near the bottom of the screen).
           Align(

@@ -97,8 +97,7 @@ class _CreateCriterionScreenState extends State<CreateCriterionScreen> {
               TextFormField(
                 controller: _titleCtrl,
                 decoration: const InputDecoration(labelText: 'عنوان المعيار'),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty)
+                validator: (v) => (v == null || v.trim().isEmpty)
                     ? 'أدخل عنوان المعيار'
                     : null,
               ),

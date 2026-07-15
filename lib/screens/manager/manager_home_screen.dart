@@ -69,9 +69,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             tooltip: 'بحث',
             icon: const Icon(Icons.search),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SearchScreen()),
-              );
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
             },
           ),
           IconButton(

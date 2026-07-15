@@ -7,6 +7,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/task_stats.dart';
+import 'employee_stats_detail_screen.dart';
 
 /// Manager's Employees tab:
 /// 1) Generate a single-use employee invitation link.
@@ -319,43 +321,164 @@ class _ActiveEmployeeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Mini summary card (Level 1): SAME data source as the main dashboard
+    // — TaskProvider.tasksForEmployee(uid) filtered/classified via
+    // computeTaskStats/computeOnTimeStats (lib/utils/task_stats.dart), the
+    // exact functions the dashboard itself calls. No independent counting
+    // logic is introduced here, per explicit data-integrity requirement.
+    final taskProvider = context.watch<TaskProvider>();
+    final employeeTasks = taskProvider.tasksForEmployee(user.uid);
+    final stats = computeTaskStats(employeeTasks);
+    final onTime = computeOnTimeStats(employeeTasks);
+
     return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.deepBlue.withValues(alpha: 0.1),
-          child: Text(
-            user.name.isNotEmpty ? user.name[0] : '?',
-            style: const TextStyle(
-              color: AppColors.deepBlue,
-              fontWeight: FontWeight.bold,
-            ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EmployeeStatsDetailScreen(employee: user),
           ),
         ),
-        title: Text(user.name),
-        subtitle: Text('${user.email} · رقم وظيفي: ${user.employeeNumber}'),
-        trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
-          onSelected: (value) {
-            if (value == 'delete') _startDeleteFlow(context);
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.person_remove,
-                    color: AppColors.statusRejected,
-                    size: 18,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: AppColors.deepBlue.withValues(alpha: 0.1),
+                child: Text(
+                  user.name.isNotEmpty ? user.name[0] : '?',
+                  style: const TextStyle(
+                    color: AppColors.deepBlue,
+                    fontWeight: FontWeight.bold,
                   ),
-                  SizedBox(width: 8),
-                  Text('حذف الحساب'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${user.email} · رقم وظيفي: ${user.employeeNumber}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _MiniStatsRow(stats: stats, onTime: onTime),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(
+                  Icons.more_vert,
+                  color: AppColors.textSecondary,
+                ),
+                onSelected: (value) {
+                  if (value == 'delete') _startDeleteFlow(context);
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.person_remove,
+                          color: AppColors.statusRejected,
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Text('حذف الحساب'),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Level-1 mini summary row: 6 small colored status icons+counts (same
+/// colors/labels as the main dashboard's DashboardMetric map) plus the
+/// on-time-completion percentage (tiered color: green ≥80%, orange
+/// 50-79%, red <50%). Purely presentational — all numbers are passed in
+/// pre-computed from the shared task_stats.dart functions.
+class _MiniStatsRow extends StatelessWidget {
+  const _MiniStatsRow({required this.stats, required this.onTime});
+
+  final TaskStats stats;
+  final OnTimeStats onTime;
+
+  Widget _chip(DashboardMetric metric, int value) {
+    final color = dashboardMetricColors[metric]!;
+    final icon = dashboardMetricIcons[metric]!;
+    return Tooltip(
+      message: dashboardMetricLabelsAr[metric]!,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 2),
+          Text(
+            '$value',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = onTime.percent;
+    final percentColor = percent == null
+        ? AppColors.textSecondary
+        : onTimePercentTierColor(percent);
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 4,
+      children: [
+        _chip(DashboardMetric.total, stats.total),
+        _chip(DashboardMetric.pending, stats.pendingDisplay),
+        _chip(DashboardMetric.review, stats.submitted),
+        _chip(DashboardMetric.completed, stats.completed),
+        _chip(DashboardMetric.rejected, stats.rejected),
+        _chip(DashboardMetric.overdue, stats.overdue),
+        Tooltip(
+          message: 'نسبة الإنجاز في الوقت المحدد',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.timer_outlined, size: 13, color: percentColor),
+              const SizedBox(width: 2),
+              Text(
+                percent == null ? '—' : '${percent.round()}%',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: percentColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

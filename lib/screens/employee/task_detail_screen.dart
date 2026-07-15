@@ -467,10 +467,7 @@ class _ActivityLogTile extends StatelessWidget {
             ? Text(entry.note!, style: const TextStyle(fontSize: 13))
             : const Text(
                 '(بدون نص)',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
         subtitle: Text(
           intl.DateFormat('yyyy/MM/dd HH:mm').format(entry.updatedAt),

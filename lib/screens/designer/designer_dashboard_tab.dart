@@ -640,10 +640,8 @@ class _CompletionChartCard extends StatelessWidget {
                   show: true,
                   drawVerticalLine: false,
                   horizontalInterval: (maxY / 4).clamp(1, double.infinity),
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: const Color(0xFFEEF0F4),
-                    strokeWidth: 1,
-                  ),
+                  getDrawingHorizontalLine: (value) =>
+                      FlLine(color: const Color(0xFFEEF0F4), strokeWidth: 1),
                 ),
                 borderData: FlBorderData(show: false),
                 barTouchData: BarTouchData(enabled: false),

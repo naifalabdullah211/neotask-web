@@ -131,9 +131,7 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
                         height: 4,
                         margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
-                          color: AppColors.textSecondary.withValues(
-                            alpha: 0.3,
-                          ),
+                          color: AppColors.textSecondary.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -181,8 +179,7 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
                               ),
                             )
                             .toList(),
-                        onChanged: (v) =>
-                            setState(() => _selectedEmployee = v),
+                        onChanged: (v) => setState(() => _selectedEmployee = v),
                       ),
                     const SizedBox(height: 14),
                     TextFormField(

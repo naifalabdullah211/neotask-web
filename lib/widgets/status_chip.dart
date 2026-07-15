@@ -99,10 +99,16 @@ class PriorityBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(priorityIcon(priorityName), size: compact ? 12 : 14, color: color),
+          Icon(
+            priorityIcon(priorityName),
+            size: compact ? 12 : 14,
+            color: color,
+          ),
           const SizedBox(width: 4),
           Text(
-            compact ? priorityLabelAr(priorityName) : 'أولوية ${priorityLabelAr(priorityName)}',
+            compact
+                ? priorityLabelAr(priorityName)
+                : 'أولوية ${priorityLabelAr(priorityName)}',
             style: TextStyle(
               color: color,
               fontSize: compact ? 11 : 12,

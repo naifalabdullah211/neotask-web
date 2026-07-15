@@ -68,8 +68,7 @@ class CriterionDetailScreen extends StatelessWidget {
                 IconButton(
                   tooltip: 'تعديل المعيار',
                   icon: const Icon(Icons.edit_outlined),
-                  onPressed: () =>
-                      showEditCriterionDialog(context, criterion),
+                  onPressed: () => showEditCriterionDialog(context, criterion),
                 ),
                 IconButton(
                   tooltip: 'حذف المعيار',
@@ -182,9 +181,7 @@ class _CriterionPanelState extends State<_CriterionPanel> {
     final assigneeNames = criterion.assignees
         .map((uid) => FirestoreService.getUser(uid)?.name ?? 'موظف')
         .join('، ');
-    final isAssignedToMe = criterion.assignees.contains(
-      widget.currentUserUid,
-    );
+    final isAssignedToMe = criterion.assignees.contains(widget.currentUserUid);
     final canEditStatus = widget.isManager || isAssignedToMe;
 
     return ListView(
@@ -211,10 +208,7 @@ class _CriterionPanelState extends State<_CriterionPanel> {
         ),
         const SizedBox(height: 20),
         if (canEditStatus) ...[
-          const Text(
-            'الحالة',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
+          const Text('الحالة', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           SegmentedButton<CriterionStatus>(
             segments: const [
@@ -235,9 +229,7 @@ class _CriterionPanelState extends State<_CriterionPanel> {
               ),
             ],
             selected: {criterion.status},
-            onSelectionChanged: _busy
-                ? null
-                : (s) => _setStatus(s.first),
+            onSelectionChanged: _busy ? null : (s) => _setStatus(s.first),
           ),
         ],
         const SizedBox(height: 40),

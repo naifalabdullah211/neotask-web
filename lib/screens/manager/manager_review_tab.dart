@@ -93,10 +93,7 @@ class _SubmittedTaskCard extends StatelessWidget {
     final managerUid = context.read<AuthProvider>().currentUser!.uid;
     return Card(
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 8,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: TaskUrgencyDot(task: t),
         title: Row(
           children: [
@@ -210,7 +207,9 @@ class _ReassignRequestCardState extends State<_ReassignRequestCard> {
     setState(() => _busy = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(approve ? 'تمت الموافقة على طلب الإسناد' : 'تم رفض طلب الإسناد'),
+        content: Text(
+          approve ? 'تمت الموافقة على طلب الإسناد' : 'تم رفض طلب الإسناد',
+        ),
       ),
     );
   }
@@ -234,20 +233,35 @@ class _ReassignRequestCardState extends State<_ReassignRequestCard> {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.person_outline, size: 16, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.person_outline,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'من: ${currentEmployee?.name ?? 'غير معروف'}',
                   style: const TextStyle(fontSize: 12),
                 ),
                 const SizedBox(width: 12),
-                const Icon(Icons.arrow_forward, size: 14, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.arrow_forward,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 12),
-                const Icon(Icons.person, size: 16, color: AppColors.statusPending),
+                const Icon(
+                  Icons.person,
+                  size: 16,
+                  color: AppColors.statusPending,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'إلى: ${proposedEmployee?.name ?? 'غير معروف'}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -256,7 +270,10 @@ class _ReassignRequestCardState extends State<_ReassignRequestCard> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   'تاريخ الطلب: ${intl.DateFormat('yyyy/MM/dd HH:mm').format(t.reassignRequestedAt!)}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             const SizedBox(height: 10),

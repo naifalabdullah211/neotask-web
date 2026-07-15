@@ -430,10 +430,10 @@ class AppTask {
       reassignRequestedStatus: map['reassignRequestedStatus'] as String?,
       activityLog: map['activityLog'] != null
           ? (map['activityLog'] as List)
-              .map(
-                (e) => ActivityLogEntry.fromMap(e as Map<dynamic, dynamic>),
-              )
-              .toList()
+                .map(
+                  (e) => ActivityLogEntry.fromMap(e as Map<dynamic, dynamic>),
+                )
+                .toList()
           : const [],
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)

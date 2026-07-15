@@ -51,9 +51,9 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
             tooltip: 'بحث',
             icon: const Icon(Icons.search),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SearchScreen()),
-              );
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
             },
           ),
           IconButton(

@@ -247,6 +247,31 @@ const Map<DashboardMetric, String> dashboardMetricLabelsAr = {
   DashboardMetric.overdue: 'متأخرة',
 };
 
+/// Same icon used by each `_StatCard` on the manager dashboard
+/// (manager_dashboard_tab.dart) — centralized here so the employee mini
+/// summary row and the employee stats detail page's stat cards render the
+/// IDENTICAL icon+color pairing per metric, with no risk of drifting from
+/// the main dashboard's icon choice.
+const Map<DashboardMetric, IconData> dashboardMetricIcons = {
+  DashboardMetric.total: Icons.assignment_outlined,
+  DashboardMetric.completed: Icons.check_circle_outline,
+  DashboardMetric.pending: Icons.hourglass_empty,
+  DashboardMetric.review: Icons.rate_review_outlined,
+  DashboardMetric.rejected: Icons.cancel_outlined,
+  DashboardMetric.overdue: Icons.warning_amber_outlined,
+};
+
+/// Three-tier color coding for the on-time-completion percentage metric
+/// (green ≥80%, orange 50-79%, red <50%) — per explicit spec. Single
+/// source of truth shared by the mini summary row and the detail page's
+/// prominent on-time card, so both always agree on which color a given
+/// percentage renders as.
+Color onTimePercentTierColor(double percent) {
+  if (percent >= 80) return AppColors.statusApproved; // green
+  if (percent >= 50) return const Color(0xFFF59E0B); // orange
+  return AppColors.statusRejected; // red
+}
+
 Color statusColor(String statusName) {
   switch (statusName) {
     case 'assigned':

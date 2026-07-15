@@ -161,21 +161,33 @@ class PdfReportService {
             children: [
               pw.Text(
                 'تم إنشاء هذا التقرير بواسطة المدير عبر منصة',
-                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  color: PdfColors.grey600,
+                ),
               ),
               pw.Text(
                 ' NeoTask ',
                 textDirection: pw.TextDirection.ltr,
-                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  color: PdfColors.grey600,
+                ),
               ),
               pw.Text(
                 'بتاريخ',
-                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  color: PdfColors.grey600,
+                ),
               ),
               pw.Text(
                 ' ${_fmtDate(DateTime.now())}',
                 textDirection: pw.TextDirection.ltr,
-                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  color: PdfColors.grey600,
+                ),
               ),
             ],
           ),

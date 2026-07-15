@@ -29,7 +29,9 @@ Future<void> showRequestReassignmentDialog(
   if (candidates.isEmpty) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('لا يوجد موظفون نشطون آخرون لإسناد المهمة إليهم')),
+      const SnackBar(
+        content: Text('لا يوجد موظفون نشطون آخرون لإسناد المهمة إليهم'),
+      ),
     );
     return;
   }
@@ -50,7 +52,10 @@ Future<void> showRequestReassignmentDialog(
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
-            const Text('إسناد المهمة إلى:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'إسناد المهمة إلى:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             DropdownButtonFormField<AppUser>(
               initialValue: selected,
@@ -90,6 +95,8 @@ Future<void> showRequestReassignmentDialog(
     );
   } catch (e) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(e.toString())));
   }
 }
