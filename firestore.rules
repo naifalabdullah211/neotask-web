@@ -377,7 +377,23 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isManager() &&
         request.resource.data.createdBy == request.auth.uid;
-      allow update: if isManager();
+
+      // Manager: unrestricted update (title/description/dates/color/icon,
+      // and may also append comments). Employee: may update ONLY the
+      // `comments` field (goal-level "تعليقات سريعة" — see
+      // GoalProvider.addComment / GoalComment doc comment) — cannot alter
+      // title/description/dates/color/icon. Goal reads are already
+      // unrestricted for every signed-in user (see `allow read` above),
+      // so allowing any signed-in user to append a comment matches that
+      // same existing breadth rather than introducing a NEW residual
+      // permissiveness gap (consistent with the already-flagged
+      // tasks/polls "unfiltered listen + client-side filter" limitation
+      // documented elsewhere in this file).
+      allow update: if isManager() ||
+        (isSignedIn() &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['comments', 'updatedAt']));
+
       allow delete: if isManager();
 
       match /criteria/{criterionId} {
@@ -386,17 +402,30 @@ service cloud.firestore {
         allow create: if isManager() &&
           request.resource.data.assignedBy == request.auth.uid;
 
-        // Manager: unrestricted update. Employee: may update ONLY a
-        // criterion they are a member of (list-membership via
-        // `hasAny`, not `==` equality), and ONLY the `status` field —
-        // cannot alter assignment/title/description.
+        // Manager: unrestricted update (title/description/assignees, via
+        // CriterionProvider.updateCriterion/setAssignees). Employee: may
+        // update ONLY a criterion they are a member of (list-membership
+        // via `hasAny`, not `==` equality), and ONLY their OWN entry
+        // inside the `employeeStatuses` map (see
+        // CriterionProvider.setEmployeeStatus /
+        // FirestoreService.updateCriterionEmployeeStatus's dotted-field
+        // write) — cannot alter assignment/title/description, and cannot
+        // touch a colleague's status entry. The second-to-last line
+        // below diffs the `employeeStatuses` MAP ITSELF (not just the
+        // top-level document) to confirm the ONLY map key that changed
+        // is the writer's own uid.
         allow update: if isManager() ||
           (isSignedIn() &&
            resource.data.assignees.hasAny([request.auth.uid]) &&
            request.resource.data.assignees == resource.data.assignees &&
            request.resource.data.assignedBy == resource.data.assignedBy &&
+           request.resource.data.title == resource.data.title &&
+           request.resource.data.description == resource.data.description &&
            request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['status', 'updatedAt']));
+             .hasOnly(['employeeStatuses', 'updatedAt']) &&
+           request.resource.data.employeeStatuses
+             .diff(resource.data.employeeStatuses)
+             .affectedKeys().hasOnly([request.auth.uid]));
 
         allow delete: if isManager();
 

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/goal_model.dart';
+import '../models/goal_comment_model.dart';
 import '../models/criterion_model.dart';
 import '../services/firestore_service.dart';
 
@@ -56,6 +57,12 @@ class GoalProvider extends ChangeNotifier {
     required String createdBy,
     required DateTime startDate,
     required DateTime endDate,
+    // Fixed-palette color name (one of goalColorNames) and fixed icon
+    // name (one of goalIconNames) — see goal_style_options.dart. Both
+    // optional so any pre-existing call site keeps compiling; the UI
+    // dialogs always pass them going forward.
+    String? colorName,
+    String? iconName,
   }) async {
     final now = DateTime.now();
     final goal = Goal(
@@ -67,6 +74,8 @@ class GoalProvider extends ChangeNotifier {
       endDate: endDate,
       createdAt: now,
       updatedAt: now,
+      colorName: colorName,
+      iconName: iconName,
     );
     await FirestoreService.saveGoal(goal);
     return goal;
@@ -78,6 +87,8 @@ class GoalProvider extends ChangeNotifier {
     String? description,
     DateTime? startDate,
     DateTime? endDate,
+    String? colorName,
+    String? iconName,
   }) async {
     final goal = FirestoreService.getGoal(goalId);
     if (goal == null) return;
@@ -86,6 +97,8 @@ class GoalProvider extends ChangeNotifier {
       description: description,
       startDate: startDate,
       endDate: endDate,
+      colorName: colorName,
+      iconName: iconName,
       updatedAt: DateTime.now(),
     );
     await FirestoreService.saveGoal(updated);
@@ -99,13 +112,46 @@ class GoalProvider extends ChangeNotifier {
     await FirestoreService.deleteGoal(goalId);
   }
 
+  // =========================================================================
+  // GOAL-LEVEL COMMENTS — "تعليقات" (NEW — additive feature)
+  // =========================================================================
+  // Architecturally SEPARATE from the Criterion chat system (see
+  // criterion_chat_model.dart) — this reuses the exact Quick-Comments UX
+  // mechanism already built for tasks (TaskProvider.addComment): a plain
+  // text box + إرسال button, each entry showing author name + timestamp +
+  // text, atomically appended via `FieldValue.arrayUnion`
+  // (see FirestoreService.appendGoalComment). See GoalComment's doc
+  // comment for why this also serves as the goal's history/event log.
+  Future<void> addComment({
+    required String goalId,
+    required String authorUid,
+    required String text,
+  }) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final goal = FirestoreService.getGoal(goalId);
+    if (goal == null) return;
+
+    final comment = GoalComment(
+      authorUid: authorUid,
+      text: trimmed,
+      createdAt: DateTime.now(),
+    );
+    await FirestoreService.appendGoalComment(goalId, comment);
+  }
+
   /// Derived progress summary for [goalId] — e.g. "3/5 معايير مكتملة" —
   /// computed purely from the live Criteria cache. Never written back to
   /// the Goal document itself; exists only for UI display.
+  ///
+  /// Uses each criterion's DERIVED [Criterion.aggregateStatus] (per-
+  /// employee-status-aware) rather than the legacy shared `status` field,
+  /// so a criterion only counts as "completed" once EVERY one of its
+  /// assignees has individually completed it.
   ({int total, int completed}) progressForGoal(String goalId) {
     final criteria = FirestoreService.getCriteriaForGoal(goalId);
     final completed = criteria
-        .where((c) => c.status == CriterionStatus.completed)
+        .where((c) => c.aggregateStatus == CriterionStatus.completed)
         .length;
     return (total: criteria.length, completed: completed);
   }

@@ -244,7 +244,10 @@ class _CriterionResultTile extends StatelessWidget {
     return ListTile(
       leading: const Icon(Icons.checklist_rtl_outlined),
       title: Text(criterion.title),
-      subtitle: StatusChip(statusName: criterion.status.name, fontSize: 10),
+      subtitle: StatusChip(
+        statusName: criterion.aggregateStatus.name,
+        fontSize: 10,
+      ),
       trailing: const Icon(Icons.chevron_left),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(

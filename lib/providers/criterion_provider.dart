@@ -9,9 +9,22 @@ import '../services/firestore_service.dart';
 /// answer was given to confirm keeping the old review workflow, so the
 /// minimal/literal reading of the spec was applied): there is NO manager
 /// approve/reject/edit-request review workflow anymore, NO due date, NO
-/// priority, and NO history log for criteria. A criterion only has
-/// [Criterion.status] — a plain 3-state [CriterionStatus] — which any
-/// assigned employee OR the manager may change freely via [updateStatus].
+/// priority, and NO history log for criteria.
+///
+/// EXTENDED (multi-employee individual status — additive): the single
+/// shared [Criterion.status] mutation method (`updateStatus`) is REPLACED
+/// by [setEmployeeStatus] — each assigned employee updates ONLY their own
+/// entry in [Criterion.employeeStatuses], atomically, via a dotted-field
+/// Firestore update (see [FirestoreService.updateCriterionEmployeeStatus])
+/// so two employees updating their own status concurrently never race
+/// each other's write. The overall/aggregate status is NEVER written here
+/// — it is always read via the derived [Criterion.aggregateStatus] getter.
+///
+/// [setAssignees] lets the manager add/remove employees from a criterion's
+/// responsible list at any time. New employees are seeded with a fresh
+/// `notStarted` entry; removed employees' entries are dropped; every
+/// REMAINING previously-assigned employee's own recorded status is left
+/// completely untouched — per the explicit requirement.
 class CriterionProvider extends ChangeNotifier {
   static const _uuid = Uuid();
 
@@ -62,6 +75,9 @@ class CriterionProvider extends ChangeNotifier {
       assignees: assignees,
       assignedBy: assignedBy,
       status: CriterionStatus.notStarted,
+      employeeStatuses: {
+        for (final uid in assignees) uid: CriterionStatus.notStarted.name,
+      },
       createdAt: now,
       updatedAt: now,
     );
@@ -69,37 +85,63 @@ class CriterionProvider extends ChangeNotifier {
     return criterion;
   }
 
+  /// Title/description-only edit — assignees are edited exclusively via
+  /// [setAssignees] and per-employee status via [setEmployeeStatus].
   Future<void> updateCriterion({
     required String criterionId,
     String? title,
     String? description,
-    List<String>? assignees,
   }) async {
     final criterion = FirestoreService.getCriterion(criterionId);
     if (criterion == null) return;
     final updated = criterion.copyWith(
       title: title,
       description: description,
-      assignees: assignees,
       updatedAt: DateTime.now(),
     );
     await FirestoreService.saveCriterion(updated);
   }
 
-  /// The sole status-mutation method. No approval gate: any assigned
-  /// employee or the manager may set the status directly.
-  Future<void> updateStatus(
-    String criterionId,
-    CriterionStatus status,
-    String actorUid,
-  ) async {
+  /// Manager-only: add/remove employees from a criterion's responsible
+  /// list at any time. See class doc comment for the exact
+  /// preserve/seed/drop semantics.
+  Future<void> setAssignees({
+    required String criterionId,
+    required List<String> assignees,
+  }) async {
     final criterion = FirestoreService.getCriterion(criterionId);
     if (criterion == null) return;
+
+    final newStatuses = <String, String>{
+      for (final uid in assignees)
+        uid: criterion.employeeStatuses[uid] ?? CriterionStatus.notStarted.name,
+    };
+
     final updated = criterion.copyWith(
-      status: status,
+      assignees: assignees,
+      employeeStatuses: newStatuses,
       updatedAt: DateTime.now(),
     );
     await FirestoreService.saveCriterion(updated);
+  }
+
+  /// The sole per-employee status-mutation method. [employeeUid] updates
+  /// ONLY their own entry — enforced both by the UI (a colleague's row is
+  /// rendered non-interactive) AND by firestore.rules (a per-key map diff
+  /// check), so this is defense-in-depth, not the only barrier.
+  Future<void> setEmployeeStatus({
+    required String criterionId,
+    required String employeeUid,
+    required CriterionStatus status,
+  }) async {
+    final criterion = FirestoreService.getCriterion(criterionId);
+    if (criterion == null) return;
+    await FirestoreService.updateCriterionEmployeeStatus(
+      criterion.goalId,
+      criterionId,
+      employeeUid,
+      status,
+    );
   }
 
   Future<void> deleteCriterion(String goalId, String criterionId) async {

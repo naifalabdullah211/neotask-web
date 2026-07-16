@@ -12,6 +12,7 @@ import '../models/meeting_model.dart';
 import '../models/contact_model.dart';
 import '../models/favorite_model.dart';
 import '../models/goal_model.dart';
+import '../models/goal_comment_model.dart';
 import '../models/criterion_model.dart';
 import '../models/criterion_chat_model.dart';
 import '../models/poll_model.dart';
@@ -836,6 +837,20 @@ class FirestoreService {
     await _db.collection('goals').doc(goalId).delete();
   }
 
+  /// Atomically appends a goal-level comment (see GoalComment doc comment
+  /// on why `comments` doubles as this Goal's only event/history log) —
+  /// mirrors [appendTaskActivityLogEntry]'s `FieldValue.arrayUnion`
+  /// pattern so concurrent commenters never race a read-modify-write.
+  static Future<void> appendGoalComment(
+    String goalId,
+    GoalComment comment,
+  ) async {
+    await _db.collection('goals').doc(goalId).update({
+      'comments': FieldValue.arrayUnion([comment.toMap()]),
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
   static Goal? getGoal(String goalId) {
     for (final g in _goalsCache) {
       if (g.goalId == goalId) return g;
@@ -860,6 +875,31 @@ class FirestoreService {
         .collection('criteria')
         .doc(criterion.criterionId)
         .set(criterion.toMap());
+  }
+
+  /// Writes ONLY [employeeUid]'s own entry inside the `employeeStatuses`
+  /// map, via a dotted-field update (`employeeStatuses.<uid>`) — this is
+  /// what lets firestore.rules validate that a given write touched EXACTLY
+  /// one map key, and that key equals the writer's own uid (see
+  /// firestore.rules' criteria `allow update` employee branch), and it is
+  /// also what makes two employees updating their own status concurrently
+  /// non-racing (each write only ever touches its own dotted-field path,
+  /// never the whole map).
+  static Future<void> updateCriterionEmployeeStatus(
+    String goalId,
+    String criterionId,
+    String employeeUid,
+    CriterionStatus status,
+  ) async {
+    await _db
+        .collection('goals')
+        .doc(goalId)
+        .collection('criteria')
+        .doc(criterionId)
+        .update({
+          'employeeStatuses.$employeeUid': status.name,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
   }
 
   /// Deletes a Criterion AND cascades to every chat message document under

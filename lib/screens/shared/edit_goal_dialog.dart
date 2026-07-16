@@ -3,17 +3,23 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/goal_model.dart';
 import '../../providers/goal_provider.dart';
+import '../../theme/goal_style_options.dart';
+import 'goal_style_picker.dart';
 
 /// Manager-only dialog for editing an EXISTING Goal's title, description,
-/// startDate and endDate. Mirrors [showCreateGoalDialog] but pre-fills all
-/// fields from [goal] and calls [GoalProvider.updateGoal] (a genuine
-/// Firestore write via `saveGoal`) instead of `createGoal`.
+/// startDate, endDate, and (per the Goals-tab comprehensive-improvements
+/// requirement) fixed-palette color + fixed-icon-set icon. Mirrors
+/// [showCreateGoalDialog] but pre-fills all fields from [goal] and calls
+/// [GoalProvider.updateGoal] (a genuine Firestore write via `saveGoal`)
+/// instead of `createGoal`.
 Future<void> showEditGoalDialog(BuildContext context, Goal goal) async {
   final titleCtrl = TextEditingController(text: goal.title);
   final descCtrl = TextEditingController(text: goal.description);
   final formKey = GlobalKey<FormState>();
   DateTime startDate = goal.startDate;
   DateTime endDate = goal.endDate;
+  String colorName = goal.colorName ?? goalColorNames.first;
+  String iconName = goal.iconName ?? goalIconNames.first;
   bool saving = false;
 
   final saved = await showDialog<bool>(
@@ -81,6 +87,37 @@ Future<void> showEditGoalDialog(BuildContext context, Goal goal) async {
                     subtitle: Text(DateFormat('yyyy/MM/dd').format(endDate)),
                     onTap: saving ? null : () => pickDate(isStart: false),
                   ),
+                  const SizedBox(height: 12),
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'لون الهدف',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GoalColorPicker(
+                    selected: colorName,
+                    onChanged: saving
+                        ? (_) {}
+                        : (name) => setState(() => colorName = name),
+                  ),
+                  const SizedBox(height: 16),
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'أيقونة الهدف',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GoalIconPicker(
+                    selected: iconName,
+                    accentColor: goalColorSwatches[colorName]!,
+                    onChanged: saving
+                        ? (_) {}
+                        : (name) => setState(() => iconName = name),
+                  ),
                 ],
               ),
             ),
@@ -103,6 +140,8 @@ Future<void> showEditGoalDialog(BuildContext context, Goal goal) async {
                           description: descCtrl.text.trim(),
                           startDate: startDate,
                           endDate: endDate,
+                          colorName: colorName,
+                          iconName: iconName,
                         );
                         if (context.mounted) Navigator.of(context).pop(true);
                       } catch (e) {
