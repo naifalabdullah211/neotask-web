@@ -5,10 +5,11 @@ import '../theme/app_theme.dart';
 import 'status_chip.dart' show AppPill;
 
 /// Poll list-row card — deliberately mirrors [TaskListTile]'s exact
-/// `Card` + rounded-corner styling per explicit requirement #6 ("نفس
-/// أسلوب بطاقة المهمة الحالي (نفس الألوان، الحواف المدورة)"), with two
-/// additions on top: a 3-state status badge and a live countdown for open
-/// polls.
+/// `Card` + rounded-corner styling, upgraded (Phase E) to reflect the full
+/// 4-status lifecycle (draft/active/ended/cancelled) instead of the
+/// original open/closed binary, and to show the tie indicator via
+/// [AppPoll.isTie] (the [PollResult] enum this used to read from no
+/// longer exists — see poll_model.dart).
 class PollCard extends StatefulWidget {
   const PollCard({super.key, required this.poll, required this.onTap});
 
@@ -25,10 +26,10 @@ class _PollCardState extends State<PollCard> {
   @override
   void initState() {
     super.initState();
-    // Only ticks while the poll is open — a closed poll's remaining-time
-    // display is irrelevant, so no timer is started at all in that case
-    // (avoids an unnecessary periodic rebuild for archived polls).
-    if (widget.poll.status == PollStatus.open) {
+    // Only ticks while the poll is active — an ended/draft/cancelled
+    // poll's remaining-time display is irrelevant, so no timer is started
+    // at all in that case (avoids an unnecessary periodic rebuild).
+    if (widget.poll.status == PollStatus.active) {
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) setState(() {});
       });
@@ -55,10 +56,7 @@ class _PollCardState extends State<PollCard> {
             const SizedBox(height: 6),
             _PollStatusBadge(poll: poll),
             const SizedBox(height: 6),
-            if (poll.status == PollStatus.open)
-              Text(_countdownLabel(poll.deadline))
-            else
-              Text('أُغلق: ${_formatDateTime(poll.closedAt ?? poll.deadline)}'),
+            Text(_secondaryLabel(poll)),
           ],
         ),
       ),
@@ -66,11 +64,31 @@ class _PollCardState extends State<PollCard> {
   }
 
   Color _accentColor(AppPoll poll) {
-    if (poll.status == PollStatus.open) return AppColors.statusApproved;
-    if (poll.result == PollResult.tiePendingManagerDecision) {
-      return AppColors.statusPending;
+    switch (poll.status) {
+      case PollStatus.draft:
+        return AppColors.textSecondary;
+      case PollStatus.active:
+        return AppColors.statusApproved;
+      case PollStatus.cancelled:
+        return AppColors.statusRejected;
+      case PollStatus.ended:
+        return (poll.isTie ?? false)
+            ? AppColors.statusPending
+            : AppColors.textSecondary;
     }
-    return AppColors.textSecondary;
+  }
+
+  String _secondaryLabel(AppPoll poll) {
+    switch (poll.status) {
+      case PollStatus.draft:
+        return 'مسودة — غير مرئي للموظفين';
+      case PollStatus.active:
+        return _countdownLabel(poll.deadline);
+      case PollStatus.cancelled:
+        return 'أُلغي: ${_formatDateTime(poll.cancelledAt ?? poll.deadline)}';
+      case PollStatus.ended:
+        return 'أُغلق: ${_formatDateTime(poll.endedAt ?? poll.deadline)}';
+    }
   }
 
   String _countdownLabel(DateTime deadline) {
@@ -93,14 +111,10 @@ class _PollCardState extends State<PollCard> {
   }
 }
 
-/// The 3-state status badge — مفتوح (green) / مغلق (gray) / تعادل - بانتظار
-/// قرار المدير (orange), per explicit requirement #6. Deliberately a
-/// separate small widget (rather than reusing [StatusChip], which is
-/// keyed to [TaskStatus]'s name strings) since Poll status/result values
-/// have no equivalent in that enum — but now built on the SAME shared
-/// [AppPill] base as [StatusChip]/[PriorityBadge], so the pill visual
-/// (padding/radius/border) stays identical across all three instead of
-/// being a third independent copy of the pattern.
+/// The 4-state status badge — مسودة (gray) / نشط (green) / منتهي (gray, or
+/// amber when tied) / مُلغى (red) — per the explicit requirement, built on
+/// the shared [AppPill] base so the pill visual (padding/radius/border)
+/// stays identical across all badge usages in the app.
 class _PollStatusBadge extends StatelessWidget {
   const _PollStatusBadge({required this.poll});
 
@@ -110,15 +124,28 @@ class _PollStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color color;
     final String label;
-    if (poll.status == PollStatus.open) {
-      color = AppColors.statusApproved;
-      label = 'مفتوح';
-    } else if (poll.result == PollResult.tiePendingManagerDecision) {
-      color = AppColors.statusPending;
-      label = 'تعادل - بانتظار قرار المدير';
-    } else {
-      color = AppColors.textSecondary;
-      label = 'مغلق';
+    switch (poll.status) {
+      case PollStatus.draft:
+        color = AppColors.textSecondary;
+        label = 'مسودة';
+        break;
+      case PollStatus.active:
+        color = AppColors.statusApproved;
+        label = 'نشط';
+        break;
+      case PollStatus.cancelled:
+        color = AppColors.statusRejected;
+        label = 'مُلغى';
+        break;
+      case PollStatus.ended:
+        if (poll.isTie ?? false) {
+          color = AppColors.statusPending;
+          label = 'منتهي - تعادل';
+        } else {
+          color = AppColors.textSecondary;
+          label = 'منتهي';
+        }
+        break;
     }
     return AppPill(color: color, label: label);
   }

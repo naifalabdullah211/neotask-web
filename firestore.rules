@@ -468,11 +468,19 @@ service cloud.firestore {
       }
     }
 
-    // ---- polls ("تصويت") — see poll_model.dart / poll_vote_model.dart ----
+    // ---- polls ("تصويت") — MULTI-STATUS/MULTI-CHOICE LIFECYCLE UPGRADE.
+    //      See poll_model.dart / poll_vote_model.dart / poll_report_model.dart
+    //      for the full architecture note, including the empirically
+    //      VERIFIED finding (service-account IAM probe, not an assumption)
+    //      that genuine Cloud Functions/Cloud Scheduler are UNAVAILABLE in
+    //      this project (no billing/API-enablement permission, no
+    //      interactive `firebase login` possible from this sandbox) — the
+    //      server-time guarantees below are the closest achievable
+    //      substitute using Firestore rules + transactions alone. ----
     match /polls/{pollId} {
       // Same unfiltered-listen + client-side-filter architecture as
       // tasks/messages above (see class-level doc comment): the poll
-      // DOCUMENT ITSELF (title/description/deadline/status/result/counts)
+      // DOCUMENT ITSELF (title/description/dates/status/aggregate counts)
       // carries no secret content — only the per-employee VOTE (below) is
       // secrecy-sensitive. RESIDUAL LIMITATION (flagged, consistent with
       // the existing tasks/messages limitation documented above): any
@@ -481,40 +489,100 @@ service cloud.firestore {
       // over an unfiltered listener. This does not leak anyone's vote.
       allow read: if isSignedIn();
 
+      // Manager-only creation. `deadline`/`startDateTime` MUST be genuine
+      // Firestore Timestamps (not strings) — this is what makes the
+      // server-time vote cutoff below possible; a poll created with a
+      // string date would silently defeat that enforcement, so it is
+      // rejected outright here rather than allowed through.
       allow create: if isManager() &&
         request.resource.data.createdBy == request.auth.uid &&
-        request.resource.data.status == 'open' &&
-        request.resource.data.deadline is string;
+        (request.resource.data.status == 'draft' ||
+         request.resource.data.status == 'active') &&
+        request.resource.data.reportGenerated == false &&
+        request.resource.data.deadline is timestamp &&
+        request.resource.data.startDateTime is timestamp;
 
-      // Two disjoint update paths:
-      //   (a) AUTO-CLOSE — per PollProvider's lazy client-side deadline
-      //       check (no Cloud Functions/cron in this project — see
-      //       poll_model.dart doc comment), ANY signed-in user's client
-      //       may be the one that observes the deadline has passed and
-      //       performs the closing write. Restricted to an open->closed
-      //       transition touching ONLY the closure fields.
-      //       RESIDUAL LIMITATION (flagged, not eliminated): this rule
-      //       cannot verify that yesCount/noCount/result were computed
-      //       correctly from the votes subcollection — it only enforces
-      //       the STRUCTURE of the write (which fields, which status
-      //       transition), matching this file's existing trust model for
-      //       client-computed values (e.g. task status transitions).
-      //   (b) MANAGER TIE DECISION — only the poll's own manager, only on
-      //       an ALREADY-closed poll, only touching result/decision
-      //       fields (status remains 'closed' throughout, per the
-      //       permanent-archive requirement).
+      // Six disjoint update paths — role-based per requirement §8:
+      //
+      //   (a) MANAGER EDIT (draft or active, status unchanged) — title,
+      //       description, choices, eligible employees, start/end
+      //       date-time, privacy toggle. Destructive-change confirmation
+      //       (e.g. "reset votes if choices changed") is a CLIENT-SIDE UX
+      //       gate (see PollProvider.updatePoll's resetVotes param); the
+      //       rule only enforces WHO may write and WHICH fields, matching
+      //       this file's existing trust model for client-computed
+      //       decisions elsewhere (tasks, goals).
+      //   (b) MANAGER PUBLISH — draft -> active, optionally combined with
+      //       an edit in the same write.
+      //   (c) MANAGER CANCEL — draft or active -> cancelled. Existing
+      //       votes are NEVER touched by this branch (no vote-deletion
+      //       field exists on the poll document itself).
+      //   (d) AUTO-END, SERVER-TIME ENFORCED — any signed-in client may
+      //       perform the active -> ended transition, but ONLY once
+      //       `request.time >= resource.data.deadline` is ALREADY true
+      //       (a genuine Firestore server-side timestamp comparison, not
+      //       a client-supplied value) — this is the concrete upgrade
+      //       over the previous string-deadline design, which could not
+      //       express this check at all. `reportGenerated` must flip
+      //       false -> true in the SAME write, one-way only (enforced
+      //       below), which is what makes PollProvider's ending
+      //       transaction exactly-once even under a multi-client race.
+      //   (e) MANAGER TIE DECISION — only the poll's own manager, only on
+      //       an ALREADY-ended poll, only touching the winner/decision
+      //       fields (status remains `ended` throughout, permanent-
+      //       archive requirement).
+      //   (f) MANAGER REMINDER cooldown write — "حث الموظفين على
+      //       التصويت" persists only `lastReminderSentAt`; the actual
+      //       reminder notifications are separate `notifications` writes.
+      //   (g) MANAGER ADMIN NOTES post-ended — the ONLY field editable
+      //       after `ended`, per the explicit "no editing after Ended
+      //       except non-result-affecting admin notes" requirement.
       allow update: if
-        (isSignedIn() &&
-         resource.data.status == 'open' &&
-         request.resource.data.status == 'closed' &&
-         request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['status', 'result', 'yesCount', 'noCount', 'closedAt'])) ||
         (isManager() &&
          resource.data.createdBy == request.auth.uid &&
-         resource.data.status == 'closed' &&
-         request.resource.data.status == 'closed' &&
+         (resource.data.status == 'draft' || resource.data.status == 'active') &&
+         request.resource.data.status == resource.data.status &&
          request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['result', 'managerDecisionBy', 'managerDecisionAt']));
+           .hasOnly(['title', 'description', 'choices', 'participantUids',
+                     'startDateTime', 'deadline', 'privacyEnabled'])) ||
+        (isManager() &&
+         resource.data.createdBy == request.auth.uid &&
+         resource.data.status == 'draft' &&
+         request.resource.data.status == 'active' &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'title', 'description', 'choices',
+                     'participantUids', 'startDateTime', 'deadline',
+                     'privacyEnabled'])) ||
+        (isManager() &&
+         resource.data.createdBy == request.auth.uid &&
+         (resource.data.status == 'draft' || resource.data.status == 'active') &&
+         request.resource.data.status == 'cancelled' &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'cancelledBy', 'cancelledAt'])) ||
+        (isSignedIn() &&
+         resource.data.status == 'active' &&
+         request.resource.data.status == 'ended' &&
+         request.time >= resource.data.deadline &&
+         resource.data.reportGenerated == false &&
+         request.resource.data.reportGenerated == true &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'reportGenerated', 'endedAt', 'choiceCounts',
+                     'winningChoiceIndex', 'isTie', 'tiedChoiceIndexes'])) ||
+        (isManager() &&
+         resource.data.createdBy == request.auth.uid &&
+         resource.data.status == 'ended' &&
+         request.resource.data.status == 'ended' &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['winningChoiceIndex', 'isTie', 'managerDecisionBy', 'managerDecisionAt'])) ||
+        (isManager() &&
+         resource.data.createdBy == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['lastReminderSentAt'])) ||
+        (isManager() &&
+         resource.data.createdBy == request.auth.uid &&
+         resource.data.status == 'ended' &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['adminNotes']));
 
       allow delete: if isManager() && resource.data.createdBy == request.auth.uid;
 
@@ -527,35 +595,62 @@ service cloud.firestore {
         // The core secrecy enforcement: an employee may read ONLY their
         // own vote document; the poll's manager may read every vote (used
         // by the manager's live per-employee status view, requirement
-        // #4, and the full-detail notification, requirement #3).
+        // #2, and the permanent report, requirement #6).
         allow read: if isSignedIn() &&
           (employeeUid == request.auth.uid ||
            (isManager() &&
             get(/databases/$(database)/documents/polls/$(pollId)).data.createdBy == request.auth.uid));
 
         // Cast or CHANGE a vote — only the voting employee themselves,
-        // only while the poll is genuinely still open, and only if they
-        // are one of the poll's selected participants.
-        // RESIDUAL LIMITATION (flagged, not eliminated): the poll's
-        // `deadline` is stored as an ISO-8601 STRING (matching every
-        // other date field in this codebase — dueDate, startDate, etc. —
-        // none of which are rule-enforced for recency either), and
-        // Firestore rules cannot parse/compare date strings against
-        // `request.time`. Enforcement here is therefore via the `status
-        // == 'open'` field only, NOT a direct deadline comparison. Given
-        // the lazy client-side auto-close design (any client opening the
-        // app past the deadline immediately flips `status` to 'closed'),
-        // the exposure window is bounded to "between the deadline passing
-        // and the next client happening to load the poll" — a real,
-        // acknowledged gap, not a false guarantee.
+        // only while the poll is genuinely `active` AND its `deadline`
+        // (a real Firestore Timestamp, see the `create` rule above) has
+        // NOT yet passed per Firestore's OWN server clock
+        // (`request.time`) — this is the concrete server-time upgrade:
+        // unlike the previous string-deadline design, a vote is rejected
+        // the INSTANT the deadline passes, independent of whether any
+        // client has yet performed the active -> ended transition above.
+        // Only "eligible employees" (the poll's participantUids) may
+        // vote — enforces the role-based permission requirement (§8:
+        // "employees may vote only while active").
         allow create, update: if isSignedIn() &&
           employeeUid == request.auth.uid &&
           request.resource.data.employeeUid == request.auth.uid &&
-          get(/databases/$(database)/documents/polls/$(pollId)).data.status == 'open' &&
+          get(/databases/$(database)/documents/polls/$(pollId)).data.status == 'active' &&
+          request.time < get(/databases/$(database)/documents/polls/$(pollId)).data.deadline &&
           get(/databases/$(database)/documents/polls/$(pollId)).data.participantUids.hasAny([request.auth.uid]);
 
-        allow delete: if false;
+        allow delete: if isManager() &&
+          get(/databases/$(database)/documents/polls/$(pollId)).data.createdBy == request.auth.uid;
       }
+    }
+
+    // ---- poll_reports (PERMANENT final report — see poll_report_model.dart)
+    //      Separate top-level collection, doc ID == pollId. Created ONLY
+    //      via the SAME transaction that flips polls/{pollId}.reportGenerated
+    //      false -> true (see FirestoreService.endPollAndGenerateReport),
+    //      which is what makes this immutable-after-creation rule safe:
+    //      there is no legitimate path to create this document a second
+    //      time for the same pollId (the paired poll-side flag blocks the
+    //      transaction itself from re-running), and no path at all to
+    //      edit/delete it afterward, satisfying the "permanent record"
+    //      requirement structurally, not just by convention. ----
+    match /poll_reports/{pollId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+        request.resource.data.pollId == pollId &&
+        !exists(/databases/$(database)/documents/poll_reports/$(pollId));
+
+      // The ONLY legitimate post-creation change: the manager's tie-break
+      // decision (winningChoiceIndex/isTie), mirroring the poll document's
+      // own tie-decision branch above — everything else on a report is
+      // permanently frozen at generation time.
+      allow update: if isManager() &&
+        get(/databases/$(database)/documents/polls/$(pollId)).data.createdBy == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['winningChoiceIndex', 'isTie']);
+
+      allow delete: if false;
     }
 
     // ---- notifications (NEW system — see notification_model.dart doc

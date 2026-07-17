@@ -6,17 +6,18 @@ import '../../theme/app_theme.dart';
 import '../../widgets/poll_card.dart';
 import 'manager_poll_detail_screen.dart';
 
-/// "التصويتات السابقة" — permanent archive of every closed poll, per
+/// "التصويتات السابقة" — permanent archive of every ENDED poll, per
 /// requirement #5: the manager can return to any archived poll at any
 /// time and see the full permanent record (who voted what + the final
 /// result) via [ManagerPollDetailScreen], which renders identically for
-/// open and closed polls.
+/// active and ended polls, and can drill into the full [PollReportScreen]
+/// from there.
 class PastPollsScreen extends StatelessWidget {
   const PastPollsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final closedPolls = context.watch<PollProvider>().closedPolls;
+    final closedPolls = context.watch<PollProvider>().endedPolls;
 
     return Scaffold(
       backgroundColor: AppColors.background,

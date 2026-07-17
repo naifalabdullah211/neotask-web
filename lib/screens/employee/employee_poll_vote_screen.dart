@@ -7,24 +7,29 @@ import '../../models/poll_vote_model.dart';
 import '../../providers/poll_provider.dart';
 import '../../theme/app_theme.dart';
 
-/// Employee's single-poll voting screen — requirement #2 in full:
-///   - Yes/No single-tap voting, changeable any time before the deadline.
-///   - Confirmation message "تم تسجيل صوتك" after every successful vote.
-///   - The result/other-employees' votes are NEVER shown here while open
-///     — this screen deliberately reads ONLY [watchMyVote] (never
-///     [watchVotesForPoll], which is the manager-only full-detail stream),
-///     so there is no code path by which this screen could leak another
-///     employee's vote even by accident.
-///   - Once closed, shows the FINAL RESULT ONLY (Yes/No/Tie) — still no
-///     per-employee breakdown, per the explicit secrecy requirement.
+/// Employee's single-poll voting screen — UPGRADED (Phase E) from the
+/// original binary Yes/No form into a DYNAMIC multi-choice voting UI
+/// built from [AppPoll.choices]:
+///   - single-tap voting on any of the poll's choices, changeable any
+///     time before the deadline (identical UX principle as before, now
+///     generalized to N choices instead of exactly 2).
+///   - confirmation message "تم تسجيل صوتك" after every successful vote.
+///   - the result/other-employees' votes are NEVER shown here while
+///     active — this screen deliberately reads ONLY [watchMyVote] (never
+///     [watchVotesForPoll], which is the manager-only full-detail
+///     stream), so there is no code path by which this screen could leak
+///     another employee's vote even by accident.
+///   - once the poll is [PollStatus.ended], shows the FINAL RESULT ONLY
+///     (winning choice / tie) — still no per-employee breakdown, per the
+///     explicit secrecy requirement.
 ///
 /// CLIENT-SIDE DEADLINE GUARD (documented, see poll_model.dart /
 /// poll_provider.dart doc comments on the auto-close architecture and its
-/// acknowledged limitation): voting is blocked here the instant
-/// `poll.isPastDeadline` is true, REGARDLESS of whether `status` has
-/// already flipped to `closed` in Firestore yet — this closes the small
-/// window where the persisted status might lag the real deadline because
-/// no client has triggered the auto-close write yet.
+/// acknowledged limitation): voting is blocked here via
+/// `!poll.votingOpen` (active AND not past deadline), REGARDLESS of
+/// whether `status` has already flipped to `ended` in Firestore yet —
+/// the AUTHORITATIVE cutoff remains the server-time `request.time` check
+/// in firestore.rules, this is only a fast client-side pre-check.
 class EmployeePollVoteScreen extends StatefulWidget {
   const EmployeePollVoteScreen({
     super.key,
@@ -42,13 +47,13 @@ class EmployeePollVoteScreen extends StatefulWidget {
 class _EmployeePollVoteScreenState extends State<EmployeePollVoteScreen> {
   bool _submitting = false;
 
-  Future<void> _vote(VoteChoice choice) async {
+  Future<void> _vote(int choiceIndex) async {
     setState(() => _submitting = true);
     try {
       await context.read<PollProvider>().castVote(
         pollId: widget.pollId,
         employeeUid: widget.employeeUid,
-        choice: choice,
+        choiceIndex: choiceIndex,
       );
       if (mounted) {
         ScaffoldMessenger.of(
@@ -77,7 +82,7 @@ class _EmployeePollVoteScreenState extends State<EmployeePollVoteScreen> {
       );
     }
 
-    final votingBlocked = poll.status != PollStatus.open || poll.isPastDeadline;
+    final votingBlocked = !poll.votingOpen;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -109,6 +114,17 @@ class _EmployeePollVoteScreenState extends State<EmployeePollVoteScreen> {
               'موعد الإغلاق: ${intl.DateFormat('yyyy/MM/dd — HH:mm').format(poll.deadline)}',
               style: const TextStyle(color: AppColors.textSecondary),
             ),
+            if (poll.status == PollStatus.active)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  _remainingLabel(poll.deadline),
+                  style: const TextStyle(
+                    color: AppColors.statusPending,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             const SizedBox(height: 24),
 
             if (votingBlocked)
@@ -117,6 +133,7 @@ class _EmployeePollVoteScreenState extends State<EmployeePollVoteScreen> {
               _VotingView(
                 pollId: widget.pollId,
                 employeeUid: widget.employeeUid,
+                choices: poll.choices,
                 submitting: _submitting,
                 onVote: _vote,
               ),
@@ -125,23 +142,36 @@ class _EmployeePollVoteScreenState extends State<EmployeePollVoteScreen> {
       ),
     );
   }
+
+  String _remainingLabel(DateTime deadline) {
+    final remaining = deadline.difference(DateTime.now());
+    if (remaining.isNegative) return 'ينتهي الآن...';
+    final d = remaining.inDays;
+    final h = remaining.inHours % 24;
+    final m = remaining.inMinutes % 60;
+    if (d > 0) return 'يتبقى: $d يوم و $h ساعة';
+    if (h > 0) return 'يتبقى: $h ساعة و $m دقيقة';
+    return 'يتبقى: $m دقيقة';
+  }
 }
 
-/// While the poll is open: shows Yes/No buttons + the employee's OWN
-/// current vote (if any), via [watchMyVote] ONLY — never any aggregate or
-/// other-employee data, per the secrecy requirement.
+/// While the poll is active: shows one button per choice + the
+/// employee's OWN current vote (if any), via [watchMyVote] ONLY — never
+/// any aggregate or other-employee data, per the secrecy requirement.
 class _VotingView extends StatelessWidget {
   const _VotingView({
     required this.pollId,
     required this.employeeUid,
+    required this.choices,
     required this.submitting,
     required this.onVote,
   });
 
   final String pollId;
   final String employeeUid;
+  final List<String> choices;
   final bool submitting;
-  final void Function(VoteChoice choice) onVote;
+  final void Function(int choiceIndex) onVote;
 
   @override
   Widget build(BuildContext context) {
@@ -155,43 +185,40 @@ class _VotingView extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
-                  'صوتك الحالي: ${myVote.choice == VoteChoice.yes ? "نعم" : "لا"}'
+                  'صوتك الحالي: '
+                  '${myVote.choiceIndex >= 0 && myVote.choiceIndex < choices.length ? choices[myVote.choiceIndex] : "-"}'
                   ' — يمكنك تغييره حتى موعد الإغلاق',
+                  textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            Row(
-              children: [
-                Expanded(
+            ...List.generate(choices.length, (index) {
+              final selected = myVote?.choiceIndex == index;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: SizedBox(
+                  width: double.infinity,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: myVote?.choice == VoteChoice.yes
+                      backgroundColor: selected
                           ? AppColors.statusApproved
-                          : AppColors.statusApproved.withValues(alpha: 0.75),
+                          : AppColors.deepBlue.withValues(alpha: 0.85),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    onPressed: submitting ? null : () => onVote(VoteChoice.yes),
-                    icon: const Icon(Icons.thumb_up_outlined),
-                    label: const Text('نعم'),
+                    onPressed: submitting ? null : () => onVote(index),
+                    icon: Icon(
+                      selected
+                          ? Icons.check_circle_outline
+                          : Icons.radio_button_unchecked,
+                    ),
+                    label: Text(choices[index]),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: myVote?.choice == VoteChoice.no
-                          ? AppColors.statusRejected
-                          : AppColors.statusRejected.withValues(alpha: 0.75),
-                    ),
-                    onPressed: submitting ? null : () => onVote(VoteChoice.no),
-                    icon: const Icon(Icons.thumb_down_outlined),
-                    label: const Text('لا'),
-                  ),
-                ),
-              ],
-            ),
+              );
+            }),
             const SizedBox(height: 12),
             const Text(
               'نتيجة التصويت سرّية ولن تظهر إلا بعد إغلاق التصويت',
@@ -205,19 +232,31 @@ class _VotingView extends StatelessWidget {
   }
 }
 
-/// Shown once the poll is closed (or past its deadline) — the FINAL
-/// RESULT ONLY, per the explicit "result only, no per-vote detail for
-/// employees" requirement. Deliberately never queries the votes
-/// subcollection at all.
+/// Shown once the poll is ended (or past its deadline while status has
+/// not yet flipped) — the FINAL RESULT ONLY, per the explicit
+/// "result only, no per-vote detail for employees" requirement.
+/// Deliberately never queries the votes subcollection at all — reads
+/// only the poll's own persisted aggregate fields
+/// (winningChoiceIndex/isTie/tiedChoiceIndexes/choiceCounts).
 class _ResultOnlyView extends StatelessWidget {
   const _ResultOnlyView({required this.poll});
 
-  final dynamic poll;
+  final AppPoll poll;
 
   @override
   Widget build(BuildContext context) {
-    final AppPoll p = poll as AppPoll;
-    if (p.status != PollStatus.closed) {
+    if (poll.status == PollStatus.cancelled) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'تم إلغاء هذا التصويت من قِبل المدير',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    if (poll.status != PollStatus.ended) {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(16),
@@ -231,23 +270,19 @@ class _ResultOnlyView extends StatelessWidget {
 
     final String label;
     final Color color;
-    switch (p.result) {
-      case PollResult.yes:
-        label = 'النتيجة النهائية: نعم';
-        color = AppColors.statusApproved;
-        break;
-      case PollResult.no:
-        label = 'النتيجة النهائية: لا';
-        color = AppColors.statusRejected;
-        break;
-      case PollResult.tiePendingManagerDecision:
-        label = 'تعادل - يتطلب قرار المدير';
-        color = AppColors.statusPending;
-        break;
-      case null:
-        label = 'النتيجة غير متاحة';
-        color = AppColors.textSecondary;
-        break;
+    if ((poll.isTie ?? false)) {
+      label = 'تعادل - يتطلب قرار المدير';
+      color = AppColors.statusPending;
+    } else if (poll.winningChoiceIndex != null) {
+      final idx = poll.winningChoiceIndex!;
+      final winnerLabel = (idx >= 0 && idx < poll.choices.length)
+          ? poll.choices[idx]
+          : 'غير معروف';
+      label = 'النتيجة النهائية: $winnerLabel';
+      color = AppColors.statusApproved;
+    } else {
+      label = 'النتيجة غير متاحة';
+      color = AppColors.textSecondary;
     }
 
     return Card(

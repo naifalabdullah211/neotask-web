@@ -17,6 +17,7 @@ import '../models/criterion_model.dart';
 import '../models/criterion_chat_model.dart';
 import '../models/poll_model.dart';
 import '../models/poll_vote_model.dart';
+import '../models/poll_report_model.dart';
 import '../models/notification_model.dart';
 
 /// FirestoreService — REPLACES LocalDbService (Hive) as of this commit.
@@ -1316,6 +1317,47 @@ class FirestoreService {
     await _db.collection('polls').doc(poll.pollId).set(poll.toMap());
   }
 
+  /// Manager edit of an ACTIVE (or draft) poll — title/description/
+  /// deadline/eligible-employees/choices, per the editing requirement.
+  /// [resetVotes], when true, ALSO deletes every existing vote document
+  /// (used when the manager confirms "changing choices after votes exist
+  /// requires an explicit reset") — done as a best-effort batch delete
+  /// rather than inside the same call as the poll field update, since
+  /// Firestore has no cross-collection atomic "update doc + wipe
+  /// subcollection" primitive; the poll update itself remains a single
+  /// atomic write regardless.
+  static Future<void> updatePoll(
+    String pollId,
+    Map<String, dynamic> fields, {
+    bool resetVotes = false,
+  }) async {
+    if (resetVotes) {
+      await _deleteAllVotes(pollId);
+    }
+    await _db.collection('polls').doc(pollId).update(fields);
+  }
+
+  static Future<void> _deleteAllVotes(String pollId) async {
+    final snap = await _pollVotesRef(pollId).get();
+    final batch = _db.batch();
+    for (final doc in snap.docs) {
+      batch.delete(doc.reference);
+    }
+    if (snap.docs.isNotEmpty) await batch.commit();
+  }
+
+  static Future<void> cancelPoll(String pollId, String managerUid) async {
+    await _db.collection('polls').doc(pollId).update({
+      'status': PollStatus.cancelled.name,
+      'cancelledBy': managerUid,
+      'cancelledAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  static Future<void> deletePoll(String pollId) async {
+    await _db.collection('polls').doc(pollId).delete();
+  }
+
   static AppPoll? getPoll(String pollId) {
     for (final p in _pollsCache) {
       if (p.pollId == pollId) return p;
@@ -1328,10 +1370,16 @@ class FirestoreService {
   /// Polls where [employeeUid] is a selected participant — used by the
   /// employee-side "تصويت" tab. Simple `.contains()` filter over the
   /// already-live cache (no composite Firestore index needed — mirrors
-  /// `getCriteriaForEmployee`'s list-membership pattern).
+  /// `getCriteriaForEmployee`'s list-membership pattern). Draft polls are
+  /// EXCLUDED here — an employee must never see a poll the manager has
+  /// not yet published (see PollStatus.draft doc comment).
   static List<AppPoll> getPollsForEmployee(String employeeUid) {
     return _pollsCache
-        .where((p) => p.participantUids.contains(employeeUid))
+        .where(
+          (p) =>
+              p.participantUids.contains(employeeUid) &&
+              p.status != PollStatus.draft,
+        )
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
@@ -1407,45 +1455,99 @@ class FirestoreService {
         .map((snap) => snap.exists ? PollVote.fromMap(snap.data()!) : null);
   }
 
-  /// Persists the computed closure fields on [pollId] in one atomic
-  /// update — called exactly once per poll, by whichever client's lazy
-  /// auto-close check (see PollProvider._maybeAutoClose) is first to
-  /// observe `deadline` has passed. A `status == 'open'` precondition is
-  /// enforced by the security rule (see firestore.rules), so even if two
-  /// clients race this simultaneously, only the first write is accepted —
-  /// the second is rejected outright by the rule's `resource.data.status
-  /// == 'open'` check, preventing a double-close / duplicate-notification
-  /// race.
-  static Future<void> closePoll({
-    required String pollId,
-    required PollResult result,
-    required int yesCount,
-    required int noCount,
+  /// Atomically ends [pollId] and creates its permanent [PollReport] in a
+  /// SINGLE Firestore transaction — this is the exactly-once guarantee
+  /// behind the whole auto-close/report pipeline (see poll_model.dart's
+  /// AUTO-CLOSE ARCHITECTURE note): the transaction reads
+  /// `polls/{pollId}.reportGenerated` first; if it is already `true`
+  /// (another client won the race), the transaction is a no-op and
+  /// returns `false`. Otherwise it writes BOTH the poll's ending fields
+  /// (`status: ended`, `reportGenerated: true`, aggregate result fields)
+  /// AND the `poll_reports/{pollId}` document in the same atomic
+  /// operation, then returns `true` so the CALLER (PollProvider) knows it
+  /// is the one that should also send the manager's "انتهى التصويت"
+  /// notification (a notification write cannot itself be inside this
+  /// Firestore transaction as a hard requirement, but gating it on this
+  /// transaction's `true` return value means it is still sent exactly
+  /// once — a client that loses the race gets `false` and sends nothing).
+  static Future<bool> endPollAndGenerateReport({
+    required AppPoll poll,
+    required PollReport report,
   }) async {
-    await _db.collection('polls').doc(pollId).update({
-      'status': PollStatus.closed.name,
-      'result': result.name,
-      'yesCount': yesCount,
-      'noCount': noCount,
-      'closedAt': DateTime.now().toIso8601String(),
+    final pollRef = _db.collection('polls').doc(poll.pollId);
+    final reportRef = _db.collection('poll_reports').doc(poll.pollId);
+    return _db.runTransaction<bool>((tx) async {
+      final freshSnap = await tx.get(pollRef);
+      final alreadyGenerated =
+          (freshSnap.data()?['reportGenerated'] as bool?) ?? false;
+      if (alreadyGenerated) return false;
+
+      tx.update(pollRef, {
+        'status': PollStatus.ended.name,
+        'reportGenerated': true,
+        'endedAt': DateTime.now().toIso8601String(),
+        'choiceCounts': report.choiceCounts,
+        'winningChoiceIndex': report.winningChoiceIndex,
+        'isTie': report.isTie,
+        'tiedChoiceIndexes': report.tiedChoiceIndexes,
+      });
+      tx.set(reportRef, report.toMap());
+      return true;
     });
   }
 
+  static Future<PollReport?> getPollReport(String pollId) async {
+    final snap = await _db.collection('poll_reports').doc(pollId).get();
+    if (!snap.exists) return null;
+    return PollReport.fromMap(snap.data()!);
+  }
+
+  static Stream<PollReport?> watchPollReport(String pollId) {
+    return _db
+        .collection('poll_reports')
+        .doc(pollId)
+        .snapshots()
+        .map((snap) => snap.exists ? PollReport.fromMap(snap.data()!) : null);
+  }
+
   /// Applies the manager's manual decision on a tied poll — the ONLY
-  /// write allowed to change `result` on an ALREADY-closed poll (per
-  /// requirement #3's tie-handling clause). `status` remains `closed`
-  /// throughout; only `result`/`managerDecisionBy`/`managerDecisionAt`
-  /// change.
+  /// write allowed to change the winning choice on an ALREADY-ended poll
+  /// (per requirement #3's tie-handling clause, carried over from the
+  /// original binary design). `status` remains `ended` throughout; only
+  /// the poll's `winningChoiceIndex`/`isTie`/`managerDecisionBy`/
+  /// `managerDecisionAt` change, and the permanent [PollReport] document
+  /// is separately updated to keep both records consistent (the report is
+  /// the "permanent for every ended topic" artifact per requirement #6,
+  /// so it must reflect the final, manager-resolved winner too).
   static Future<void> applyManagerTieDecision({
     required String pollId,
-    required PollResult decision,
+    required int decisionChoiceIndex,
     required String managerUid,
   }) async {
     await _db.collection('polls').doc(pollId).update({
-      'result': decision.name,
+      'winningChoiceIndex': decisionChoiceIndex,
+      'isTie': false,
       'managerDecisionBy': managerUid,
       'managerDecisionAt': DateTime.now().toIso8601String(),
     });
+    await _db.collection('poll_reports').doc(pollId).update({
+      'winningChoiceIndex': decisionChoiceIndex,
+      'isTie': false,
+    });
+  }
+
+  /// "حث الموظفين على التصويت" — persists the cooldown timestamp on the
+  /// poll document; the actual per-employee reminder notifications are
+  /// written by the caller (PollProvider.remindNotYetVoted) via
+  /// [saveNotification], one per not-yet-voted eligible employee.
+  static Future<void> recordReminderSent(String pollId) async {
+    await _db.collection('polls').doc(pollId).update({
+      'lastReminderSentAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  static Future<void> updatePollAdminNotes(String pollId, String notes) async {
+    await _db.collection('polls').doc(pollId).update({'adminNotes': notes});
   }
 
   // ---------------- NOTIFICATIONS (NEW system — see notification_model.dart

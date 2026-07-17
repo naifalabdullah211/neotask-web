@@ -6,20 +6,30 @@ import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../employee/employee_poll_vote_screen.dart';
 import '../employee/task_detail_screen.dart';
 import '../manager/manager_poll_detail_screen.dart';
+import '../manager/poll_report_screen.dart';
 import '../manager/task_review_detail_screen.dart';
 
 /// In-app notification inbox — accessible from the [NotificationBell] in
 /// both `manager_home_screen.dart` and `employee_home_screen.dart`.
 ///
 /// Renders every [AppNotification] for [userUid] (newest first), marking
-/// each one read the moment it is tapped. [NotificationType.pollTieNeedsDecision]
-/// notifications (requirement #3's "special notification to manager for
-/// manual decision") are visually distinguished with an orange accent and
-/// a gavel icon, and tapping one jumps straight to
-/// [ManagerPollDetailScreen] for that poll so the manager can act
-/// immediately instead of having to locate the poll manually.
+/// each one read the moment it is tapped.
+///
+/// UPGRADED (Phase E) routing for the multi-status voting lifecycle:
+///   - [NotificationType.pollEnded] (manager-only, "انتهى التصويت"): opens
+///     [PollReportScreen] DIRECTLY (per the exact requirement "اضغط لعرض
+///     النتيجة"), not [ManagerPollDetailScreen].
+///   - [NotificationType.voteReminder] (employee-only, "حث الموظفين على
+///     التصويت"): opens [EmployeePollVoteScreen] directly so the employee
+///     can vote immediately.
+///   - [NotificationType.pollTieNeedsDecision] (legacy, manager-only):
+///     still opens [ManagerPollDetailScreen] for backward-compat with any
+///     already-persisted notification of this legacy type.
+/// [NotificationType.pollTieNeedsDecision] notifications are visually
+/// distinguished with an orange accent and a gavel icon.
 class NotificationCenterScreen extends StatelessWidget {
   const NotificationCenterScreen({super.key, required this.userUid});
 
@@ -75,13 +85,41 @@ class NotificationCenterScreen extends StatelessWidget {
                         n.notificationId,
                       );
                     }
-                    // Only the manager may open ManagerPollDetailScreen —
-                    // it reads watchVotesForPoll(), which firestore.rules
-                    // restricts to the poll's manager only. An employee's
-                    // "result only" notification has no equivalent detail
-                    // screen to jump to (by design — see requirement #2's
-                    // secrecy rule), so tapping it just marks it read.
+                    // pollEnded — manager-only, EXACT requirement: tapping
+                    // opens the permanent final report DIRECTLY, not the
+                    // live detail screen.
                     if (isManager &&
+                        n.type == NotificationType.pollEnded &&
+                        n.relatedPollId != null &&
+                        context.mounted) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              PollReportScreen(pollId: n.relatedPollId!),
+                        ),
+                      );
+                    }
+                    // voteReminder — employee-only: jump straight to the
+                    // vote screen so the not-yet-voted employee can act
+                    // immediately.
+                    else if (!isManager &&
+                        n.type == NotificationType.voteReminder &&
+                        n.relatedPollId != null &&
+                        context.mounted) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => EmployeePollVoteScreen(
+                            pollId: n.relatedPollId!,
+                            employeeUid: userUid,
+                          ),
+                        ),
+                      );
+                    }
+                    // Legacy pollTieNeedsDecision / pollClosed (manager-
+                    // only) — kept for backward-compat with any
+                    // already-persisted notification of these legacy
+                    // types; opens the live detail screen as before.
+                    else if (isManager &&
                         n.relatedPollId != null &&
                         context.mounted) {
                       Navigator.of(context).push(
@@ -143,10 +181,20 @@ class _NotificationTile extends StatelessWidget {
     // falling back to the generic poll icon/color.
     final isDueSoon = notification.type == NotificationType.taskDueSoon;
     final isOverdue = notification.type == NotificationType.taskOverdue;
-    final Color accent = isTieDecision || isDueSoon
+    // NEW — voting lifecycle upgrade: pollEnded gets a distinct "result
+    // ready" green accent + chart icon (distinguishing it from the
+    // generic ballot-box icon used for the legacy pollClosed type), and
+    // voteReminder gets an amber "campaign" accent/icon matching the
+    // "حث الموظفين على التصويت" action's own icon in
+    // ManagerPollDetailScreen.
+    final isPollEnded = notification.type == NotificationType.pollEnded;
+    final isVoteReminder = notification.type == NotificationType.voteReminder;
+    final Color accent = isTieDecision || isDueSoon || isVoteReminder
         ? AppColors.statusPending
         : isOverdue
         ? AppColors.overdue
+        : isPollEnded
+        ? AppColors.statusApproved
         : (notification.isRead ? AppColors.textSecondary : AppColors.deepBlue);
     final IconData icon = isTieDecision
         ? Icons.gavel_outlined
@@ -154,6 +202,10 @@ class _NotificationTile extends StatelessWidget {
         ? Icons.alarm_outlined
         : isOverdue
         ? Icons.warning_amber_rounded
+        : isPollEnded
+        ? Icons.assessment_outlined
+        : isVoteReminder
+        ? Icons.campaign_outlined
         : (isTaskComment
               ? Icons.chat_bubble_outline
               : Icons.how_to_vote_outlined);

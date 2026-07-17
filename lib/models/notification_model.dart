@@ -21,6 +21,10 @@
 /// [payload] maps server-side (client-side here, no backend), not by a
 /// shared document with a permissions filter.
 enum NotificationType {
+  // LEGACY — kept for backward compatibility with existing persisted
+  // notification documents from the original binary-poll feature; no
+  // longer emitted by new code (see pollEnded below, which replaces it
+  // for the "poll finished" event under the 4-status lifecycle upgrade).
   pollClosed,
   pollTieNeedsDecision,
   // NEW — Quick Comments feature (تعليقات سريعة): fired when the manager
@@ -37,6 +41,20 @@ enum NotificationType {
   //     See AppTask.overdueNotifiedAt (idempotency guard).
   taskDueSoon,
   taskOverdue,
+  // NEW — Voting lifecycle upgrade (multi-status/multi-choice polls):
+  //   pollEnded: sent ONCE to the poll's creating manager the moment a
+  //     poll transitions to PollStatus.ended (natural deadline OR manual
+  //     tie-decision-required case still uses pollTieNeedsDecision for
+  //     backward-compat with the existing tie-decision UI). Title/body are
+  //     the EXACT required strings ("انتهى التصويت" / "انتهى التصويت
+  //     على: {title}. اضغط لعرض النتيجة.") and [relatedPollId] routes
+  //     directly to PollReportScreen (not ManagerPollDetailScreen) — see
+  //     PollProvider._endAndGenerateReport.
+  //   voteReminder: sent to a single not-yet-voted eligible employee when
+  //     the manager triggers "حث الموظفين على التصويت" — see
+  //     PollProvider.remindNotYetVoted (cooldown-gated).
+  pollEnded,
+  voteReminder,
 }
 
 class AppNotification {

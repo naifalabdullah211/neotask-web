@@ -1,79 +1,139 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/poll_model.dart';
 import '../../models/poll_vote_model.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/poll_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/status_chip.dart' show AppPill;
+import 'edit_poll_screen.dart';
+import 'poll_report_screen.dart';
 
-/// Manager's poll detail view — requirement #4 in full: available at ANY
-/// time (open OR closed, see [PollProvider.watchVotesForPoll] which is a
-/// LIVE stream, not a one-time snapshot), listing every selected employee
-/// with their current status (voted "نعم" / voted "لا" / لم يصوّت بعد),
-/// shown with the employee's explicit name and the EXACT time they voted.
-///
-/// Also implements requirement #3's tie-handling clause: when
-/// [poll.result] is [PollResult.tiePendingManagerDecision], shows a
-/// dedicated "قرار المدير" action to manually resolve Yes/No, which
-/// triggers the same "result only" notification to every participant
-/// (see PollProvider.applyManagerTieDecision).
-///
-/// This SAME screen also serves as the permanent archive-detail view
-/// (requirement #5) — a closed poll opened from the past-polls archive
-/// renders identically, with the tie-decision action hidden once already
-/// resolved (poll.result no longer tiePendingManagerDecision).
-class ManagerPollDetailScreen extends StatelessWidget {
+/// Manager's poll detail view — UPGRADED (Phase E) for the full 4-status /
+/// multi-choice lifecycle. Displays every required data point per the
+/// explicit specification:
+///   عنوان، وصف، الاختيارات المتاحة، تاريخ/وقت البدء، تاريخ/وقت الانتهاء،
+///   الحالة الحالية، عدد الموظفين المستحقين، عدد من صوّت، عدد من لم يصوّت،
+///   نسبة المشاركة، الوقت المتبقي (أثناء النشاط)
+/// and offers the manager actions appropriate to the poll's current
+/// status: edit (draft/active), "حث الموظفين على التصويت" (active only),
+/// cancel (draft/active), and — once ended — a direct route into the
+/// PERMANENT [PollReportScreen] rather than duplicating the report UI
+/// here. Available for BOTH active and ended polls, opened from either
+/// the manager's live list or the past-polls archive.
+class ManagerPollDetailScreen extends StatefulWidget {
   const ManagerPollDetailScreen({super.key, required this.pollId});
 
   final String pollId;
 
-  Future<void> _decideTie(BuildContext context, AppPoll poll) async {
-    final decision = await showDialog<VoteChoice>(
+  @override
+  State<ManagerPollDetailScreen> createState() =>
+      _ManagerPollDetailScreenState();
+}
+
+class _ManagerPollDetailScreenState extends State<ManagerPollDetailScreen> {
+  Timer? _ticker;
+  bool _reminding = false;
+  bool _cancelling = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Drives the "الوقت المتبقي" live countdown while the poll is active.
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _remindNotVoted(AppPoll poll) async {
+    setState(() => _reminding = true);
+    try {
+      final count = await context.read<PollProvider>().remindNotYetVoted(
+        poll.pollId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            count == 0
+                ? 'جميع الموظفين المستحقين قد صوّتوا بالفعل'
+                : 'تم إرسال تذكير إلى $count موظف لم يصوّت بعد',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('تعذّر إرسال التذكير: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _reminding = false);
+    }
+  }
+
+  Future<void> _cancelPoll(AppPoll poll) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('قرار المدير — تعادل في التصويت'),
-        content: const Text('انتهى التصويت بتعادل تام. اختر القرار النهائي:'),
+        title: const Text('تأكيد إلغاء التصويت'),
+        content: const Text(
+          'سيتم إلغاء هذا التصويت نهائيًا. الأصوات الحالية (إن وُجدت) '
+          'ستبقى محفوظة، ولكن لن يتم إنشاء تقرير نهائي له ولن يُقبل أي '
+          'تصويت جديد. هل تريد المتابعة؟',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, VoteChoice.no),
-            child: const Text('لا'),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('تراجع'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, VoteChoice.yes),
-            child: const Text('نعم'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.statusRejected,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('تأكيد الإلغاء'),
           ),
         ],
       ),
     );
-    if (decision == null || !context.mounted) return;
+    if (confirmed != true || !mounted) return;
 
-    final managerUid = context.read<AuthProvider>().currentUser!.uid;
+    setState(() => _cancelling = true);
     try {
-      await context.read<PollProvider>().applyManagerTieDecision(
-        pollId: poll.pollId,
-        decision: decision,
-        managerUid: managerUid,
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تسجيل قرارك وإشعار الموظفين')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
+      final managerUid = context
+          .read<PollProvider>()
+          .getPoll(poll.pollId)!
+          .createdBy;
+      await context.read<PollProvider>().cancelPoll(poll.pollId, managerUid);
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('تعذّر حفظ القرار: $e')));
+        ).showSnackBar(const SnackBar(content: Text('تم إلغاء التصويت')));
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('تعذّر إلغاء التصويت: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final poll = context.watch<PollProvider>().getPoll(pollId);
+    final poll = context.watch<PollProvider>().getPoll(widget.pollId);
 
     if (poll == null) {
       return Scaffold(
@@ -82,17 +142,42 @@ class ManagerPollDetailScreen extends StatelessWidget {
       );
     }
 
-    final needsTieDecision =
-        poll.status == PollStatus.closed &&
-        poll.result == PollResult.tiePendingManagerDecision;
+    final canEditOrCancel =
+        poll.status == PollStatus.draft || poll.status == PollStatus.active;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: Text(poll.title)),
+      appBar: AppBar(
+        title: Text(poll.title),
+        actions: [
+          if (canEditOrCancel)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'تعديل التصويت',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => EditPollScreen(pollId: poll.pollId),
+                ),
+              ),
+            ),
+          if (poll.status == PollStatus.ended)
+            IconButton(
+              icon: const Icon(Icons.assessment_outlined),
+              tooltip: 'عرض التقرير النهائي',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PollReportScreen(pollId: poll.pollId),
+                ),
+              ),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _StatusRow(poll: poll),
+            const SizedBox(height: 12),
             if (poll.description.isNotEmpty) ...[
               Text(poll.description),
               const SizedBox(height: 12),
@@ -111,27 +196,123 @@ class ManagerPollDetailScreen extends StatelessWidget {
                   onTap: () => launchUrl(Uri.parse(poll.attachmentUrl!)),
                 ),
               ),
-            const SizedBox(height: 8),
-            Text(
-              'موعد الإغلاق: '
-              '${intl.DateFormat('yyyy/MM/dd — HH:mm').format(poll.deadline)}',
-              style: const TextStyle(color: AppColors.textSecondary),
+            const SizedBox(height: 12),
+
+            // ---- اختيارات التصويت ----
+            const Text(
+              'اختيارات التصويت',
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
-            if (poll.status == PollStatus.closed) ...[
-              const SizedBox(height: 16),
-              _ResultSummaryCard(poll: poll),
-            ],
-            if (needsTieDecision) ...[
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.statusPending,
-                ),
-                onPressed: () => _decideTie(context, poll),
-                icon: const Icon(Icons.gavel_outlined),
-                label: const Text('اتخاذ القرار النهائي'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: poll.choices
+                  .map((c) => AppPill(color: AppColors.deepBlue, label: c))
+                  .toList(),
+            ),
+            const SizedBox(height: 16),
+
+            // ---- تواريخ البدء/الانتهاء ----
+            _InfoTile(
+              icon: Icons.play_circle_outline,
+              label: 'موعد البدء',
+              value: intl.DateFormat(
+                'yyyy/MM/dd — HH:mm',
+              ).format(poll.startDateTime),
+            ),
+            _InfoTile(
+              icon: Icons.event_busy_outlined,
+              label: 'موعد الانتهاء',
+              value: intl.DateFormat(
+                'yyyy/MM/dd — HH:mm',
+              ).format(poll.deadline),
+            ),
+            if (poll.status == PollStatus.active)
+              _InfoTile(
+                icon: Icons.timer_outlined,
+                label: 'الوقت المتبقي',
+                value: _remainingLabel(poll.deadline),
+                valueColor: AppColors.statusPending,
               ),
+            if (poll.privacyEnabled)
+              const _InfoTile(
+                icon: Icons.privacy_tip_outlined,
+                label: 'الخصوصية',
+                value: 'مفعّلة — لا يتم إظهار اختيار أي موظف بعينه',
+              ),
+            const SizedBox(height: 16),
+
+            // ---- إحصاءات المشاركة ----
+            StreamBuilder<List<PollVote>>(
+              stream: context.read<PollProvider>().watchVotesForPoll(
+                poll.pollId,
+              ),
+              builder: (context, snapshot) {
+                final votes = snapshot.data ?? const <PollVote>[];
+                final totalEligible = poll.participantUids.length;
+                final totalVoted = votes.length;
+                final totalNotVoted = totalEligible - totalVoted;
+                final participation = totalEligible == 0
+                    ? 0.0
+                    : (totalVoted / totalEligible) * 100;
+                return _ParticipationSummaryCard(
+                  totalEligible: totalEligible,
+                  totalVoted: totalVoted,
+                  totalNotVoted: totalNotVoted,
+                  participationPercent: participation,
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // ---- actions ----
+            if (poll.status == PollStatus.active) ...[
+              FilledButton.icon(
+                onPressed: _reminding ? null : () => _remindNotVoted(poll),
+                icon: _reminding
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.campaign_outlined),
+                label: const Text('حث الموظفين على التصويت'),
+              ),
+              const SizedBox(height: 10),
             ],
+            if (canEditOrCancel) ...[
+              OutlinedButton.icon(
+                onPressed: _cancelling ? null : () => _cancelPoll(poll),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.statusRejected,
+                  side: const BorderSide(color: AppColors.statusRejected),
+                ),
+                icon: _cancelling
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cancel_outlined),
+                label: const Text('إلغاء التصويت'),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (poll.status == PollStatus.ended)
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PollReportScreen(pollId: poll.pollId),
+                  ),
+                ),
+                icon: const Icon(Icons.assessment_outlined),
+                label: const Text('عرض التقرير النهائي الكامل'),
+              ),
+
             const SizedBox(height: 20),
             const Text(
               'حالة تصويت كل موظف',
@@ -152,6 +333,8 @@ class ManagerPollDetailScreen extends StatelessWidget {
                     return _EmployeeVoteStatusTile(
                       employeeName: employee?.name ?? uid,
                       vote: vote,
+                      choices: poll.choices,
+                      privacyEnabled: poll.privacyEnabled,
                     );
                   }).toList(),
                 );
@@ -162,47 +345,168 @@ class ManagerPollDetailScreen extends StatelessWidget {
       ),
     );
   }
+
+  String _remainingLabel(DateTime deadline) {
+    final remaining = deadline.difference(DateTime.now());
+    if (remaining.isNegative) return 'ينتهي الآن...';
+    final d = remaining.inDays;
+    final h = remaining.inHours % 24;
+    final m = remaining.inMinutes % 60;
+    if (d > 0) return '$d يوم و $h ساعة';
+    if (h > 0) return '$h ساعة و $m دقيقة';
+    return '$m دقيقة';
+  }
 }
 
-class _ResultSummaryCard extends StatelessWidget {
-  const _ResultSummaryCard({required this.poll});
+class _StatusRow extends StatelessWidget {
+  const _StatusRow({required this.poll});
 
   final AppPoll poll;
 
   @override
   Widget build(BuildContext context) {
-    final String label;
     final Color color;
-    switch (poll.result) {
-      case PollResult.yes:
-        label = 'النتيجة النهائية: نعم';
-        color = AppColors.statusApproved;
-        break;
-      case PollResult.no:
-        label = 'النتيجة النهائية: لا';
-        color = AppColors.statusRejected;
-        break;
-      case PollResult.tiePendingManagerDecision:
-        label = 'تعادل - يتطلب قرار المدير';
-        color = AppColors.statusPending;
-        break;
-      case null:
-        label = 'النتيجة غير متاحة';
+    final String label;
+    switch (poll.status) {
+      case PollStatus.draft:
         color = AppColors.textSecondary;
+        label = 'مسودة';
+        break;
+      case PollStatus.active:
+        color = AppColors.statusApproved;
+        label = 'نشط';
+        break;
+      case PollStatus.ended:
+        color = (poll.isTie ?? false)
+            ? AppColors.statusPending
+            : AppColors.textSecondary;
+        label = (poll.isTie ?? false) ? 'منتهي - تعادل' : 'منتهي';
+        break;
+      case PollStatus.cancelled:
+        color = AppColors.statusRejected;
+        label = 'مُلغى';
         break;
     }
+    return AppPill(color: color, label: label);
+  }
+}
+
+class _InfoTile extends StatelessWidget {
+  const _InfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(fontWeight: FontWeight.w600, color: valueColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ParticipationSummaryCard extends StatelessWidget {
+  const _ParticipationSummaryCard({
+    required this.totalEligible,
+    required this.totalVoted,
+    required this.totalNotVoted,
+    required this.participationPercent,
+  });
+
+  final int totalEligible;
+  final int totalVoted;
+  final int totalNotVoted;
+  final double participationPercent;
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
-      color: color.withValues(alpha: 0.08),
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.bar_chart, color: color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '$label\nنعم: ${poll.yesCount ?? 0}  ·  لا: ${poll.noCount ?? 0}',
-                style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            const Text(
+              'إحصاءات المشاركة',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _statChip('مستحقّون', '$totalEligible', AppColors.deepBlue),
+                const SizedBox(width: 8),
+                _statChip('صوّتوا', '$totalVoted', AppColors.statusApproved),
+                const SizedBox(width: 8),
+                _statChip(
+                  'لم يصوّتوا',
+                  '$totalNotVoted',
+                  AppColors.statusRejected,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: (participationPercent / 100).clamp(0, 1),
+                minHeight: 10,
+                backgroundColor: AppColors.divider,
+                color: AppColors.statusApproved,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'نسبة المشاركة: ${participationPercent.toStringAsFixed(1)}%',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statChip(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: TextStyle(fontWeight: FontWeight.bold, color: color),
+            ),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -213,9 +517,16 @@ class _ResultSummaryCard extends StatelessWidget {
 }
 
 class _EmployeeVoteStatusTile extends StatelessWidget {
-  const _EmployeeVoteStatusTile({required this.employeeName, this.vote});
+  const _EmployeeVoteStatusTile({
+    required this.employeeName,
+    required this.choices,
+    required this.privacyEnabled,
+    this.vote,
+  });
 
   final String employeeName;
+  final List<String> choices;
+  final bool privacyEnabled;
   final PollVote? vote;
 
   @override
@@ -228,14 +539,19 @@ class _EmployeeVoteStatusTile extends StatelessWidget {
       icon = Icons.hourglass_empty;
       color = AppColors.textSecondary;
       statusLabel = 'لم يصوّت بعد';
-    } else if (vote!.choice == VoteChoice.yes) {
-      icon = Icons.thumb_up;
+    } else if (privacyEnabled) {
+      // Privacy toggle: never reveal WHICH choice, only the fact of voting.
+      icon = Icons.check_circle_outline;
       color = AppColors.statusApproved;
-      statusLabel = 'صوّت: نعم';
+      statusLabel = 'صوّت';
     } else {
-      icon = Icons.thumb_down;
-      color = AppColors.statusRejected;
-      statusLabel = 'صوّت: لا';
+      icon = Icons.check_circle_outline;
+      color = AppColors.statusApproved;
+      final idx = vote!.choiceIndex;
+      final choiceLabel = (idx >= 0 && idx < choices.length)
+          ? choices[idx]
+          : 'اختيار غير معروف';
+      statusLabel = 'صوّت: $choiceLabel';
     }
 
     return Card(

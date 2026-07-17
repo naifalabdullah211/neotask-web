@@ -8,17 +8,36 @@ import '../shared/create_poll_screen.dart';
 import 'manager_poll_detail_screen.dart';
 import 'past_polls_screen.dart';
 
-/// Manager-side "تصويت" list — shows currently OPEN polls (the manager's
-/// day-to-day working view); closed polls move to the permanent archive
-/// (requirement #5), reachable via the app-bar action into
-/// [PastPollsScreen]. A FAB creates a new poll (requirement #1).
-class ManagerPollsTab extends StatelessWidget {
+/// Manager-side "تصويت" list — UPGRADED (Phase E) to explicitly surface
+/// all NON-ended statuses (نشط / مسودة / مُلغى) via a segmented tab bar,
+/// instead of only the previous single "open polls" list — per the
+/// requirement that all 4 statuses be visible in the manager's list
+/// view. Ended polls remain in the permanent archive
+/// ([PastPollsScreen]), reachable via the app-bar action. A FAB creates a
+/// new poll.
+class ManagerPollsTab extends StatefulWidget {
   const ManagerPollsTab({super.key});
+
+  @override
+  State<ManagerPollsTab> createState() => _ManagerPollsTabState();
+}
+
+class _ManagerPollsTabState extends State<ManagerPollsTab>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController = TabController(
+    length: 3,
+    vsync: this,
+  );
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final pollProvider = context.watch<PollProvider>();
-    final openPolls = pollProvider.openPolls;
 
     return Scaffold(
       appBar: AppBar(
@@ -34,6 +53,14 @@ class ManagerPollsTab extends StatelessWidget {
             },
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'نشط'),
+            Tab(text: 'مسودة'),
+            Tab(text: 'مُلغى'),
+          ],
+        ),
       ),
       backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton(
@@ -46,36 +73,65 @@ class ManagerPollsTab extends StatelessWidget {
         child: const Icon(Icons.add),
       ),
       body: SafeArea(
-        child: openPolls.isEmpty
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    'لا توجد تصويتات مفتوحة حاليًا. اضغط + لإنشاء تصويت جديد.',
-                    style: TextStyle(color: AppColors.textSecondary),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: openPolls.length,
-                itemBuilder: (context, index) {
-                  final AppPoll poll = openPolls[index];
-                  return PollCard(
-                    poll: poll,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ManagerPollDetailScreen(pollId: poll.pollId),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _PollList(
+              polls: pollProvider.activePolls,
+              emptyMessage:
+                  'لا توجد تصويتات نشطة حاليًا. اضغط + لإنشاء تصويت جديد.',
+            ),
+            _PollList(
+              polls: pollProvider.draftPolls,
+              emptyMessage: 'لا توجد مسودات محفوظة.',
+            ),
+            _PollList(
+              polls: pollProvider.cancelledPolls,
+              emptyMessage: 'لا توجد تصويتات مُلغاة.',
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _PollList extends StatelessWidget {
+  const _PollList({required this.polls, required this.emptyMessage});
+
+  final List<AppPoll> polls;
+  final String emptyMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    if (polls.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            emptyMessage,
+            style: const TextStyle(color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: polls.length,
+      itemBuilder: (context, index) {
+        final AppPoll poll = polls[index];
+        return PollCard(
+          poll: poll,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ManagerPollDetailScreen(pollId: poll.pollId),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
