@@ -1,6 +1,66 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
+/// Shared pill/badge base — extracted so [StatusChip] and [PriorityBadge]
+/// (previously two independent, nearly-identical `Container` blocks with
+/// the same alpha-tinted-background + alpha-tinted-border pattern) render
+/// from ONE implementation. Any future pill-style indicator (e.g. a new
+/// badge type) should build on this rather than re-inventing the pattern
+/// a third time.
+class AppPill extends StatelessWidget {
+  const AppPill({
+    super.key,
+    required this.color,
+    required this.label,
+    this.icon,
+    this.compact = false,
+    this.borderAlpha = 0.4,
+    this.fontSize,
+  });
+
+  final Color color;
+  final String label;
+  final IconData? icon;
+  final bool compact;
+  final double borderAlpha;
+
+  /// Explicit override — falls back to the compact/non-compact default
+  /// (11 / 12) when null, so existing call sites that don't care keep
+  /// the standard scale.
+  final double? fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? AppSpacing.sm - 2 : AppSpacing.md - 2,
+        vertical: compact ? 2 : 5,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: color.withValues(alpha: borderAlpha)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: compact ? 12 : 14, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: AppTextStyles.badge.copyWith(
+              color: color,
+              fontSize: fontSize ?? (compact ? 11 : 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Small colored chip used across manager/employee screens to display
 /// a TaskStatus in Arabic with its associated color.
 class StatusChip extends StatelessWidget {
@@ -12,21 +72,12 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = statusColor(statusName);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        statusLabelAr(statusName),
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-          fontSize: fontSize,
-        ),
-      ),
+    // `fontSize` stays a configurable param for backward compatibility
+    // with existing call sites that pass a custom size.
+    return AppPill(
+      color: color,
+      label: statusLabelAr(statusName),
+      fontSize: fontSize,
     );
   }
 }
@@ -72,7 +123,7 @@ String priorityLabelAr(String priorityName) {
 
 /// Colored pill with a directional arrow icon (▲ high / ▬ medium / ▼ low)
 /// used wherever [TaskPriority]/priority-level is displayed, for both tasks
-/// AND criteria.
+/// AND criteria. Now built on the shared [AppPill].
 class PriorityBadge extends StatelessWidget {
   final String priorityName; // low | medium | high
   final bool compact;
@@ -86,37 +137,14 @@ class PriorityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = priorityColor(priorityName);
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 6 : 10,
-        vertical: compact ? 2 : 5,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            priorityIcon(priorityName),
-            size: compact ? 12 : 14,
-            color: color,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            compact
-                ? priorityLabelAr(priorityName)
-                : 'أولوية ${priorityLabelAr(priorityName)}',
-            style: TextStyle(
-              color: color,
-              fontSize: compact ? 11 : 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
+    return AppPill(
+      color: color,
+      icon: priorityIcon(priorityName),
+      compact: compact,
+      borderAlpha: 0.5,
+      label: compact
+          ? priorityLabelAr(priorityName)
+          : 'أولوية ${priorityLabelAr(priorityName)}',
     );
   }
 }

@@ -115,7 +115,14 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
           return Container(
             decoration: const BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              // Matches the app-wide bottomSheetTheme radius (AppRadius.xl
+              // = 20) now applied to every OTHER showModalBottomSheet call
+              // site — this sheet previously used a slightly different
+              // radius (24) since it wraps its own Container instead of
+              // relying on the theme's shape.
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(AppRadius.xl),
+              ),
             ),
             child: SafeArea(
               top: false,
@@ -136,15 +143,8 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
                         ),
                       ),
                     ),
-                    const Text(
-                      'مهمة جديدة',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
+                    const Text('مهمة جديدة', style: AppTextStyles.screenTitle),
+                    const SizedBox(height: AppSpacing.lg + 2),
                     TextFormField(
                       controller: _titleCtrl,
                       autofocus: true,

@@ -47,15 +47,9 @@ class StatCard extends StatelessWidget {
             color.withValues(alpha: 0.03),
           ],
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg - 2),
         border: Border.all(color: color.withValues(alpha: 0.18)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        boxShadow: AppElevation.lowShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,7 +60,7 @@ class StatCard extends StatelessWidget {
             height: 38,
             decoration: BoxDecoration(
               color: color,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppRadius.sm + 2),
               boxShadow: [
                 BoxShadow(
                   color: color.withValues(alpha: 0.35),
@@ -75,28 +69,19 @@ class StatCard extends StatelessWidget {
                 ),
               ],
             ),
-            child: Icon(icon, size: 22, color: Colors.white),
+            child: Icon(icon, size: AppIconSize.md + 2, color: Colors.white),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
           Text(
             '$value',
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              height: 1,
-            ),
+            style: AppTextStyles.statValue.copyWith(fontSize: 26, height: 1),
           ),
           const SizedBox(height: 3),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
+            style: AppTextStyles.sectionLabel.copyWith(fontSize: 11),
           ),
         ],
       ),
@@ -149,15 +134,9 @@ class CompletionChartCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE7E9EE)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: AppElevation.mediumShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,10 +150,14 @@ class CompletionChartCard extends StatelessWidget {
                   height: 20,
                   decoration: BoxDecoration(
                     color: AppColors.navy,
+                    // Small decorative accent bar radius — below the
+                    // smallest named token ([AppRadius.sm]=8), kept as a
+                    // literal since a named token for a 4px "bar cap"
+                    // radius would add no reuse value.
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.sm),
                 const Text(
                   'المنجز مقابل المتأخر',
                   style: TextStyle(
@@ -225,13 +208,12 @@ class CompletionChartCard extends StatelessWidget {
                           return const SizedBox.shrink();
                         }
                         return Padding(
-                          padding: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.only(top: AppSpacing.sm),
                           child: Text(
                             bars[i].label,
-                            style: const TextStyle(
+                            style: AppTextStyles.sectionLabel.copyWith(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textSecondary,
                             ),
                           ),
                         );
@@ -248,7 +230,7 @@ class CompletionChartCard extends StatelessWidget {
                           toY: bars[i].value.toDouble(),
                           color: bars[i].color,
                           width: 50,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
                       ],
                     ),
@@ -275,10 +257,12 @@ class CompletionChartCard extends StatelessWidget {
                         height: 8,
                         decoration: BoxDecoration(
                           color: b.color,
+                          // Legend color-dot radius — tiny decorative
+                          // value, same rationale as above.
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: AppSpacing.sm - 2),
                       Text(
                         '${b.value}',
                         style: TextStyle(
@@ -321,10 +305,10 @@ class TimeRangeSegmented extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(AppSpacing.xs),
       decoration: BoxDecoration(
         color: AppColors.navy,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Row(
         children: [
@@ -356,11 +340,11 @@ class _TimeRangeSegmentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
+      duration: AppMotion.medium,
+      curve: AppMotion.standard,
       decoration: BoxDecoration(
         color: selected ? Colors.white : Colors.transparent,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         boxShadow: selected
             ? [
                 BoxShadow(
@@ -373,10 +357,10 @@ class _TimeRangeSegmentButton extends StatelessWidget {
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         child: InkWell(
           onTap: selected ? null : onTap,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 9),
             child: Center(
@@ -409,7 +393,7 @@ class NoTasksEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 36),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl + 12),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -423,46 +407,45 @@ class NoTasksEmptyState extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.event_available_outlined,
-                size: 44,
+                size: AppIconSize.xl + 12,
                 color: AppColors.deepBlue,
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.lg),
+            Text(title, style: AppTextStyles.cardTitle.copyWith(fontSize: 15)),
+            const SizedBox(height: AppSpacing.xs + 2),
             Text(
               onAddTask != null
                   ? 'يمكنك إضافة مهمة جديدة الآن أو تصفّح فترة أخرى'
                   : 'يمكنك تصفّح فترة أخرى',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: AppColors.textSecondary,
-              ),
+              style: AppTextStyles.bodySecondary.copyWith(fontSize: 12.5),
             ),
             if (onAddTask != null) ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: AppSpacing.lg + 2),
+              // NOTE: `mintAccent` is intentionally kept here (not the
+              // theme's default deepBlue ElevatedButton fill) — it is the
+              // app's documented third accent hue reserved for quick-add
+              // task actions (see AppColors.mintAccent doc comment) and
+              // this CTA is exactly that action, just reached from an
+              // empty state instead of the FAB. Colour is preserved
+              // per the branding-preservation requirement; only the
+              // padding/radius/icon size below are now tokenized to match
+              // every other button in the app.
               ElevatedButton.icon(
                 onPressed: onAddTask,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.mintAccent,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+                    horizontal: AppSpacing.xl,
+                    vertical: AppSpacing.md,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                 ),
-                icon: const Icon(Icons.add, size: 18),
+                icon: const Icon(Icons.add, size: AppIconSize.sm + 2),
                 label: const Text(
                   'إضافة مهمة جديدة',
                   style: TextStyle(fontWeight: FontWeight.w700),

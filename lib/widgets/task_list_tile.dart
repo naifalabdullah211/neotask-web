@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import '../models/task_model.dart';
 import '../screens/manager/task_review_detail_screen.dart';
+import '../theme/app_theme.dart';
 import 'status_chip.dart';
 import 'task_urgency_indicator.dart';
 import 'favorite_star_button.dart';
@@ -36,34 +37,30 @@ class TaskListTile extends StatelessWidget {
         leading: TaskUrgencyDot(task: task),
         title: Row(
           children: [
-            Expanded(
-              child: Text(
-                task.title,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
+            Expanded(child: Text(task.title, style: AppTextStyles.cardTitle)),
             FavoriteStarButton(
               userUid: managerUid,
               taskId: task.taskId,
-              size: 20,
+              size: AppIconSize.md,
             ),
           ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.sm - 2),
             Wrap(
-              spacing: 6,
+              spacing: AppSpacing.sm - 2,
               runSpacing: 4,
               children: [
                 StatusChip(statusName: task.status.name),
                 PriorityBadge(priorityName: task.priority.name, compact: true),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.sm - 2),
             Text(
               '${task.category} · ${intl.DateFormat('yyyy/MM/dd').format(task.dueDate)}',
+              style: AppTextStyles.bodySecondary,
             ),
           ],
         ),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/poll_model.dart';
 import '../theme/app_theme.dart';
+import 'status_chip.dart' show AppPill;
 
 /// Poll list-row card — deliberately mirrors [TaskListTile]'s exact
 /// `Card` + rounded-corner styling per explicit requirement #6 ("نفس
@@ -47,10 +48,7 @@ class _PollCardState extends State<PollCard> {
       child: ListTile(
         onTap: widget.onTap,
         leading: Icon(Icons.how_to_vote_outlined, color: _accentColor(poll)),
-        title: Text(
-          poll.title,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
+        title: Text(poll.title, style: AppTextStyles.cardTitle),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -99,7 +97,10 @@ class _PollCardState extends State<PollCard> {
 /// قرار المدير (orange), per explicit requirement #6. Deliberately a
 /// separate small widget (rather than reusing [StatusChip], which is
 /// keyed to [TaskStatus]'s name strings) since Poll status/result values
-/// have no equivalent in that enum.
+/// have no equivalent in that enum — but now built on the SAME shared
+/// [AppPill] base as [StatusChip]/[PriorityBadge], so the pill visual
+/// (padding/radius/border) stays identical across all three instead of
+/// being a third independent copy of the pattern.
 class _PollStatusBadge extends StatelessWidget {
   const _PollStatusBadge({required this.poll});
 
@@ -119,21 +120,6 @@ class _PollStatusBadge extends StatelessWidget {
       color = AppColors.textSecondary;
       label = 'مغلق';
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
-      ),
-    );
+    return AppPill(color: color, label: label);
   }
 }

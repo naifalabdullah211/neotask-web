@@ -29,11 +29,11 @@ class MiniWeekStatsSummary extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'ملخص هذا الأسبوع',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              style: AppTextStyles.cardTitle.copyWith(fontSize: 15),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             Row(
               children: [
                 Expanded(
@@ -81,27 +81,20 @@ class _StatBlock extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 6),
+          Icon(icon, color: color, size: AppIconSize.md + 2),
+          const SizedBox(height: AppSpacing.xs + 2),
           Text(
             '$value',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w800,
-              fontSize: 20,
-            ),
+            style: AppTextStyles.statValue.copyWith(color: color, fontSize: 20),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-            ),
+            style: AppTextStyles.bodySecondary,
             textAlign: TextAlign.center,
           ),
         ],

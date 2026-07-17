@@ -21,7 +21,7 @@ class FavoriteStarButton extends StatelessWidget {
     super.key,
     required this.userUid,
     required this.taskId,
-    this.size = 24,
+    this.size = AppIconSize.lg,
   });
 
   final String userUid;

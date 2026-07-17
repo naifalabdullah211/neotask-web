@@ -73,7 +73,11 @@ class DateNavArrowButton extends StatelessWidget {
             button: true,
             child: Padding(
               padding: const EdgeInsets.all(6),
-              child: Icon(icon, color: AppColors.deepBlue, size: 26),
+              child: Icon(
+                icon,
+                color: AppColors.deepBlue,
+                size: AppIconSize.lg + 2,
+              ),
             ),
           ),
         ),

@@ -225,7 +225,13 @@ class _EmployeeResultTile extends StatelessWidget {
         .length;
 
     return ListTile(
+      // Aligned with every other name-initial CircleAvatar in the app
+      // (contacts/chat/employees lists) — this one previously had no
+      // explicit background color, so it rendered with Flutter's
+      // default gray instead of the app's deepBlue brand tone.
       leading: CircleAvatar(
+        backgroundColor: AppColors.deepBlue,
+        foregroundColor: Colors.white,
         child: Text(user.name.isNotEmpty ? user.name[0] : '؟'),
       ),
       title: Text(user.name),

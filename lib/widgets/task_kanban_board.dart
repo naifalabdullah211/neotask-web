@@ -171,9 +171,9 @@ class _KanbanColumnState extends State<_KanbanColumn> {
         color: _hovering
             ? color.withValues(alpha: 0.08)
             : const Color(0xFFF1F3F7),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg - 2),
         border: Border.all(
-          color: _hovering ? color : const Color(0xFFE7E9EE),
+          color: _hovering ? color : AppColors.divider,
           width: _hovering ? 1.6 : 1,
         ),
       ),
@@ -330,15 +330,9 @@ class _CardBody extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE7E9EE)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: AppElevation.lowShadow,
       ),
       padding: const EdgeInsets.all(10),
       child: Column(
@@ -389,34 +383,11 @@ class _CardBody extends StatelessWidget {
           ),
           if (overdue) ...[
             const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.overdue.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: AppColors.overdue.withValues(alpha: 0.4),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.warning_amber_rounded,
-                    size: 11,
-                    color: AppColors.overdue,
-                  ),
-                  const SizedBox(width: 3),
-                  const Text(
-                    'متأخرة',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.overdue,
-                    ),
-                  ),
-                ],
-              ),
+            AppPill(
+              color: AppColors.overdue,
+              icon: Icons.warning_amber_rounded,
+              label: 'متأخرة',
+              compact: true,
             ),
           ],
         ],
