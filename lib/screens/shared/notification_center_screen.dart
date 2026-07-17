@@ -135,11 +135,25 @@ class _NotificationTile extends StatelessWidget {
     final isTieDecision =
         notification.type == NotificationType.pollTieNeedsDecision;
     final isTaskComment = notification.type == NotificationType.taskComment;
-    final Color accent = isTieDecision
+    // NEW — automatic reminders feature: distinct accent/icon per type so
+    // the inbox visually distinguishes "reminder" (amber, matches
+    // AppColors.statusPending used for "قيد الانتظار" elsewhere) from
+    // "overdue escalation" (red, matches AppColors.overdue used by
+    // TaskUrgencyIndicator for the exact same concept) instead of both
+    // falling back to the generic poll icon/color.
+    final isDueSoon = notification.type == NotificationType.taskDueSoon;
+    final isOverdue = notification.type == NotificationType.taskOverdue;
+    final Color accent = isTieDecision || isDueSoon
         ? AppColors.statusPending
+        : isOverdue
+        ? AppColors.overdue
         : (notification.isRead ? AppColors.textSecondary : AppColors.deepBlue);
     final IconData icon = isTieDecision
         ? Icons.gavel_outlined
+        : isDueSoon
+        ? Icons.alarm_outlined
+        : isOverdue
+        ? Icons.warning_amber_rounded
         : (isTaskComment
               ? Icons.chat_bubble_outline
               : Icons.how_to_vote_outlined);

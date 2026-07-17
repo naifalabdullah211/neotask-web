@@ -22,7 +22,139 @@ class TaskProvider extends ChangeNotifier {
     FirestoreService.watchAllTasks().listen((tasks) {
       _allTasks = tasks;
       notifyListeners();
+      // Fire-and-forget: same lazy client-side reconciliation pattern as
+      // PollProvider._maybeAutoCloseOverduePolls (no Cloud Functions/cron
+      // exists in this project — see doc comment on
+      // _maybeDispatchReminders below for the full rationale). Errors are
+      // caught internally so a transient Firestore failure here never
+      // crashes the task-list subscription.
+      _maybeDispatchReminders(tasks);
     });
+  }
+
+  // =========================================================================
+  // AUTOMATIC REMINDERS — التذكيرات التلقائية (NEW feature)
+  // =========================================================================
+  // ARCHITECTURE (explicitly flagged — same class of trade-off as
+  // PollProvider's auto-close, documented there in detail): this project
+  // has no Cloud Functions / scheduled-backend infrastructure (confirmed
+  // by inspecting the project for a `functions/` directory and the
+  // `cloud_functions` package — neither exists). A genuine "runs once a
+  // day server-side regardless of whether anyone has the app open" check
+  // is therefore NOT achievable here. The mechanism actually implemented
+  // is CLIENT-SIDE LAZY EVALUATION: [_maybeDispatchReminders] runs every
+  // time the live `tasks` stream emits a new snapshot (i.e. whenever ANY
+  // signed-in user's app has the task list loaded — which in practice
+  // happens on every login/app-open/task-mutation for both managers and
+  // employees, giving effective near-real-time coverage while the app is
+  // in use, though not a true background cron).
+  //
+  // KNOWN LIMITATION (not glossed over): if NO one opens the app at all
+  // during the 24h window before a task's due date, the "due soon"
+  // reminder is skipped entirely for that task (it will never again be
+  // "exactly <=24h and >0h away" once missed) — this mirrors the exact
+  // same acknowledged gap already documented for polls in this codebase.
+  // The overdue-notification check has no such gap: it fires the first
+  // time any client observes `dueDate` has passed, whenever that occurs.
+  //
+  // IDEMPOTENCY: each of the two notification types is gated on a
+  // one-way, null -> non-null Firestore field (`remindedAt` /
+  // `overdueNotifiedAt` — see AppTask doc comments), enforced not just
+  // client-side here but at the Firestore rules layer too (see
+  // firestore.rules `tasks/{taskId}` update rule's dedicated branches),
+  // so even a race between two clients observing the same eligible task
+  // simultaneously results in at most one notification being persisted.
+  Future<void> _maybeDispatchReminders(List<AppTask> tasks) async {
+    final now = DateTime.now();
+    for (final task in tasks) {
+      if (!task.isPendingOrInProgress) continue;
+
+      // ---- (a) Due-soon reminder to the assignee — §1 first bullet ----
+      // "باقي 24 ساعة بالضبط (أو أقل)" — i.e. 0h < remaining <= 24h. A
+      // task already past due is handled exclusively by branch (b) below
+      // (overdue notification), not this one — the two are mutually
+      // exclusive by construction via this window check.
+      if (task.remindedAt == null) {
+        final remaining = task.dueDate.difference(now);
+        if (remaining <= const Duration(hours: 24) && !remaining.isNegative) {
+          try {
+            await _dispatchDueSoonReminder(task);
+            await FirestoreService.markTaskReminded(task.taskId);
+          } catch (e) {
+            if (kDebugMode) {
+              debugPrint(
+                'TaskProvider: due-soon reminder failed for '
+                '${task.taskId}: $e',
+              );
+            }
+          }
+        }
+      }
+
+      // ---- (b) Overdue notification to every manager — §1 second bullet
+      // ----
+      if (task.overdueNotifiedAt == null && task.dueDate.isBefore(now)) {
+        try {
+          await _dispatchOverdueNotification(task);
+          await FirestoreService.markTaskOverdueNotified(task.taskId);
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint(
+              'TaskProvider: overdue notification failed for '
+              '${task.taskId}: $e',
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _dispatchDueSoonReminder(AppTask task) async {
+    if (task.assignedTo.isEmpty) return;
+    await FirestoreService.saveNotification(
+      AppNotification(
+        notificationId: _uuid.v4(),
+        recipientUid: task.assignedTo,
+        type: NotificationType.taskDueSoon,
+        title: 'تذكير: مهمة "${task.title}" تستحق غدًا',
+        body:
+            'تاريخ الاستحقاق: '
+            '${task.dueDate.year}/'
+            '${task.dueDate.month.toString().padLeft(2, '0')}/'
+            '${task.dueDate.day.toString().padLeft(2, '0')} — '
+            'الحالة الحالية: ${statusLabelAr(task.status.name)}',
+        relatedTaskId: task.taskId,
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  Future<void> _dispatchOverdueNotification(AppTask task) async {
+    final employee = FirestoreService.getUser(task.assignedTo);
+    final employeeName = employee?.name ?? 'موظف غير معروف';
+    final managers = FirestoreService.getAllManagers();
+    for (final manager in managers) {
+      await FirestoreService.saveNotification(
+        AppNotification(
+          notificationId: _uuid.v4(),
+          recipientUid: manager.uid,
+          type: NotificationType.taskOverdue,
+          title: 'مهمة "${task.title}" المسندة لـ$employeeName أصبحت متأخرة',
+          body:
+              'تاريخ الاستحقاق: '
+              '${task.dueDate.year}/'
+              '${task.dueDate.month.toString().padLeft(2, '0')}/'
+              '${task.dueDate.day.toString().padLeft(2, '0')} — '
+              'الحالة الحالية: ${statusLabelAr(task.status.name)}',
+          relatedTaskId: task.taskId,
+          payload: {
+            'employeeUid': task.assignedTo,
+            'employeeName': employeeName,
+          },
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
   }
 
   /// SINGLE SOURCE OF TRUTH for the "completed tasks always last" ordering

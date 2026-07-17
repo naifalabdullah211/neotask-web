@@ -215,7 +215,28 @@ service cloud.firestore {
          request.resource.data.assignedBy == resource.data.assignedBy &&
          request.resource.data.reassignRequestedStatus == null &&
          request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['assignedTo', 'reassignRequestedTo', 'reassignRequestedBy', 'reassignRequestedAt', 'reassignRequestedStatus', 'viewedByEmployee', 'updatedAt']));
+           .hasOnly(['assignedTo', 'reassignRequestedTo', 'reassignRequestedBy', 'reassignRequestedAt', 'reassignRequestedStatus', 'viewedByEmployee', 'updatedAt'])) ||
+        // Automatic reminders feature (التذكيرات التلقائية) — NEW. Same
+        // trust model as the polls/{pollId} auto-close branch above (no
+        // Cloud Functions/cron exists in this project — see
+        // TaskProvider._maybeDispatchReminders doc comment): ANY
+        // signed-in client's lazy per-session check may be the one that
+        // observes a task has crossed the 24h-before-due or the overdue
+        // threshold and performs the one-way idempotency-flag write.
+        // Each branch is restricted to a single null -> non-null
+        // transition on exactly one guard field, so no client can ever
+        // reset a flag back to null or piggyback an unrelated field
+        // change onto this branch.
+        (isSignedIn() &&
+         resource.data.remindedAt == null &&
+         request.resource.data.remindedAt != null &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['remindedAt', 'updatedAt'])) ||
+        (isSignedIn() &&
+         resource.data.overdueNotifiedAt == null &&
+         request.resource.data.overdueNotifiedAt != null &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['overdueNotifiedAt', 'updatedAt']));
 
       allow delete: if isManager();
     }

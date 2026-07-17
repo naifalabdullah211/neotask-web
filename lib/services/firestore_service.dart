@@ -598,6 +598,17 @@ class FirestoreService {
     return null;
   }
 
+  /// All accounts with `role == manager`. The app currently enforces a
+  /// single-manager invariant at signup time (see `system/manager_lock`
+  /// sentinel in firestore.rules), so today this returns at most one
+  /// entry — implemented as a list regardless (rather than reusing
+  /// [getManager] alone) so the automatic-reminders feature's "notify
+  /// everyone with 'مدير' privilege" requirement is correct-by-construction
+  /// even if that invariant is ever relaxed in the future.
+  static List<AppUser> getAllManagers() {
+    return _usersCache.where((u) => u.role == UserRole.manager).toList();
+  }
+
   static Stream<List<AppUser>> watchEmployees() async* {
     yield getAllEmployees();
     yield* _usersChanges.stream.map((_) => getAllEmployees());
@@ -619,6 +630,27 @@ class FirestoreService {
   static Future<void> markTaskViewed(String taskId) async {
     await _db.collection('tasks').doc(taskId).update({
       'viewedByEmployee': true,
+    });
+  }
+
+  /// Automatic reminders feature — sets the one-way `remindedAt` guard so
+  /// the "due within 24h" employee reminder is never dispatched twice for
+  /// the same task. See firestore.rules `tasks/{taskId}` update rule's
+  /// dedicated branch for this exact field-pair write.
+  static Future<void> markTaskReminded(String taskId) async {
+    await _db.collection('tasks').doc(taskId).update({
+      'remindedAt': DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Automatic reminders feature — sets the one-way `overdueNotifiedAt`
+  /// guard so the "task became overdue" manager notification is never
+  /// dispatched twice for the same task.
+  static Future<void> markTaskOverdueNotified(String taskId) async {
+    await _db.collection('tasks').doc(taskId).update({
+      'overdueNotifiedAt': DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toIso8601String(),
     });
   }
 

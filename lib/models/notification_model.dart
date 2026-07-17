@@ -27,6 +27,16 @@ enum NotificationType {
   // or the assigned employee adds a comment on a task, notifying the
   // OTHER party. See TaskProvider.addComment.
   taskComment,
+  // NEW — Automatic reminders feature (التذكيرات التلقائية):
+  //   taskDueSoon: sent ONCE to the assigned employee when a task's
+  //     dueDate is <=24h away and the task is still pending/inProgress.
+  //     See TaskProvider._maybeDispatchDueSoonAndOverdueNotifications and
+  //     AppTask.remindedAt (idempotency guard).
+  //   taskOverdue: sent ONCE (per task) to every manager account the
+  //     moment a task's dueDate has passed while still not completed.
+  //     See AppTask.overdueNotifiedAt (idempotency guard).
+  taskDueSoon,
+  taskOverdue,
 }
 
 class AppNotification {

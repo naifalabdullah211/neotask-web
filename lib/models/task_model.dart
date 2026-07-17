@@ -83,6 +83,18 @@ extension AppTaskStatusX on AppTask {
   bool get isOverdue =>
       primaryStatus != PrimaryTaskStatus.completed &&
       dueDate.isBefore(DateTime.now());
+
+  /// "لسه قيد الانتظار أو قيد التنفيذ" — the exact two-status gate
+  /// required by the automatic-reminders feature (§1 of the spec) for
+  /// BOTH the due-soon reminder and the overdue-notification checks.
+  /// Deliberately excludes `submitted`/`rejected`/`editRequested`: a
+  /// submitted task is no longer "sitting untouched" (the employee acted
+  /// on it before the deadline), and a rejected/edit-requested task is
+  /// mid-feedback-cycle, not simply neglected — reminding/escalating
+  /// those would be noise unrelated to the stated requirement's literal
+  /// wording ("لسه 'قيد الانتظار' أو 'قيد التنفيذ'").
+  bool get isPendingOrInProgress =>
+      status == TaskStatus.assigned || status == TaskStatus.inProgress;
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +235,24 @@ class AppTask {
   /// in `dueDate`-independent chronological (insertion) order.
   final List<ActivityLogEntry> activityLog;
 
+  // ---- Automatic reminders feature (التذكيرات التلقائية) — NEW ----
+  // Idempotency guards so each of the two notification types below is
+  // dispatched AT MOST ONCE per task, regardless of how many times the
+  // client-side lazy check (see TaskProvider._maybeDispatchReminders) runs
+  // against the same task while it remains in a still-eligible state.
+  // Mirrors the exact "set a persisted timestamp the first time an event
+  // fires, then gate on `== null` before firing again" pattern already
+  // used by `viewedByEmployee` (boolean form) and PollProvider's
+  // `status == 'open'` guard (auto-close form) elsewhere in this
+  // codebase — no new architectural pattern is introduced.
+  //
+  //   remindedAt: set the first time the "due within 24h, still
+  //   pending/inProgress" in-app reminder is sent to the assignee.
+  //   overdueNotifiedAt: set the first time the "task is now overdue"
+  //   in-app notification is sent to the manager(s).
+  final DateTime? remindedAt;
+  final DateTime? overdueNotifiedAt;
+
   AppTask({
     required this.taskId,
     required this.title,
@@ -251,6 +281,8 @@ class AppTask {
     this.reassignRequestedAt,
     this.reassignRequestedStatus,
     this.activityLog = const [],
+    this.remindedAt,
+    this.overdueNotifiedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -293,6 +325,8 @@ class AppTask {
     // reassignRequest* fields must be wiped in one write). This flag
     // overrides the 4 fields above to null regardless of what was passed.
     bool clearReassignRequest = false,
+    DateTime? remindedAt,
+    DateTime? overdueNotifiedAt,
     DateTime? updatedAt,
   }) {
     return AppTask(
@@ -332,6 +366,8 @@ class AppTask {
           ? null
           : (reassignRequestedStatus ?? this.reassignRequestedStatus),
       activityLog: activityLog ?? this.activityLog,
+      remindedAt: remindedAt ?? this.remindedAt,
+      overdueNotifiedAt: overdueNotifiedAt ?? this.overdueNotifiedAt,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
@@ -366,6 +402,8 @@ class AppTask {
       'reassignRequestedAt': reassignRequestedAt?.toIso8601String(),
       'reassignRequestedStatus': reassignRequestedStatus,
       'activityLog': activityLog.map((e) => e.toMap()).toList(),
+      'remindedAt': remindedAt?.toIso8601String(),
+      'overdueNotifiedAt': overdueNotifiedAt?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -435,6 +473,12 @@ class AppTask {
                 )
                 .toList()
           : const [],
+      remindedAt: map['remindedAt'] != null
+          ? DateTime.parse(map['remindedAt'] as String)
+          : null,
+      overdueNotifiedAt: map['overdueNotifiedAt'] != null
+          ? DateTime.parse(map['overdueNotifiedAt'] as String)
+          : null,
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
           : DateTime.now(),
