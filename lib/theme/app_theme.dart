@@ -178,6 +178,24 @@ class AppTheme {
         type: BottomNavigationBarType.fixed,
         elevation: 8,
       ),
+      // Rounded outer edge + subtle elevation for the app's premium
+      // [AppDrawer] redesign — Flutter's own [DrawerController] already
+      // supplies the open/close slide animation with a standard
+      // decelerate curve, so no extra motion code is required to satisfy
+      // "smooth opening/closing motion with refined easing"; this theme
+      // only refines the drawer's static shape/elevation.
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: Colors.white,
+        elevation: 4,
+        // App is globally forced to RTL (see main.dart), so the `drawer`
+        // slot attaches to the screen's RIGHT edge (RTL "start"); round
+        // only the LEFT corners (facing the content, away from the
+        // screen edge) so the drawer doesn't look clipped on its
+        // attached side.
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
+        ),
+      ),
       dialogTheme: DialogThemeData(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
