@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
@@ -367,35 +368,88 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sends a Firebase-hosted password-reset email to [email].
+  /// Self-service password change for the CURRENTLY signed-in user (any
+  /// role — manager or employee). Different from the manager-driven
+  /// `adminResetPassword` Cloud Function (see manager_employees_tab.dart):
+  /// here the user proves knowledge of their OWN current password via
+  /// `reauthenticateWithCredential` before Firebase Auth allows
+  /// `updatePassword`. No Firestore write is required — Firebase Auth owns
+  /// credential storage entirely.
   ///
-  /// Security/ownership guarantee: the employee or manager sets their OWN
-  /// new password by opening the link in that email (Firebase's own hosted
-  /// reset page) — this app, and nobody operating it (including the
-  /// manager or a developer with Admin SDK access), ever sees or chooses
-  /// that new password. This replaces any prior practice of an admin
-  /// manually overwriting a user's password for troubleshooting purposes,
-  /// which is a one-way, irreversible action and must not be used going
-  /// forward now that this self-service flow exists.
-  ///
-  /// Returns `null` on success (email dispatched). Returns an Arabic
-  /// user-facing error message on failure (e.g. malformed email, or —
-  /// intentionally — the SAME generic message is NOT returned for
-  /// `user-not-found`, to avoid leaking which emails are registered; see
-  /// `_mapAuthError` override below for this one code).
-  Future<String?> sendPasswordResetEmail(String email) async {
-    final trimmed = email.trim();
-    if (trimmed.isEmpty) return 'أدخل البريد الإلكتروني';
+  /// Returns `null` on success. Returns an Arabic user-facing error
+  /// message on failure (wrong current password, weak new password,
+  /// requires-recent-login, etc. — all mapped via `_mapAuthError`).
+  Future<String?> changeOwnPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _fbAuth.currentUser;
+    if (user == null || user.email == null) {
+      return 'جلسة الدخول منتهية، يرجى تسجيل الدخول مرة أخرى';
+    }
     try {
-      await _fbAuth.sendPasswordResetEmail(email: trimmed);
+      final cred = fb_auth.EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(cred);
+      await user.updatePassword(newPassword);
       return null;
     } on fb_auth.FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        // Deliberately non-committal — do not confirm/deny whether this
-        // email has an account, to avoid enumeration of registered users.
-        return 'إذا كان هذا البريد مسجّلاً، سيصلك رابط إعادة التعيين';
-      }
       return _mapAuthError(e);
+    }
+  }
+
+  /// Manager-driven password change for ANOTHER user (see
+  /// `manager_employees_tab.dart._startChangePasswordFlow`). A regular
+  /// client cannot change another Firebase Auth user's password directly —
+  /// this MUST go through a privileged server-side call. Invokes the
+  /// `adminResetPassword` Cloud Function, which:
+  ///   1. verifies the CALLER (via `context.auth`) is a manager
+  ///      (custom claim or Firestore role lookup — enforced server-side,
+  ///      never trust the client-side `isManager` check alone), THEN
+  ///   2. calls `admin.auth().updateUser(targetUid, { password })`.
+  ///
+  /// NOTE: as of this writing the `adminResetPassword` function has been
+  /// WRITTEN (see `functions/index.js`) but NOT YET DEPLOYED — deployment
+  /// is blocked on the Firebase project being upgraded to the Blaze plan
+  /// and the Cloud Build API being enabled by the project owner via the
+  /// Firebase/GCP Console (the sandbox's service-account credentials lack
+  /// permission to do either). Until deployment succeeds, calls to this
+  /// method will fail with a `not-found` / `internal` FirebaseFunctions
+  /// exception, surfaced below as an Arabic error message.
+  ///
+  /// Returns `null` on success. Returns an Arabic user-facing error message
+  /// on failure (permission-denied, not-found/undeployed, invalid-argument,
+  /// etc.).
+  Future<String?> adminResetPassword({
+    required String targetUid,
+    required String newPassword,
+  }) async {
+    try {
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'adminResetPassword',
+      );
+      await callable.call<void>({
+        'userId': targetUid,
+        'newPassword': newPassword,
+      });
+      return null;
+    } on FirebaseFunctionsException catch (e) {
+      switch (e.code) {
+        case 'permission-denied':
+          return 'ليس لديك صلاحية تغيير كلمات مرور الموظفين';
+        case 'not-found':
+          return 'خدمة تغيير كلمة المرور غير متاحة حاليًا (لم يتم نشرها بعد)';
+        case 'invalid-argument':
+          return 'كلمة المرور الجديدة غير صالحة (6 أحرف على الأقل)';
+        case 'unauthenticated':
+          return 'جلسة الدخول منتهية، يرجى تسجيل الدخول مرة أخرى';
+        default:
+          return 'حدث خطأ غير متوقع: ${e.message ?? e.code}';
+      }
+    } catch (_) {
+      return 'تعذّر الاتصال بخدمة تغيير كلمة المرور، حاول لاحقًا';
     }
   }
 

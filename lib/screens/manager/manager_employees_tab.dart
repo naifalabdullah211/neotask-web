@@ -225,6 +225,181 @@ class _ActiveEmployeeTile extends StatelessWidget {
     }
   }
 
+  /// Manager-driven password change for ANOTHER user (this employee).
+  /// Distinct from `AuthProvider.changeOwnPassword` (self-service, requires
+  /// the CURRENT password). Here the manager sets a brand-new password
+  /// directly, without knowing/entering the employee's old one — this is
+  /// only possible via the `adminResetPassword` Cloud Function (Admin SDK
+  /// `admin.auth().updateUser`), which first re-verifies the CALLER is a
+  /// manager server-side (never trust the client-side role check alone).
+  ///
+  /// The password value itself is never logged, displayed again, or stored
+  /// anywhere — only a Firestore audit entry (who/whom/when) is written on
+  /// success, via `FirestoreService.logPasswordChange`.
+  Future<void> _startChangePasswordFlow(BuildContext context) async {
+    final authProvider = context.read<AuthProvider>();
+    final managerUid = authProvider.currentUser!.uid;
+    final managerName = authProvider.currentUser!.name;
+
+    final formKey = GlobalKey<FormState>();
+    final newPasswordCtrl = TextEditingController();
+    final confirmPasswordCtrl = TextEditingController();
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+    bool submitting = false;
+    String? errorText;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          return AlertDialog(
+            title: Text('تغيير كلمة المرور — ${user.name}'),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'أدخل كلمة مرور جديدة لهذا الموظف. لن تُعرض كلمة المرور '
+                    'أو تُخزَّن في أي مكان بعد إنشائها.',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: newPasswordCtrl,
+                    obscureText: obscureNew,
+                    textDirection: TextDirection.ltr,
+                    textAlign: TextAlign.left,
+                    decoration: InputDecoration(
+                      labelText: 'كلمة المرور الجديدة',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureNew
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                        onPressed: () =>
+                            setState(() => obscureNew = !obscureNew),
+                      ),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'يرجى إدخال كلمة المرور الجديدة';
+                      }
+                      if (v.length < 6) {
+                        return 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: confirmPasswordCtrl,
+                    obscureText: obscureConfirm,
+                    textDirection: TextDirection.ltr,
+                    textAlign: TextAlign.left,
+                    decoration: InputDecoration(
+                      labelText: 'تأكيد كلمة المرور',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureConfirm
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                        onPressed: () =>
+                            setState(() => obscureConfirm = !obscureConfirm),
+                      ),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'يرجى تأكيد كلمة المرور';
+                      }
+                      if (v != newPasswordCtrl.text) {
+                        return 'كلمتا المرور غير متطابقتين';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (errorText != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      errorText!,
+                      style: const TextStyle(
+                        color: AppColors.statusRejected,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: submitting
+                    ? null
+                    : () => Navigator.of(ctx).pop(false),
+                child: const Text('إلغاء'),
+              ),
+              ElevatedButton(
+                onPressed: submitting
+                    ? null
+                    : () async {
+                        if (!(formKey.currentState?.validate() ?? false)) {
+                          return;
+                        }
+                        setState(() {
+                          submitting = true;
+                          errorText = null;
+                        });
+                        final error = await authProvider.adminResetPassword(
+                          targetUid: user.uid,
+                          newPassword: newPasswordCtrl.text,
+                        );
+                        if (error != null) {
+                          setState(() {
+                            submitting = false;
+                            errorText = error;
+                          });
+                          return;
+                        }
+                        await FirestoreService.logPasswordChange(
+                          changedByUid: managerUid,
+                          changedByName: managerName,
+                          changedForUid: user.uid,
+                          changedForName: user.name,
+                        );
+                        if (ctx.mounted) Navigator.of(ctx).pop(true);
+                      },
+                child: submitting
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('تغيير'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    newPasswordCtrl.dispose();
+    confirmPasswordCtrl.dispose();
+
+    if (confirmed == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تم تغيير كلمة مرور "${user.name}" بنجاح')),
+      );
+    }
+  }
+
   /// Presents the delete-vs-reassign choice for the employee's tasks.
   /// Returns true once the manager has made and executed a choice (or if
   /// there are no other employees to reassign to and the manager chooses
@@ -383,8 +558,25 @@ class _ActiveEmployeeTile extends StatelessWidget {
                 ),
                 onSelected: (value) {
                   if (value == 'delete') _startDeleteFlow(context);
+                  if (value == 'change_password') {
+                    _startChangePasswordFlow(context);
+                  }
                 },
                 itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'change_password',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.lock_reset,
+                          color: AppColors.steel,
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Text('تغيير كلمة المرور'),
+                      ],
+                    ),
+                  ),
                   const PopupMenuItem(
                     value: 'delete',
                     child: Row(

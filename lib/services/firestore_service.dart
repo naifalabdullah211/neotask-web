@@ -19,6 +19,7 @@ import '../models/poll_model.dart';
 import '../models/poll_vote_model.dart';
 import '../models/poll_report_model.dart';
 import '../models/notification_model.dart';
+import '../models/manager_digest_model.dart';
 
 /// FirestoreService — REPLACES LocalDbService (Hive) as of this commit.
 ///
@@ -538,6 +539,26 @@ class FirestoreService {
   // ---------------- USERS ----------------
   static Future<void> saveUser(AppUser user) async {
     await _db.collection('users').doc(user.uid).set(user.toMap());
+  }
+
+  /// Appends an audit entry to `password_change_audit` (Part 1 — manager-
+  /// driven password reset). Append-only, admin-internal log: WHO changed
+  /// the password, FOR WHOM, and WHEN. The password value itself is NEVER
+  /// passed to or stored by this method. Not cached/streamed anywhere in
+  /// this service — it is a write-only audit trail, not app-facing data.
+  static Future<void> logPasswordChange({
+    required String changedByUid,
+    required String changedByName,
+    required String changedForUid,
+    required String changedForName,
+  }) async {
+    await _db.collection('password_change_audit').add({
+      'changedByUid': changedByUid,
+      'changedByName': changedByName,
+      'changedForUid': changedForUid,
+      'changedForName': changedForName,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
   }
 
   /// Atomically creates the single manager profile document together with
@@ -1592,5 +1613,67 @@ class FirestoreService {
     await _db.collection('notifications').doc(notificationId).update({
       'readAt': DateTime.now().toIso8601String(),
     });
+  }
+
+  // ---------------- MANAGER DAILY/WEEKLY DIGEST ("ملخص المدير") — NEW.
+  //      Deliberately NOT added to the global-cache pattern used by every
+  //      other collection in this service (users/tasks/goals/etc.) — a
+  //      digest is read exactly once per dashboard-open (existence check +
+  //      today's doc fetch), not via a live list UI, so a dedicated
+  //      one-shot get + a single doc stream (for the card itself) are
+  //      simpler and avoid an unbounded global listener for a collection
+  //      that will accumulate one document per manager per day forever. ----
+
+  /// Direct, one-shot existence+fetch of today's digest for [managerUid] —
+  /// used by DigestProvider's lazy "already generated?" check. Returns
+  /// null if no digest exists yet for [dateKey].
+  static Future<ManagerDigest?> getDigest(
+    String managerUid,
+    String dateKey,
+  ) async {
+    final id = '${managerUid}_$dateKey';
+    final snap = await _db.collection('manager_digests').doc(id).get();
+    if (!snap.exists) return null;
+    return ManagerDigest.fromMap(snap.data()!);
+  }
+
+  /// Persists a freshly-computed digest. Per the model's doc comment, this
+  /// document is never updated afterward — deterministic ID
+  /// (`managerUid_dateKey`) means a second call for the same day simply
+  /// overwrites, but DigestProvider's lazy check prevents that from ever
+  /// happening in normal operation.
+  static Future<void> saveDigest(ManagerDigest digest) async {
+    await _db.collection('manager_digests').doc(digest.id).set(digest.toMap());
+  }
+
+  /// Live stream of today's digest document (used by the dashboard card so
+  /// it appears the instant DigestProvider finishes generating/saving it,
+  /// without requiring a manual refresh).
+  static Stream<ManagerDigest?> watchDigest(String managerUid, String dateKey) {
+    final id = '${managerUid}_$dateKey';
+    return _db.collection('manager_digests').doc(id).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      return ManagerDigest.fromMap(snap.data()!);
+    });
+  }
+
+  /// Historical digests for [managerUid], newest first — feeds a future
+  /// "تصفح الملخصات السابقة" browsing screen (per the explicit persistence
+  /// requirement). Capped at 60 (~2 months of daily digests) to bound the
+  /// read size.
+  static Future<List<ManagerDigest>> getDigestHistory(String managerUid) async {
+    final snap = await _db
+        .collection('manager_digests')
+        .where('managerUid', isEqualTo: managerUid)
+        .get();
+    final digests = snap.docs
+        .map((d) => ManagerDigest.fromMap(d.data()))
+        .toList();
+    // Sorted in memory (NOT via .orderBy()) — deliberately avoids requiring
+    // a composite Firestore index, per this project's established
+    // "simple where() + sort in memory" query pattern (see doc comment on
+    // Firestore query best practices elsewhere in this codebase).
+    digests.sort((a, b) => b.dateKey.compareTo(a.dateKey));
+    return digests.take(60).toList();
   }
 }

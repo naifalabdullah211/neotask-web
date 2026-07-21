@@ -17,6 +17,7 @@ import 'providers/goal_provider.dart';
 import 'providers/criterion_provider.dart';
 import 'providers/poll_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/digest_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/shared/splash_router.dart';
 
@@ -139,6 +140,7 @@ class NeoTaskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CriterionProvider()),
         ChangeNotifierProvider(create: (_) => PollProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => DigestProvider()),
       ],
       child: MaterialApp(
         title: 'NeoTask',

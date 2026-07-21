@@ -111,6 +111,14 @@ class TaskProvider extends ChangeNotifier {
 
   Future<void> _dispatchDueSoonReminder(AppTask task) async {
     if (task.assignedTo.isEmpty) return;
+    // Part 3(ب) — التذكيرات: respect the assignee's own per-user
+    // reminders-enabled preference (Settings screen toggle, persisted on
+    // their `users/{uid}` document — see AppUser.remindersEnabled). If the
+    // recipient has opted out, the reminder is skipped entirely — but
+    // `markTaskReminded` is still called by the caller afterwards so this
+    // is NOT retried on every subsequent snapshot.
+    final recipient = FirestoreService.getUser(task.assignedTo);
+    if (recipient != null && !recipient.remindersEnabled) return;
     await FirestoreService.saveNotification(
       AppNotification(
         notificationId: _uuid.v4(),
@@ -134,6 +142,9 @@ class TaskProvider extends ChangeNotifier {
     final employeeName = employee?.name ?? 'موظف غير معروف';
     final managers = FirestoreService.getAllManagers();
     for (final manager in managers) {
+      // Same per-user opt-out check as the due-soon branch above, applied
+      // per-recipient (each manager individually), not globally.
+      if (!manager.remindersEnabled) continue;
       await FirestoreService.saveNotification(
         AppNotification(
           notificationId: _uuid.v4(),

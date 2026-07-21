@@ -7,6 +7,7 @@ import 'meetings_screen.dart';
 import 'contacts_screen.dart';
 import 'favorites_screen.dart';
 import 'goals_list_screen.dart';
+import 'settings_screen.dart';
 import 'splash_router.dart';
 import '../manager/manager_calendar_screen.dart';
 import '../manager/manager_polls_tab.dart';
@@ -252,9 +253,9 @@ class _AppDrawerState extends State<AppDrawer> {
                       _DrawerNavTile(
                         icon: Icons.settings_outlined,
                         label: 'الإعدادات',
-                        isActive: false,
+                        isActive: activeKey == 'settings',
                         muted: true,
-                        onTap: () => showComingSoon('الإعدادات'),
+                        onTap: () => push('settings', const SettingsScreen()),
                       ),
                       _DrawerNavTile(
                         icon: Icons.help_outline,

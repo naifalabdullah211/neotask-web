@@ -7,6 +7,7 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/neo_bottom_nav_bar.dart';
 import '../shared/splash_router.dart';
 import '../shared/app_drawer.dart';
 import 'manager_dashboard_tab.dart';
@@ -106,70 +107,59 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             )
           : null,
       body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'الرئيسية',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: pendingReviewCount > 0,
-              label: Text('$pendingReviewCount'),
-              child: const Icon(Icons.fact_check_outlined),
-            ),
-            selectedIcon: const Icon(Icons.fact_check),
-            label: 'المراجعة',
-          ),
-          StreamBuilder<List<AppUser>>(
-            stream: FirestoreService.watchEmployees(),
-            initialData: FirestoreService.getAllEmployees(),
-            builder: (context, snapshot) {
-              final pendingEmployees = (snapshot.data ?? [])
-                  .where(
-                    (u) => u.accountStatus == AccountStatus.pendingApproval,
-                  )
-                  .length;
-              return NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: pendingEmployees > 0,
-                  label: Text('$pendingEmployees'),
-                  child: const Icon(Icons.groups_outlined),
-                ),
-                selectedIcon: const Icon(Icons.groups),
-                label: 'الموظفون',
-              );
-            },
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: 'التقارير',
-          ),
-          StreamBuilder<int>(
+      bottomNavigationBar: StreamBuilder<List<AppUser>>(
+        stream: FirestoreService.watchEmployees(),
+        initialData: FirestoreService.getAllEmployees(),
+        builder: (context, employeesSnapshot) {
+          final pendingEmployees = (employeesSnapshot.data ?? [])
+              .where((u) => u.accountStatus == AccountStatus.pendingApproval)
+              .length;
+          return StreamBuilder<int>(
             stream: context
                 .watch<MessageProvider>()
                 .watchTotalUnreadCountForUser(managerUid),
             initialData: context
                 .read<MessageProvider>()
                 .totalUnreadCountForUser(managerUid),
-            builder: (context, snapshot) {
-              final unread = snapshot.data ?? 0;
-              return NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: unread > 0,
-                  label: Text('$unread'),
-                  child: const Icon(Icons.chat_bubble_outline),
-                ),
-                selectedIcon: const Icon(Icons.chat_bubble),
-                label: 'المحادثات',
+            builder: (context, unreadSnapshot) {
+              final unread = unreadSnapshot.data ?? 0;
+              return NeoBottomNavBar(
+                selectedIndex: _index,
+                onDestinationSelected: (i) => setState(() => _index = i),
+                items: [
+                  const NeoNavItem(
+                    icon: Icons.dashboard_outlined,
+                    selectedIcon: Icons.dashboard,
+                    label: 'الرئيسية',
+                  ),
+                  NeoNavItem(
+                    icon: Icons.fact_check_outlined,
+                    selectedIcon: Icons.fact_check,
+                    label: 'المراجعة',
+                    badgeCount: pendingReviewCount,
+                  ),
+                  NeoNavItem(
+                    icon: Icons.groups_outlined,
+                    selectedIcon: Icons.groups,
+                    label: 'الموظفون',
+                    badgeCount: pendingEmployees,
+                  ),
+                  const NeoNavItem(
+                    icon: Icons.bar_chart_outlined,
+                    selectedIcon: Icons.bar_chart,
+                    label: 'التقارير',
+                  ),
+                  NeoNavItem(
+                    icon: Icons.chat_bubble_outline,
+                    selectedIcon: Icons.chat_bubble,
+                    label: 'المحادثات',
+                    badgeCount: unread,
+                  ),
+                ],
               );
             },
-          ),
-        ],
+          );
+        },
       ),
       backgroundColor: AppColors.background,
     );

@@ -36,6 +36,22 @@ class AppUser {
   final DateTime? approvedAt;
   final DateTime createdAt;
 
+  // ---- Per-user preferences (الإعدادات الشخصية) — NEW, added for the
+  // Settings screen (الإشعارات الصوتية + التذكيرات sections). All default
+  // to `true` (opt-out model) so existing accounts created before these
+  // fields existed behave exactly as before once `fromMap` back-fills the
+  // default — no migration/backfill script is required.
+  //
+  // `soundMessagesEnabled` / `soundTasksEnabled` gate audible notification
+  // playback for new chat messages and task events respectively.
+  // `remindersEnabled` gates whether THIS user receives the existing
+  // automatic due-soon/overdue task reminders (see
+  // TaskProvider._maybeDispatchReminders, which now checks this flag on
+  // the recipient before dispatching).
+  final bool soundMessagesEnabled;
+  final bool soundTasksEnabled;
+  final bool remindersEnabled;
+
   AppUser({
     required this.uid,
     required this.name,
@@ -46,6 +62,9 @@ class AppUser {
     this.approvedBy,
     this.approvedAt,
     required this.createdAt,
+    this.soundMessagesEnabled = true,
+    this.soundTasksEnabled = true,
+    this.remindersEnabled = true,
   });
 
   AppUser copyWith({
@@ -56,6 +75,9 @@ class AppUser {
     AccountStatus? accountStatus,
     String? approvedBy,
     DateTime? approvedAt,
+    bool? soundMessagesEnabled,
+    bool? soundTasksEnabled,
+    bool? remindersEnabled,
   }) {
     return AppUser(
       uid: uid,
@@ -67,6 +89,9 @@ class AppUser {
       approvedBy: approvedBy ?? this.approvedBy,
       approvedAt: approvedAt ?? this.approvedAt,
       createdAt: createdAt,
+      soundMessagesEnabled: soundMessagesEnabled ?? this.soundMessagesEnabled,
+      soundTasksEnabled: soundTasksEnabled ?? this.soundTasksEnabled,
+      remindersEnabled: remindersEnabled ?? this.remindersEnabled,
     );
   }
 
@@ -81,6 +106,9 @@ class AppUser {
       'approvedBy': approvedBy,
       'approvedAt': approvedAt?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      'soundMessagesEnabled': soundMessagesEnabled,
+      'soundTasksEnabled': soundTasksEnabled,
+      'remindersEnabled': remindersEnabled,
     };
   }
 
@@ -105,6 +133,13 @@ class AppUser {
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
           : DateTime.now(),
+      // Safe casting + explicit default (NOT null-assertion) per this
+      // project's Firebase data-consistency guideline — accounts created
+      // before these fields existed simply back-fill to `true` here,
+      // requiring no Firestore migration script.
+      soundMessagesEnabled: map['soundMessagesEnabled'] as bool? ?? true,
+      soundTasksEnabled: map['soundTasksEnabled'] as bool? ?? true,
+      remindersEnabled: map['remindersEnabled'] as bool? ?? true,
     );
   }
 }

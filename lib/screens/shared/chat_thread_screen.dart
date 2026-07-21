@@ -8,6 +8,8 @@ import '../../models/message_model.dart';
 import '../../providers/message_provider.dart';
 import '../../services/cloudinary_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/voice_message_recorder_button.dart';
+import '../../widgets/voice_message_player.dart';
 
 /// Shared chat thread UI — reused for BOTH the general (task-independent)
 /// manager<->employee conversation AND per-task conversation threads. The
@@ -153,6 +155,18 @@ class _ChatThreadBodyState extends State<ChatThreadBody> {
     );
   }
 
+  Future<void> _sendVoiceMessage(
+    List<int> bytes,
+    String filename,
+    int durationSeconds,
+  ) async {
+    await _uploadAndSend(
+      bytes: bytes,
+      filename: filename,
+      attachmentType: 'voice',
+    );
+  }
+
   Future<void> _uploadAndSend({
     required List<int> bytes,
     required String filename,
@@ -283,6 +297,7 @@ class _ChatThreadBodyState extends State<ChatThreadBody> {
             uploading: _uploading,
             onSend: _send,
             onAttach: _showAttachmentSheet,
+            onVoiceRecorded: _sendVoiceMessage,
           ),
       ],
     );
@@ -360,6 +375,7 @@ class _MessageBubble extends StatelessWidget {
     final timeLabel = DateFormat('HH:mm').format(message.timestamp);
     final hasAttachment = message.attachmentUrl != null;
     final isImage = message.attachmentType == 'image';
+    final isVoice = message.attachmentType == 'voice';
 
     return Align(
       alignment: isMine ? Alignment.centerLeft : Alignment.centerRight,
@@ -405,6 +421,8 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ),
               )
+            else if (hasAttachment && isVoice)
+              VoiceMessagePlayer(url: message.attachmentUrl!, isMine: isMine)
             else if (hasAttachment)
               InkWell(
                 onTap: _openAttachment,
@@ -469,7 +487,8 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-/// Message composer — text field + attachment (paperclip) + send button.
+/// Message composer — text field + attachment (paperclip) + voice
+/// recorder (mic) + send button.
 class _MessageInputBar extends StatelessWidget {
   const _MessageInputBar({
     required this.controller,
@@ -477,6 +496,7 @@ class _MessageInputBar extends StatelessWidget {
     required this.uploading,
     required this.onSend,
     required this.onAttach,
+    required this.onVoiceRecorded,
   });
 
   final TextEditingController controller;
@@ -484,6 +504,8 @@ class _MessageInputBar extends StatelessWidget {
   final bool uploading;
   final VoidCallback onSend;
   final VoidCallback onAttach;
+  final void Function(List<int> bytes, String filename, int durationSeconds)
+  onVoiceRecorded;
 
   @override
   Widget build(BuildContext context) {
@@ -501,6 +523,10 @@ class _MessageInputBar extends StatelessWidget {
               onPressed: uploading ? null : onAttach,
               icon: const Icon(Icons.attach_file_rounded),
               color: AppColors.textSecondary,
+            ),
+            VoiceMessageRecorderButton(
+              enabled: !uploading,
+              onRecorded: onVoiceRecorded,
             ),
             Expanded(
               child: TextField(

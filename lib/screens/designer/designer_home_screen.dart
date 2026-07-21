@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_bottom_nav_bar.dart';
 import '../shared/splash_router.dart';
 import '../shared/app_drawer.dart';
 import 'designer_dashboard_tab.dart';
@@ -82,29 +83,23 @@ class _DesignerHomeScreenState extends State<DesignerHomeScreen> {
       ),
       // No floatingActionButton — 3-no: absolute zero write access.
       body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: NeoBottomNavBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        // Smaller footprint than the default NavigationBar (which uses a
-        // 32px selection indicator + 24px icons) — the designer's shell
-        // only has 3 tabs and reads better compact, matching the request
-        // to shrink these icons.
-        height: 56,
-        labelTextStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 11)),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined, size: 20),
-            selectedIcon: Icon(Icons.dashboard, size: 20),
+        items: const [
+          NeoNavItem(
+            icon: Icons.dashboard_outlined,
+            selectedIcon: Icons.dashboard,
             label: 'الرئيسية',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.groups_outlined, size: 20),
-            selectedIcon: Icon(Icons.groups, size: 20),
+          NeoNavItem(
+            icon: Icons.groups_outlined,
+            selectedIcon: Icons.groups,
             label: 'الموظفون',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline, size: 20),
-            selectedIcon: Icon(Icons.chat_bubble, size: 20),
+          NeoNavItem(
+            icon: Icons.chat_bubble_outline,
+            selectedIcon: Icons.chat_bubble,
             label: 'المحادثات',
           ),
         ],

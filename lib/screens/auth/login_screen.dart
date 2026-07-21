@@ -67,115 +67,6 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  /// Opens the "forgot password" dialog. Pre-fills the email field from
-  /// [_emailCtrl] if the user already typed one on the login form.
-  Future<void> _showForgotPasswordDialog() async {
-    final resetEmailCtrl = TextEditingController(text: _emailCtrl.text);
-    final resetFormKey = GlobalKey<FormState>();
-    bool isSending = false;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              title: const Text('نسيت كلمة المرور؟'),
-              content: Form(
-                key: resetFormKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Explicit confirmation of ownership: the employee or
-                    // manager types the new password themselves via the
-                    // emailed link — the system/manager never sets or sees
-                    // it. This is the exact assurance requested.
-                    // NOTE: AppTextStyles.bodySm hardcodes Colors.white70,
-                    // tuned for the dark glass-card login background — but
-                    // AlertDialog renders on a white surface, so that
-                    // style must be overridden here or the text is
-                    // invisible (white-on-white).
-                    Text(
-                      'سيُرسَل رابط إعادة تعيين كلمة المرور إلى البريد '
-                      'الإلكتروني المسجَّل. كلمة المرور الجديدة سيُدخلها '
-                      'الموظف أو المدير بنفسه عبر ذلك الرابط، ولن يطّلع '
-                      'عليها أو يحددها أي شخص آخر.',
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: resetEmailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      textDirection: TextDirection.ltr,
-                      textAlign: TextAlign.left,
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                        labelText: 'البريد الإلكتروني',
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'أدخل البريد الإلكتروني'
-                          : null,
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSending
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(),
-                  child: const Text('إلغاء'),
-                ),
-                FilledButton(
-                  onPressed: isSending
-                      ? null
-                      : () async {
-                          if (!(resetFormKey.currentState?.validate() ??
-                              false)) {
-                            return;
-                          }
-                          setDialogState(() => isSending = true);
-                          final auth = context.read<AuthProvider>();
-                          final error = await auth.sendPasswordResetEmail(
-                            resetEmailCtrl.text,
-                          );
-                          if (!dialogContext.mounted) return;
-                          Navigator.of(dialogContext).pop();
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                error ??
-                                    'تم إرسال رابط إعادة التعيين، تحقّق من '
-                                        'بريدك الإلكتروني',
-                              ),
-                              backgroundColor: error != null
-                                  ? AppColors.statusRejected
-                                  : AppColors.statusApproved,
-                            ),
-                          );
-                        },
-                  child: isSending
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('إرسال رابط إعادة التعيين'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-    resetEmailCtrl.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -291,21 +182,7 @@ class _LoginScreenState extends State<LoginScreen>
                               ? 'أدخل كلمة المرور'
                               : null,
                         ),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton(
-                            onPressed: auth.isLoading
-                                ? null
-                                : _showForgotPasswordDialog,
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, 32),
-                            ),
-                            child: const Text('نسيت كلمة المرور؟'),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
                         ElevatedButton(
                           onPressed: auth.isLoading ? null : _submit,
                           child: auth.isLoading

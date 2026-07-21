@@ -5,6 +5,7 @@ import '../../providers/message_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/neo_bottom_nav_bar.dart';
 import '../shared/splash_router.dart';
 import '../shared/app_drawer.dart';
 import 'employee_tasks_tab.dart';
@@ -83,50 +84,44 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
           EmployeePollsTab(employeeUid: employeeUid),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: unviewedTasks > 0,
-              label: Text('$unviewedTasks'),
-              child: const Icon(Icons.checklist_outlined),
-            ),
-            selectedIcon: const Icon(Icons.checklist),
-            label: 'مهامي',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
-            label: 'التقويم',
-          ),
-          StreamBuilder<int>(
-            stream: context
-                .watch<MessageProvider>()
-                .watchTotalUnreadCountForUser(employeeUid),
-            initialData: context
-                .read<MessageProvider>()
-                .totalUnreadCountForUser(employeeUid),
-            builder: (context, snapshot) {
-              final unread = snapshot.data ?? 0;
-              return NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: unread > 0,
-                  label: Text('$unread'),
-                  child: const Icon(Icons.chat_bubble_outline),
-                ),
-                selectedIcon: const Icon(Icons.chat_bubble),
+      bottomNavigationBar: StreamBuilder<int>(
+        stream: context.watch<MessageProvider>().watchTotalUnreadCountForUser(
+          employeeUid,
+        ),
+        initialData: context.read<MessageProvider>().totalUnreadCountForUser(
+          employeeUid,
+        ),
+        builder: (context, snapshot) {
+          final unread = snapshot.data ?? 0;
+          return NeoBottomNavBar(
+            selectedIndex: _index,
+            onDestinationSelected: (i) => setState(() => _index = i),
+            items: [
+              NeoNavItem(
+                icon: Icons.checklist_outlined,
+                selectedIcon: Icons.checklist,
+                label: 'مهامي',
+                badgeCount: unviewedTasks,
+              ),
+              const NeoNavItem(
+                icon: Icons.calendar_month_outlined,
+                selectedIcon: Icons.calendar_month,
+                label: 'التقويم',
+              ),
+              NeoNavItem(
+                icon: Icons.chat_bubble_outline,
+                selectedIcon: Icons.chat_bubble,
                 label: 'المحادثة',
-              );
-            },
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.how_to_vote_outlined),
-            selectedIcon: Icon(Icons.how_to_vote),
-            label: 'تصويت',
-          ),
-        ],
+                badgeCount: unread,
+              ),
+              const NeoNavItem(
+                icon: Icons.how_to_vote_outlined,
+                selectedIcon: Icons.how_to_vote,
+                label: 'تصويت',
+              ),
+            ],
+          );
+        },
       ),
       backgroundColor: AppColors.background,
     );

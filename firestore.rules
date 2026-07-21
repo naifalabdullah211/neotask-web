@@ -139,17 +139,26 @@ service cloud.firestore {
            request.resource.data.accountStatus == 'pendingApproval')
         );
 
-      // Only a manager may update another user's doc, and ONLY the
-      // approval-workflow fields (accountStatus/approvedBy/approvedAt) —
-      // this specifically prevents any client from writing `role` after
-      // creation (blocks self-promotion to manager) and prevents a manager
-      // from silently rewriting someone else's email/name via this path.
-      // No self-update path exists in the current app (see
-      // AuthProvider.approveEmployee/rejectEmployee/deleteEmployee — all
-      // manager-actor-only), so isOwner() is deliberately NOT included here.
-      allow update: if isManager() &&
+      // Two update paths:
+      //   1) Manager updating ANOTHER user's doc — ONLY the
+      //      approval-workflow fields (accountStatus/approvedBy/
+      //      approvedAt). This specifically prevents any client from
+      //      writing `role` after creation (blocks self-promotion to
+      //      manager) and prevents a manager from silently rewriting
+      //      someone else's email/name via this path.
+      //   2) Self-service preference update (NEW, added for the Settings
+      //      screen) — see branch below.
+      allow update: if (isManager() &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['accountStatus', 'approvedBy', 'approvedAt']);
+          .hasOnly(['accountStatus', 'approvedBy', 'approvedAt'])) ||
+        // Self-service preference update (NEW — Settings screen: sound
+        // toggles §3(أ) + reminders toggle §3(ب)). Any signed-in user may
+        // update ONLY their OWN doc, and ONLY these three boolean
+        // preference fields — role/accountStatus/email/etc. remain
+        // exclusively manager-controlled via the branch above.
+        (isOwner(uid) &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['soundMessagesEnabled', 'soundTasksEnabled', 'remindersEnabled']));
 
       allow delete: if false; // soft-delete only, via accountStatus field
     }
@@ -685,6 +694,62 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
 
       allow delete: if false;
+    }
+
+    // ---- password_change_audit (Part 1 — manager-driven password reset
+    //      audit trail) ----
+    // Append-only log of WHO changed a password, FOR WHOM, and WHEN. The
+    // actual password value is NEVER written here (see
+    // manager_employees_tab.dart's _startChangePasswordFlow) — only uids,
+    // display names, and a timestamp. Only a manager may write an entry
+    // (mirrors the fact that only the adminResetPassword Cloud Function's
+    // caller-side UI writes this), and only managers may read the log
+    // back (this is an internal admin audit trail, not a user-facing
+    // notification).
+    match /password_change_audit/{entryId} {
+      allow read: if isManager();
+      allow create: if isManager() &&
+        request.resource.data.changedByUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ---- manager_digests ("ملخص المدير اليومي/الأسبوعي") — NEW.
+    //      See manager_digest_model.dart doc comment: one immutable
+    //      document per manager per calendar day, doc ID ==
+    //      "{managerUid}_{dateKey}", generated CLIENT-SIDE (no Cloud
+    //      Scheduler — Blaze plan unavailable, same documented constraint
+    //      as polls'/tasks' auto-close/reminder features) by
+    //      DigestProvider.maybeGenerateTodayDigest the first time the
+    //      manager's dashboard opens on a given day.
+    //      VISIBILITY: manager role ONLY, and only their OWN digests —
+    //      never shared across managers, never readable by
+    //      employee/designer roles.
+    match /manager_digests/{digestId} {
+      // BUGFIX (found by empirical rules test, 2026-07-18): the original
+      // condition `resource.data.managerUid == request.auth.uid` fails
+      // with PERMISSION_DENIED for a NON-EXISTENT document (`resource` is
+      // null when the doc doesn't exist yet), which is exactly the case
+      // on the FIRST read of the day (DigestProvider.getDigest's
+      // existence check, called before any digest has ever been
+      // generated). Since `digestId` is itself the deterministic
+      // "{managerUid}_{dateKey}" string, checking that the requested ID
+      // is prefixed with the caller's own uid is sufficient to enforce
+      // per-manager ownership WITHOUT depending on `resource` existing.
+      allow read: if isManager() &&
+        digestId.matches(request.auth.uid + '_.*');
+
+      // Created exactly once per day by the digest's own manager — the
+      // deterministic doc ID (managerUid_dateKey) combined with
+      // DigestProvider's own "does it already exist?" pre-check is what
+      // prevents duplicate generation attempts; this rule only enforces
+      // WHO may create and that the document is self-attributed.
+      allow create: if isManager() &&
+        request.resource.data.managerUid == request.auth.uid &&
+        request.resource.data.id == digestId;
+
+      // Immutable after creation — no legitimate reason to ever edit a
+      // past digest (it is a point-in-time snapshot, not a live view).
+      allow update, delete: if false;
     }
   }
 }
