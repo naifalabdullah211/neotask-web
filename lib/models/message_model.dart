@@ -33,9 +33,24 @@ class ChatMessage {
   final String text;
   final String? attachmentUrl;
   final String? attachmentName;
-  final String? attachmentType; // 'image' | 'file'
+  final String? attachmentType; // 'image' | 'file' | 'voice'
   final DateTime timestamp;
   final DateTime? readAt;
+
+  /// REPLY-TO-MESSAGE FEATURE: when non-null, this message is a reply to
+  /// the message with this `messageId` (within the SAME conversationId —
+  /// reply targets are never cross-conversation). The original message's
+  /// full content is looked up client-side from the already-loaded
+  /// conversation message list (see ChatThreadBody._quotedMessageFor) —
+  /// deliberately NOT duplicated/denormalized onto this message, since
+  /// the whole conversation is already held in memory (same pattern as
+  /// every other list in this codebase — see FirestoreService's
+  /// in-memory-cache doc comment). If the original message is ever
+  /// unavailable (should not normally happen, since messages are
+  /// append-only / delete is disabled — see firestore.rules), the UI
+  /// falls back to a "الرسالة الأصلية غير متاحة" placeholder instead of
+  /// crashing.
+  final String? replyToMessageId;
 
   ChatMessage({
     required this.messageId,
@@ -49,6 +64,7 @@ class ChatMessage {
     this.attachmentType,
     required this.timestamp,
     this.readAt,
+    this.replyToMessageId,
   });
 
   /// Deterministic conversationId for the general (task-independent) DM
@@ -72,6 +88,7 @@ class ChatMessage {
       attachmentType: attachmentType,
       timestamp: timestamp,
       readAt: readAt ?? this.readAt,
+      replyToMessageId: replyToMessageId,
     );
   }
 
@@ -88,6 +105,7 @@ class ChatMessage {
       'attachmentType': attachmentType,
       'timestamp': timestamp.toIso8601String(),
       'readAt': readAt?.toIso8601String(),
+      'replyToMessageId': replyToMessageId,
     };
   }
 
@@ -108,6 +126,9 @@ class ChatMessage {
       readAt: map['readAt'] != null
           ? DateTime.parse(map['readAt'] as String)
           : null,
+      // Safe cast — absent for every message sent before this feature
+      // existed, which correctly resolves to "not a reply".
+      replyToMessageId: map['replyToMessageId'] as String?,
     );
   }
 }

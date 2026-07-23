@@ -85,6 +85,7 @@ class MessageProvider extends ChangeNotifier {
     String? attachmentUrl,
     String? attachmentName,
     String? attachmentType,
+    String? replyToMessageId,
   }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty && attachmentUrl == null) return;
@@ -99,6 +100,7 @@ class MessageProvider extends ChangeNotifier {
       attachmentName: attachmentName,
       attachmentType: attachmentType,
       timestamp: DateTime.now(),
+      replyToMessageId: replyToMessageId,
     );
     await FirestoreService.saveMessage(message);
   }
