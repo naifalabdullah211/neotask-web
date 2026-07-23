@@ -103,6 +103,7 @@ flutter:
   assets:
     - assets/images/neotask_logo.png
     - assets/images/neotask_logo_full.png
+    - assets/images/login_bg.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
