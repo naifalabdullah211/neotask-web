@@ -32,7 +32,6 @@ jobs:
           echo "Started: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> deploy-error.log
 
       - name: Set up Flutter
-        id: flutter_setup
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.35.4'
@@ -57,18 +56,59 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
         run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "ERROR: Firebase service-account secret is missing" | tee -a deploy-error.log
-            exit 1
-          fi
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
-          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
-          python - <<'PY'
-          import json, os
-          p = os.path.join(os.environ['RUNNER_TEMP'], 'firebase-service-account.json')
-          with open(p, encoding='utf-8') as f:
-              data = json.load(f)
-          print('Firebase service account JSON validated for project:', data.get('project_id'))
+          python - <<'PY' 2>&1 | tee -a deploy-error.log
+          import base64
+          import json
+          import os
+          import sys
+
+          raw = os.environ.get('FIREBASE_SERVICE_ACCOUNT', '').strip()
+          if not raw:
+              print('ERROR: GitHub secret FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 is empty or missing')
+              sys.exit(1)
+
+          candidates = [raw]
+          if (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'")):
+              candidates.append(raw[1:-1])
+          try:
+              decoded = base64.b64decode(raw, validate=True).decode('utf-8')
+              candidates.append(decoded)
+          except Exception:
+              pass
+
+          data = None
+          last_error = None
+          for candidate in candidates:
+              try:
+                  parsed = json.loads(candidate)
+                  if isinstance(parsed, str):
+                      parsed = json.loads(parsed)
+                  if isinstance(parsed, dict):
+                      data = parsed
+                      break
+              except Exception as exc:
+                  last_error = exc
+
+          if data is None:
+              print('ERROR: Firebase secret is present but is not valid JSON')
+              print('Safe diagnostic: secret length =', len(raw))
+              print('Parser error type =', type(last_error).__name__ if last_error else 'unknown')
+              sys.exit(1)
+
+          required = ['type', 'project_id', 'private_key', 'client_email', 'token_uri']
+          missing = [key for key in required if not data.get(key)]
+          if missing:
+              print('ERROR: Firebase JSON is missing required fields:', ', '.join(missing))
+              sys.exit(1)
+          if data.get('project_id') != 'neotask1-ff5a4':
+              print('ERROR: Firebase project_id mismatch:', data.get('project_id'))
+              sys.exit(1)
+
+          destination = os.path.join(os.environ['RUNNER_TEMP'], 'firebase-service-account.json')
+          with open(destination, 'w', encoding='utf-8') as handle:
+              json.dump(data, handle)
+          os.chmod(destination, 0o600)
+          print('Firebase service account validated for project neotask1-ff5a4')
           PY
 
       - name: Install Firebase CLI
@@ -89,15 +129,15 @@ jobs:
           echo "Failed: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> deploy-error.log
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deploy-error.log
+          git add -f deploy-error.log
           git commit -m "chore: save NeoTask deployment failure log [skip ci]" || true
           git push
 
       - name: Remove stale diagnostic after success
         if: success()
         run: |
-          if [ -f deploy-error.log ] && git ls-files --error-unmatch deploy-error.log >/dev/null 2>&1; then
-            git rm deploy-error.log
+          if git ls-files --error-unmatch deploy-error.log >/dev/null 2>&1; then
+            git rm -f deploy-error.log
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git commit -m "chore: clear NeoTask deployment failure log [skip ci]" || true
