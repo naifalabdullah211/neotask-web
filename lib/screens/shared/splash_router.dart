@@ -20,67 +20,129 @@ class SplashRouter extends StatefulWidget {
 class _SplashRouterState extends State<SplashRouter> {
   bool _checked = false;
   String? _inviteToken;
+  String? _startupMessage;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Detect an invite link of the form ".../?invite=TOKEN" (web only).
-      // This lets the manager share a single-use registration URL.
-      final uri = Uri.base;
-      final token = uri.queryParameters['invite'];
-      final auth = context.read<AuthProvider>();
-      await auth.restoreSession();
-      if (mounted) {
-        setState(() {
-          _inviteToken = (token != null && token.isNotEmpty) ? token : null;
-          _checked = true;
-        });
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    final uri = Uri.base;
+    final token = uri.queryParameters['invite'];
+    final auth = context.read<AuthProvider>();
+
+    try {
+      // Never allow Firestore/session restoration to trap the whole app on
+      // the splash screen. A slow or blocked network now falls back to the
+      // appropriate setup/login route instead of spinning forever.
+      await auth.restoreSession().timeout(const Duration(seconds: 12));
+    } catch (_) {
+      _startupMessage =
+          'تعذّر استعادة الجلسة تلقائيًا، يمكنك تسجيل الدخول من جديد';
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _inviteToken = (token != null && token.isNotEmpty) ? token : null;
+      _checked = true;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_checked) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _NeoTaskLogo(),
-              SizedBox(height: 24),
-              CircularProgressIndicator(),
+              const _NeoTaskLogo(),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 14),
+              const Text(
+                'جار تشغيل NeoTask',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'لن يستغرق أكثر من 12 ثانية',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
         ),
       );
     }
 
-    // If an invite token is present in the URL and there is no active
-    // logged-in session, always show the registration screen first.
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
+        Widget destination;
+
         if (_inviteToken != null && !auth.isLoggedIn) {
-          return RegisterViaInviteScreen(token: _inviteToken!);
+          destination = RegisterViaInviteScreen(token: _inviteToken!);
+        } else if (!auth.isLoggedIn) {
+          destination = auth.managerExists
+              ? const LoginScreen()
+              : const ManagerSetupScreen();
+        } else {
+          final user = auth.currentUser!;
+          if (user.accountStatus == AccountStatus.pendingApproval) {
+            destination = const PendingApprovalScreen();
+          } else if (user.role == UserRole.manager) {
+            destination = const ManagerHomeScreen();
+          } else if (user.role == UserRole.designer) {
+            destination = const DesignerHomeScreen();
+          } else {
+            destination = const EmployeeHomeScreen();
+          }
         }
-        if (!auth.isLoggedIn) {
-          if (!auth.managerExists) return const ManagerSetupScreen();
-          return const LoginScreen();
-        }
-        final user = auth.currentUser!;
-        if (user.accountStatus == AccountStatus.pendingApproval) {
-          return const PendingApprovalScreen();
-        }
-        if (user.role == UserRole.manager) {
-          return const ManagerHomeScreen();
-        }
-        // Read-only designer/observer account (see UserRole.designer in
-        // user_model.dart) — must be checked before the employee fallback.
-        if (user.role == UserRole.designer) {
-          return const DesignerHomeScreen();
-        }
-        return const EmployeeHomeScreen();
+
+        if (_startupMessage == null) return destination;
+
+        return Stack(
+          children: [
+            Positioned.fill(child: destination),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 20,
+              child: SafeArea(
+                child: Material(
+                  color: const Color(0xFF1B3A6B),
+                  borderRadius: BorderRadius.circular(14),
+                  elevation: 6,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Colors.white),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _startupMessage!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
       },
     );
   }
@@ -91,10 +153,6 @@ class _NeoTaskLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Opaque white card behind the logo — same fix applied to
-    // login_screen.dart. The logo's dark navy wordmark has low contrast
-    // directly on the dark navy/slate background gradient; mounting it on
-    // white restores legibility instead of just adding a drop shadow.
     return Container(
       width: 220,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
