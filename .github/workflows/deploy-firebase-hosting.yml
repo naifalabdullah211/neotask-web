@@ -97,4 +97,4 @@ jobs:
           git commit -m "chore: save NeoTask deployment failure log [skip ci]" || true
           git push || true
 
-# force hosting-site discovery: 2026-08-01T01:15+03:00
+# force modern interface deployment: 2026-08-01T01:34+03:00
