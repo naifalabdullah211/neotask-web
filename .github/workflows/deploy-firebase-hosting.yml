@@ -116,3 +116,5 @@ jobs:
             git commit -m "chore: clear NeoTask deployment failure log [skip ci]" || true
             git push
           fi
+
+# deployment retrigger: 2026-08-01T01:01+03:00
