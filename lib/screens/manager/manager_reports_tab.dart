@@ -25,14 +25,32 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
   String? _selectedEmployeeUid;
   bool _exporting = false;
 
+  // Manager personal tasks (المهام الشخصية للمدير) — NEW: the day/week/
+  // month branches must exclude `isPersonal` tasks so a manager's own
+  // reminder is never counted into a team performance report (see
+  // TaskProvider.teamTasks doc comment). The `employee` branch is
+  // deliberately left unfiltered: `tasksForEmployee` is keyed by
+  // `_selectedEmployeeUid`, which is only ever populated from
+  // FirestoreService.getAllEmployees() (see the dropdown below) — the
+  // manager's own uid is never a selectable value there, so this branch
+  // can never surface a personal task in the first place.
   List<AppTask> _filteredTasks(TaskProvider provider) {
     switch (_range) {
       case _ReportRange.day:
-        return provider.tasksForDay(_anchor);
+        return provider
+            .tasksForDay(_anchor)
+            .where((t) => !t.isPersonal)
+            .toList();
       case _ReportRange.week:
-        return provider.tasksForWeek(_anchor);
+        return provider
+            .tasksForWeek(_anchor)
+            .where((t) => !t.isPersonal)
+            .toList();
       case _ReportRange.month:
-        return provider.tasksForMonth(_anchor);
+        return provider
+            .tasksForMonth(_anchor)
+            .where((t) => !t.isPersonal)
+            .toList();
       case _ReportRange.employee:
         if (_selectedEmployeeUid == null) return [];
         return provider.tasksForEmployee(_selectedEmployeeUid!);

@@ -11,6 +11,7 @@ import 'settings_screen.dart';
 import 'splash_router.dart';
 import '../manager/manager_calendar_screen.dart';
 import '../manager/manager_polls_tab.dart';
+import '../manager/manager_my_tasks_screen.dart';
 
 /// Shared side-menu ("Drawer") giving BOTH manager and employee access to
 /// the secondary feature set that does not fit into the bottom
@@ -178,6 +179,19 @@ class _AppDrawerState extends State<AppDrawer> {
                           label: 'تصويت',
                           isActive: activeKey == 'polls',
                           onTap: () => push('polls', const ManagerPollsTab()),
+                        ),
+                      // مهامي الشخصية — manager-only (المهام الشخصية
+                      // للمدير, NEW). Not shown to employees/designer: a
+                      // "personal task" is defined as assignedTo ==
+                      // assignedBy (see AppTaskStatusX.isPersonal), which
+                      // is only meaningful for the manager role.
+                      if (isManager)
+                        _DrawerNavTile(
+                          icon: Icons.checklist,
+                          label: 'مهامي الشخصية',
+                          isActive: activeKey == 'my_tasks',
+                          onTap: () =>
+                              push('my_tasks', const ManagerMyTasksScreen()),
                         ),
                       _DrawerNavTile(
                         icon: Icons.folder_outlined,

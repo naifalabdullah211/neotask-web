@@ -42,6 +42,9 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
   final _categoryCtrl = TextEditingController(text: 'عام');
 
   AppUser? _selectedEmployee;
+  // Manager personal tasks (المهام الشخصية للمدير) — NEW. See the same
+  // toggle in ManagerCreateTaskScreen for the full rationale.
+  bool _isPersonal = false;
   DateTime _dueDate = DateTime.now().add(const Duration(days: 1));
   TaskPriority _priority = TaskPriority.medium;
   bool _saving = false;
@@ -65,7 +68,8 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedEmployee == null) {
+    final managerUid = context.read<AuthProvider>().currentUser!.uid;
+    if (!_isPersonal && _selectedEmployee == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('يرجى اختيار الموظف المسؤول عن المهمة')),
       );
@@ -73,12 +77,11 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
     }
 
     setState(() => _saving = true);
-    final managerUid = context.read<AuthProvider>().currentUser!.uid;
     try {
       await context.read<TaskProvider>().createTask(
         title: _titleCtrl.text.trim(),
         description: '',
-        assignedTo: _selectedEmployee!.uid,
+        assignedTo: _isPersonal ? managerUid : _selectedEmployee!.uid,
         assignedBy: managerUid,
         dueDate: _dueDate,
         priority: _priority,
@@ -156,31 +159,51 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
                           : null,
                     ),
                     const SizedBox(height: 14),
-                    if (employees.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          'لا يوجد موظفون نشطون بعد. أضف موظفين أولًا من '
-                          'تبويب "الموظفون".',
-                          style: TextStyle(color: AppColors.statusRejected),
+                    // Manager personal tasks (المهام الشخصية للمدير) — NEW.
+                    const Text(
+                      'نوع المهمة',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('لفريق')),
+                        ButtonSegment(value: true, label: Text('شخصية')),
+                      ],
+                      selected: {_isPersonal},
+                      onSelectionChanged: (s) =>
+                          setState(() => _isPersonal = s.first),
+                    ),
+                    const SizedBox(height: 14),
+                    if (!_isPersonal)
+                      if (employees.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'لا يوجد موظفون نشطون بعد. أضف موظفين أولًا من '
+                            'تبويب "الموظفون".',
+                            style: TextStyle(color: AppColors.statusRejected),
+                          ),
+                        )
+                      else
+                        DropdownButtonFormField<AppUser>(
+                          initialValue: _selectedEmployee,
+                          decoration: const InputDecoration(
+                            labelText: 'إسناد إلى موظف',
+                          ),
+                          items: employees
+                              .map(
+                                (u) => DropdownMenuItem(
+                                  value: u,
+                                  child: Text(
+                                    '${u.name} (${u.employeeNumber})',
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) =>
+                              setState(() => _selectedEmployee = v),
                         ),
-                      )
-                    else
-                      DropdownButtonFormField<AppUser>(
-                        initialValue: _selectedEmployee,
-                        decoration: const InputDecoration(
-                          labelText: 'إسناد إلى موظف',
-                        ),
-                        items: employees
-                            .map(
-                              (u) => DropdownMenuItem(
-                                value: u,
-                                child: Text('${u.name} (${u.employeeNumber})'),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() => _selectedEmployee = v),
-                      ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _categoryCtrl,

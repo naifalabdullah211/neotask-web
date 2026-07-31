@@ -95,6 +95,26 @@ extension AppTaskStatusX on AppTask {
   /// wording ("لسه 'قيد الانتظار' أو 'قيد التنفيذ'").
   bool get isPendingOrInProgress =>
       status == TaskStatus.assigned || status == TaskStatus.inProgress;
+
+  // ---------------------------------------------------------------------
+  // Manager personal tasks (المهام الشخصية للمدير) — NEW feature.
+  //
+  // A "personal task" is simply a task the manager assigned to THEMSELF
+  // (`assignedTo == assignedBy`) instead of to an employee — used for the
+  // manager's own reminders/to-dos, distinct from delegated team work.
+  // Deliberately DERIVED (not a persisted field): it can never drift out
+  // of sync with assignedTo/assignedBy, and it requires zero migration
+  // for existing tasks or changes to `firestore.rules` (the existing
+  // `create` rule only checks `assignedBy == request.auth.uid`, which a
+  // self-assigned task already satisfies).
+  //
+  // Call sites that MUST treat this as exclusionary (never counted into
+  // team-wide aggregates) — see TaskProvider.teamTasks and its usages in
+  // manager_dashboard_tab.dart / manager_reports_tab.dart. Also see
+  // TaskProvider._dispatchOverdueNotification, which must notify ONLY
+  // the owning manager for a personal task instead of broadcasting to
+  // every manager account.
+  bool get isPersonal => assignedTo == assignedBy;
 }
 
 // ---------------------------------------------------------------------------

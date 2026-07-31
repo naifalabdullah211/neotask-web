@@ -138,6 +138,39 @@ class TaskProvider extends ChangeNotifier {
   }
 
   Future<void> _dispatchOverdueNotification(AppTask task) async {
+    // ---------------------------------------------------------------------
+    // Manager personal tasks (المهام الشخصية للمدير) — branch added.
+    //
+    // A personal task (`task.isPersonal`, i.e. assignedTo == assignedBy)
+    // has no "employee" to name and no "other managers" who should be
+    // informed — broadcasting via the unconditional getAllManagers() loop
+    // below would leak a manager's private reminder to every other manager
+    // account (a real risk: UserRole.manager is not a singleton role in
+    // this codebase — see user_model.dart). Route it as a single
+    // self-notification to the owning manager instead, with wording that
+    // does not reference a non-existent "assigned to" employee.
+    if (task.isPersonal) {
+      final manager = FirestoreService.getUser(task.assignedBy);
+      if (manager != null && !manager.remindersEnabled) return;
+      await FirestoreService.saveNotification(
+        AppNotification(
+          notificationId: _uuid.v4(),
+          recipientUid: task.assignedBy,
+          type: NotificationType.taskOverdue,
+          title: 'مهمتك الشخصية "${task.title}" أصبحت متأخرة',
+          body:
+              'تاريخ الاستحقاق: '
+              '${task.dueDate.year}/'
+              '${task.dueDate.month.toString().padLeft(2, '0')}/'
+              '${task.dueDate.day.toString().padLeft(2, '0')} — '
+              'الحالة الحالية: ${statusLabelAr(task.status.name)}',
+          relatedTaskId: task.taskId,
+          createdAt: DateTime.now(),
+        ),
+      );
+      return;
+    }
+
     final employee = FirestoreService.getUser(task.assignedTo);
     final employeeName = employee?.name ?? 'موظف غير معروف';
     final managers = FirestoreService.getAllManagers();
@@ -202,6 +235,53 @@ class TaskProvider extends ChangeNotifier {
   List<AppTask> tasksForEmployee(String uid) => _sortedWithCompletedLast(
     _allTasks.where((t) => t.assignedTo == uid).toList(),
   );
+
+  // ---------------------------------------------------------------------
+  // Manager personal tasks (المهام الشخصية للمدير) — NEW feature.
+  //
+  // [teamTasks] is the REQUIRED substitute for raw [allTasks] everywhere
+  // a screen computes team-wide aggregates (dashboard stat cards/chart,
+  // reports, the daily digest, the Kanban board): it excludes every
+  // `isPersonal` task so a manager's own reminder can never inflate
+  // team-performance numbers. This mirrors the exact discipline already
+  // established for [PrimaryTaskStatus] (see task_model.dart's
+  // "UNIFIED STATE-MACHINE FIX" comment) — one authoritative filtered
+  // list every aggregate call site must read from, instead of each
+  // screen re-deriving its own ad hoc exclusion.
+  List<AppTask> get teamTasks => _allTasks.where((t) => !t.isPersonal).toList();
+
+  /// The given manager's own personal tasks, sorted with completed last
+  /// (same ordering convention as every other task list in this class).
+  List<AppTask> personalTasksFor(String managerUid) => _sortedWithCompletedLast(
+    _allTasks.where((t) => t.isPersonal && t.assignedTo == managerUid).toList(),
+  );
+
+  /// Marks a personal task as done. Deliberately reuses [reviewDecision]
+  /// with decision `'approve'` rather than introducing a parallel
+  /// completion code path — a personal task's `assignedTo` IS its
+  /// `assignedBy`, so "the manager approves their own task" is not a
+  /// meaningless ceremony here, it is simply the existing terminal state
+  /// (`TaskStatus.approved` / [PrimaryTaskStatus.completed]) reached
+  /// through the one mutation method that already knows how to set
+  /// `reviewedAt`/`reviewedBy`/`reviewDecision` AND auto-create the next
+  /// recurring instance (see [reviewDecision]'s tail) — recurring
+  /// personal reminders (e.g. "راجع المخزون كل يوم اثنين") therefore work
+  /// with zero extra code. Skips the `submitted` status entirely on
+  /// purpose: there is no second party to submit work to.
+  Future<void> markPersonalTaskDone(String taskId, String managerUid) =>
+      reviewDecision(
+        taskId: taskId,
+        managerUid: managerUid,
+        decision: 'approve',
+      );
+
+  /// Reopens a completed personal task back to `assigned` — the personal
+  /// counterpart of a checkbox un-tick. Does not touch reviewedAt/
+  /// reviewedBy/reviewDecision (left as the historical record of the
+  /// last completion) since there is no review-audit requirement for a
+  /// self-assigned task.
+  Future<void> reopenPersonalTask(String taskId, String managerUid) =>
+      updateStatus(taskId, TaskStatus.assigned, managerUid);
 
   List<AppTask> get submittedForReview =>
       _allTasks.where((t) => t.status == TaskStatus.submitted).toList()..sort(

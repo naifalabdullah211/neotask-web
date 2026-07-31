@@ -70,15 +70,27 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
     await prefs.setString(_kViewModePrefKey, mode.name);
   }
 
+  // Manager personal tasks (المهام الشخصية للمدير) — NEW: excludes
+  // `isPersonal` tasks from the result feeding every stat card/chart on
+  // this dashboard, so a manager's own reminder can never inflate
+  // team-performance numbers (see TaskProvider.teamTasks doc comment for
+  // the full rationale — this filter is the equivalent applied to the
+  // date-scoped lists this method returns, since tasksForDay/Week/Month
+  // have no employeeUid-style param to exclude personal tasks upstream).
   List<AppTask> _tasksForRange(TaskProvider provider) {
+    final List<AppTask> tasks;
     switch (_mode) {
       case _RangeMode.day:
-        return provider.tasksForDay(_anchor);
+        tasks = provider.tasksForDay(_anchor);
+        break;
       case _RangeMode.week:
-        return provider.tasksForWeek(_anchor);
+        tasks = provider.tasksForWeek(_anchor);
+        break;
       case _RangeMode.month:
-        return provider.tasksForMonth(_anchor);
+        tasks = provider.tasksForMonth(_anchor);
+        break;
     }
+    return tasks.where((t) => !t.isPersonal).toList();
   }
 
   void _shift(int direction) {
@@ -215,7 +227,10 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
 
     digestProvider.maybeGenerateTodayDigest(
       managerUid: managerUid,
-      allTasks: taskProvider.allTasks,
+      // teamTasks (not allTasks) — excludes the manager's own personal
+      // tasks so the daily digest never surfaces a private reminder as
+      // team activity (see TaskProvider.teamTasks doc comment).
+      allTasks: taskProvider.teamTasks,
       allPolls: pollProvider.allPolls,
       activeEmployees: activeEmployees,
       allGoals: allGoals,
@@ -308,9 +323,13 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
                     )
                   : TaskKanbanBoard(
                       // Kanban ignores the day/week/month filter entirely —
-                      // it always shows EVERY current task (all statuses),
-                      // grouped by status only (per explicit requirement).
-                      tasks: provider.allTasks,
+                      // it always shows EVERY current TEAM task (all
+                      // statuses), grouped by status only (per explicit
+                      // requirement). teamTasks (not allTasks) excludes the
+                      // manager's own personal tasks — see "مهامي الشخصية"
+                      // (ManagerMyTasksScreen) for where those belong
+                      // instead.
+                      tasks: provider.teamTasks,
                       canDrag: true,
                       onTapTask: (t) => Navigator.of(context).push(
                         MaterialPageRoute(
