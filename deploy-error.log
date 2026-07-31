@@ -1,6 +1,6 @@
 NeoTask deployment diagnostic
-Commit: e3202f663dc99f1b47c123f8eb99072b1f5adce8
-Started: 2026-07-31T21:53:53Z
+Commit: e7ec08e72b5c20eaac2a1ffcd3a1983b29b4480e
+Started: 2026-07-31T21:58:02Z
 Flutter 3.35.4 • channel stable • https://github.com/flutter/flutter.git
 Framework • revision d693b4b9db (11 months ago) • 2025-09-16 14:27:41 +0000
 Engine • hash feee8ee8fb8b975dd9990f86d3bda11e6e75faf3 (revision c298091351) (10 months ago) • 2025-09-15 14:04:24.000Z
@@ -154,9 +154,6 @@ Wasm dry run succeeded. Consider building and testing your application with the 
 Use --no-wasm-dry-run to disable these warnings.
 Font asset "CupertinoIcons.ttf" was tree-shaken, reducing it from 257628 to 1472 bytes (99.4% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
 Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 25948 bytes (98.4% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
-Compiling lib/main.dart for the Web...                             35.4s
+Compiling lib/main.dart for the Web...                             49.4s
 ✓ Built build/web
-ERROR: Firebase secret is present but is not valid JSON
-Safe diagnostic: secret length = 2379
-Parser error type = JSONDecodeError
-Failed: 2026-07-31T21:55:40Z
+Failed: 2026-07-31T22:00:14Z
