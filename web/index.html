@@ -96,8 +96,22 @@
   <script>
     if ('serviceWorker' in navigator) {
       let refreshing = false;
+      // CRITICAL FIX (previously caused a forced reload on EVERY first-ever
+      // visit, not just genuine updates): 'controllerchange' fires whenever
+      // a service worker starts controlling this page — including the
+      // very first install, when there was no prior controller at all.
+      // The original code assumed (incorrectly, per observed Chrome
+      // behavior) that this event "never fires on first install", and
+      // therefore reloaded unconditionally, doubling load time for every
+      // fresh visitor and, under slow/unstable networks, interrupting the
+      // in-flight main.dart.js/CanvasKit download mid-fetch — this is what
+      // produced the reported "complete blank white page" on first load.
+      // Fix: only treat it as a real update (worth reloading for) if this
+      // page load was ALREADY being served by an older controller before
+      // the change — i.e. skip the reload on a genuine first install.
+      const hadControllerAtLoad = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
+        if (refreshing || !hadControllerAtLoad) return;
         refreshing = true;
         window.location.reload();
       });
