@@ -67,6 +67,62 @@
     window.firebase_auth = await import("./firebase-sdk/firebase-auth.js");
     window.firebase_firestore = await import("./firebase-sdk/firebase-firestore.js");
   </script>
+
+  <!--
+    PWA UPDATE-DETECTION FIX (added after a live-deploy diagnosis: a new
+    feature was confirmed present on the server, byte-identical between
+    local build and the live site, yet a logged-in manager's device kept
+    showing the OLD app — because Flutter's generated
+    flutter_service_worker.js already calls self.skipWaiting() +
+    self.clients.claim() on install/activate, but a browser only checks
+    for a NEW service worker file on its own schedule (roughly every 24h)
+    unless a page explicitly asks it to. An already-open tab (or an
+    installed PWA that's never fully closed) can therefore keep running a
+    stale cached bundle indefinitely with no visible error.
+
+    Fix, in two parts:
+      1. On load AND periodically while the tab stays open, explicitly
+         call registration.update() to force the browser to re-fetch
+         flutter_service_worker.js and notice a new deploy promptly
+         instead of waiting for its own internal schedule.
+      2. Once a new service worker actually takes over this page
+         (the 'controllerchange' event — which only fires on an UPDATE,
+         never on first install, since there is no previous controller to
+         change from), reload once automatically so the new version is
+         picked up without the user needing to manually clear site data.
+         The `refreshing` guard prevents a reload loop if the browser
+         fires this event more than once.
+  -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
+      const checkForUpdate = () => {
+        navigator.serviceWorker.getRegistration().then((reg) => {
+          if (reg) reg.update();
+        });
+      };
+
+      window.addEventListener('load', () => {
+        checkForUpdate();
+        // Re-check whenever the tab regains focus/visibility, and on a
+        // 60s interval while it stays open/visible — covers both the
+        // "left the tab open all day" and the "switched back to it"
+        // cases without depending on the browser's own ~24h SW check.
+        setInterval(() => {
+          if (document.visibilityState === 'visible') checkForUpdate();
+        }, 60000);
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') checkForUpdate();
+        });
+      });
+    }
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
