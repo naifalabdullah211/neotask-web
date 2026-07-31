@@ -18,7 +18,7 @@ import 'providers/criterion_provider.dart';
 import 'providers/poll_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/digest_provider.dart';
-import 'theme/app_theme.dart';
+import 'providers/interface_style_provider.dart';
 import 'screens/shared/splash_router.dart';
 
 Future<void> main() async {
@@ -28,27 +28,9 @@ Future<void> main() async {
   StackTrace? startupStack;
 
   try {
-    // Firebase MUST be initialized before FirestoreService.init() since the
-    // latter opens live snapshot listeners against Cloud Firestore.
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-
-    // If Firebase.initializeApp() above failed to actually register a
-    // default app (e.g. threw internally but was mis-caught, or on a
-    // platform where FirebaseOptions are still placeholders), calling
-    // FirestoreService.initPublic() will otherwise throw an UNCAUGHT
-    // FirebaseException deep inside FirebaseFirestore.instance, which
-    // previously escaped main() entirely and silently prevented runApp()
-    // from ever being called (blank white screen with no visible error).
-    // A timeout is also added as defense-in-depth in case Firestore's
-    // snapshot listeners never resolve on a restricted network.
-    //
-    // NOTE: only the PUBLIC listeners (system/manager_lock + invitations)
-    // are started here — the rest (users/tasks/messages/...) require an
-    // authenticated session under the security rules and are started by
-    // AuthProvider once sign-in succeeds (see restoreSession/login/
-    // registerViaInvite/ensureManagerExists in auth_provider.dart).
     await FirestoreService.initPublic().timeout(const Duration(seconds: 20));
   } catch (e, st) {
     startupError = e;
@@ -66,10 +48,6 @@ Future<void> main() async {
   runApp(const NeoTaskApp());
 }
 
-/// Shown instead of a silent blank screen if Firebase/Firestore
-/// initialization fails or hangs. This makes startup failures diagnosable
-/// directly from the deployed app instead of requiring server-side log
-/// reproduction.
 class _StartupErrorApp extends StatelessWidget {
   const _StartupErrorApp({required this.error, required this.stackTrace});
 
@@ -141,25 +119,106 @@ class NeoTaskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PollProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => DigestProvider()),
+        ChangeNotifierProvider(
+          create: (_) => InterfaceStyleProvider()..load(),
+        ),
       ],
-      child: MaterialApp(
-        title: 'NeoTask',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        locale: const Locale('ar'),
-        supportedLocales: const [Locale('ar'), Locale('en')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        builder: (context, child) {
-          return Directionality(
-            textDirection: TextDirection.rtl,
-            child: child ?? const SizedBox.shrink(),
+      child: Consumer<InterfaceStyleProvider>(
+        builder: (context, interfaceStyle, _) {
+          return MaterialApp(
+            title: 'NeoTask',
+            debugShowCheckedModeBanner: false,
+            theme: interfaceStyle.theme,
+            locale: const Locale('ar'),
+            supportedLocales: const [Locale('ar'), Locale('en')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            builder: (context, child) {
+              final signedIn = context.watch<AuthProvider>().currentUser != null;
+              return Directionality(
+                textDirection: TextDirection.rtl,
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: child ?? const SizedBox.shrink()),
+                    if (signedIn)
+                      Positioned(
+                        top: MediaQuery.paddingOf(context).top + 10,
+                        left: 12,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Tooltip(
+                            message: interfaceStyle.isModern
+                                ? 'العودة للواجهة الكلاسيكية'
+                                : 'تفعيل الواجهة الجديدة',
+                            child: InkWell(
+                              onTap: interfaceStyle.toggle,
+                              borderRadius: BorderRadius.circular(999),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 13,
+                                  vertical: 9,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: interfaceStyle.isModern
+                                      ? const Color(0xFF1B3A6B)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: interfaceStyle.isModern
+                                        ? const Color(0xFF33D6A6)
+                                        : const Color(0xFFD6DEE9),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.12),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      interfaceStyle.isModern
+                                          ? Icons.auto_awesome_rounded
+                                          : Icons.dashboard_customize_outlined,
+                                      size: 18,
+                                      color: interfaceStyle.isModern
+                                          ? const Color(0xFF33D6A6)
+                                          : const Color(0xFF1B3A6B),
+                                    ),
+                                    const SizedBox(width: 7),
+                                    Text(
+                                      interfaceStyle.isModern
+                                          ? 'الواجهة الجديدة'
+                                          : 'الواجهة الكلاسيكية',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                        color: interfaceStyle.isModern
+                                            ? Colors.white
+                                            : const Color(0xFF1B3A6B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+            home: const SplashRouter(),
           );
         },
-        home: const SplashRouter(),
       ),
     );
   }
