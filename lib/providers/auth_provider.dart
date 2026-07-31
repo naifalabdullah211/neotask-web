@@ -6,18 +6,22 @@ import '../models/user_model.dart';
 import '../models/invitation_model.dart';
 import '../services/firestore_service.dart';
 
-/// AuthProvider — backed by real Firebase Authentication (email/password).
+/// AuthProvider — backed by real Firebase Authentication (email/password
+/// UNDER THE HOOD ONLY). Per explicit product requirement, the app never
+/// collects or shows a real email address anywhere: every account signs in
+/// with الرقم الوظيفي (employee number) + الرقم السري (password). Firebase
+/// Auth's email/password provider still requires an email-shaped
+/// identifier internally, so every account's Auth "email" is a
+/// deterministic SYNTHETIC value derived from its employeeNumber (see
+/// [_syntheticEmail]) — never a real address, never entered/seen by a
+/// human. Employee-number uniqueness is enforced for free by Firebase
+/// Auth's own email-uniqueness constraint on that synthetic value.
 ///
-/// SECURITY NOTE (replaces the previous interim mechanism): passwords are no
-/// longer stored or compared in Firestore. `FirebaseAuth.instance` now owns
-/// credential storage/verification entirely; the Firestore `users` document
-/// (`AppUser`) holds ONLY the non-secret profile fields (name, email,
-/// employeeNumber, role, accountStatus, ...) and is keyed by the Firebase
-/// Auth `uid` for every account.
-///
-/// The public method signatures below are UNCHANGED from the previous
-/// implementation on purpose — every screen that calls into this provider
-/// (14 files) continues to work without modification.
+/// SECURITY NOTE: passwords are not stored or compared in Firestore.
+/// `FirebaseAuth.instance` owns credential storage/verification entirely;
+/// the Firestore `users` document (`AppUser`) holds ONLY non-secret profile
+/// fields (name, email [synthetic], employeeNumber, role, accountStatus,
+/// ...), keyed by the Firebase Auth `uid`.
 class AuthProvider extends ChangeNotifier {
   AppUser? _currentUser;
   String? _authError;
@@ -36,6 +40,23 @@ class AuthProvider extends ChangeNotifier {
   bool get isDesigner => _currentUser?.role == UserRole.designer;
 
   static const _uuid = Uuid();
+
+  /// Deterministic synthetic Firebase-Auth email for a given employee
+  /// number. NEVER shown to a user, NEVER collected as real contact info —
+  /// purely an internal identifier so Firebase Auth's email/password
+  /// provider can be reused without asking anyone for an email address.
+  /// Sanitization strips everything except letters/digits and lower-cases,
+  /// so employee numbers containing spaces/dashes still produce a valid
+  /// email local-part; this also means two employee numbers that differ
+  /// only by such formatting collide on purpose (both are "the same"
+  /// number for login purposes).
+  static String _syntheticEmail(String employeeNumber) {
+    final cleaned = employeeNumber.trim().toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]'),
+      '',
+    );
+    return '$cleaned@neotask.local';
+  }
 
   /// Restores the session from Firebase Auth's own persisted state (it keeps
   /// the user signed in across reloads on Web/Android by itself — no manual
@@ -66,37 +87,51 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Bootstraps the single manager account if none exists yet.
+  /// Bootstraps the single manager account if none exists yet — SELF-
+  /// SERVICE, typed directly by the manager on first launch (name +
+  /// employeeNumber + password, no email — see [_syntheticEmail]).
   ///
   /// Creates the Firebase Auth account first (credential storage), then the
-  /// Firestore profile document keyed by the resulting Auth uid. If the
-  /// Firestore write fails after the Auth account was created, the Auth
-  /// account is rolled back to avoid an orphaned credential with no profile.
-  Future<void> ensureManagerExists({
+  /// Firestore profile document via [FirestoreService.createManagerProfile]
+  /// (the atomic lock+profile transaction). If the Firestore write fails
+  /// after the Auth account was created, the Auth account is rolled back to
+  /// avoid an orphaned credential with no profile.
+  Future<bool> ensureManagerExists({
     required String name,
-    required String email,
     required String employeeNumber,
     String password = '',
   }) async {
-    if (FirestoreService.managerLockExists) return;
+    _isLoading = true;
+    _authError = null;
+    notifyListeners();
+
+    if (FirestoreService.managerLockExists) {
+      _authError = 'تم إنشاء حساب المدير بالفعل من جهاز آخر';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
+    final syntheticEmail = _syntheticEmail(employeeNumber);
 
     fb_auth.UserCredential cred;
     try {
       cred = await _fbAuth.createUserWithEmailAndPassword(
-        email: email.trim(),
+        email: syntheticEmail,
         password: password,
       );
     } on fb_auth.FirebaseAuthException catch (e) {
       _authError = _mapAuthError(e);
+      _isLoading = false;
       notifyListeners();
-      return;
+      return false;
     }
 
     final fbUid = cred.user!.uid;
     final manager = AppUser(
       uid: fbUid,
       name: name,
-      email: email.trim(),
+      email: syntheticEmail,
       employeeNumber: employeeNumber,
       role: UserRole.manager,
       accountStatus: AccountStatus.active,
@@ -116,17 +151,29 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {
       await FirestoreService.resetAuthenticatedState();
       await cred.user!.delete();
-      rethrow;
+      _authError = 'تعذّر إنشاء الحساب، حاول مرة أخرى';
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
 
     if (!created) {
       // Another manager-bootstrap request won the race (or the security
       // rules already reject this write) — roll back the orphaned Auth
-      // account so the email address is not left stuck on an unusable
+      // account so the employee number is not left stuck on an unusable
       // credential.
       await FirestoreService.resetAuthenticatedState();
       await cred.user!.delete();
+      _authError = 'تم إنشاء حساب المدير بالفعل من جهاز آخر';
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
+
+    _currentUser = manager;
+    _isLoading = false;
+    notifyListeners();
+    return true;
   }
 
   /// Whether a manager account exists yet — readable BEFORE sign-in via the
@@ -135,7 +182,10 @@ class AuthProvider extends ChangeNotifier {
   /// itself requires authentication to read under the security rules.
   bool get managerExists => FirestoreService.managerLockExists;
 
-  Future<bool> login(String email, String password) async {
+  /// Signs in using الرقم الوظيفي (employee number) + password. Internally maps the
+  /// employee number to its deterministic synthetic Firebase-Auth email
+  /// (see [_syntheticEmail]) — the caller/UI never deals with email at all.
+  Future<bool> login(String employeeNumber, String password) async {
     _isLoading = true;
     _authError = null;
     notifyListeners();
@@ -143,7 +193,7 @@ class AuthProvider extends ChangeNotifier {
     fb_auth.UserCredential cred;
     try {
       cred = await _fbAuth.signInWithEmailAndPassword(
-        email: email.trim(),
+        email: _syntheticEmail(employeeNumber),
         password: password,
       );
     } on fb_auth.FirebaseAuthException catch (e) {
@@ -203,7 +253,9 @@ class AuthProvider extends ChangeNotifier {
     return true;
   }
 
-  /// Generates a single-use invite link token (manager action).
+  /// Generates a single-use invite link token (manager action, employee
+  /// invites only — manager invites are seeded directly via the Admin SDK,
+  /// see [Invitation] doc comment).
   Future<Invitation> generateInvitation({
     required String managerUid,
     String? expectedName,
@@ -240,7 +292,6 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> registerViaInvite({
     required String token,
     required String name,
-    required String email,
     required String employeeNumber,
     String password = '',
   }) async {
@@ -248,10 +299,12 @@ class AuthProvider extends ChangeNotifier {
     _authError = null;
     notifyListeners();
 
+    final syntheticEmail = _syntheticEmail(employeeNumber);
+
     fb_auth.UserCredential cred;
     try {
       cred = await _fbAuth.createUserWithEmailAndPassword(
-        email: email.trim(),
+        email: syntheticEmail,
         password: password,
       );
     } on fb_auth.FirebaseAuthException catch (e) {
@@ -265,7 +318,7 @@ class AuthProvider extends ChangeNotifier {
     final newUser = AppUser(
       uid: fbUid,
       name: name,
-      email: email.trim(),
+      email: syntheticEmail,
       employeeNumber: employeeNumber,
       role: UserRole.employee,
       accountStatus: AccountStatus.pendingApproval,
@@ -286,17 +339,17 @@ class AuthProvider extends ChangeNotifier {
       // `getUserByEmail` needs the authenticated `users` listener; start it
       // (best-effort — a failure here just falls back to the generic
       // "invalid invite" message) before signing back out.
-      String? existingEmail;
+      String? existingUid;
       try {
         await FirestoreService.initAuthenticated();
-        existingEmail = FirestoreService.getUserByEmail(email.trim())?.email;
+        existingUid = FirestoreService.getUserByEmail(syntheticEmail)?.uid;
       } catch (_) {
         // ignore — fall back to generic message below
       }
       await FirestoreService.resetAuthenticatedState();
       await cred.user!.delete();
-      _authError = existingEmail != null
-          ? 'هذا البريد الإلكتروني مسجّل بالفعل'
+      _authError = existingUid != null
+          ? 'هذا الرقم الوظيفي مسجّل بالفعل'
           : 'رابط الدعوة غير صالح أو مُستخدم مسبقًا';
       _isLoading = false;
       notifyListeners();
@@ -471,21 +524,26 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Maps FirebaseAuthException error codes to Arabic user-facing messages.
+  /// NOTE: every code here originally referred to a real email address;
+  /// since the app never collects one, each message is rephrased in terms
+  /// of "الرقم الوظيفي" (employee number) — the only identifier a user
+  /// ever sees, even though Firebase Auth still internally uses a
+  /// synthetic email derived from it (see [_syntheticEmail]).
   String _mapAuthError(fb_auth.FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-email':
-        return 'صيغة البريد الإلكتروني غير صحيحة';
+        return 'الرقم الوظيفي غير صالح';
       case 'user-disabled':
         return 'هذا الحساب معطّل';
       case 'user-not-found':
-        return 'البريد الإلكتروني غير مسجّل';
+        return 'الرقم الوظيفي غير مسجّل';
       case 'wrong-password':
       case 'invalid-credential':
-        return 'كلمة المرور غير صحيحة';
+        return 'الرقم السري غير صحيح';
       case 'email-already-in-use':
-        return 'هذا البريد الإلكتروني مسجّل بالفعل';
+        return 'هذا الرقم الوظيفي مسجّل بالفعل';
       case 'weak-password':
-        return 'كلمة المرور ضعيفة جدًا — يجب أن تكون 6 أحرف على الأقل';
+        return 'الرقم السري ضعيف جدًا — يجب أن يكون 6 أحرف على الأقل';
       case 'too-many-requests':
         return 'محاولات كثيرة جدًا، يرجى الانتظار قليلًا ثم المحاولة مرة أخرى';
       case 'network-request-failed':

@@ -139,7 +139,7 @@ class _AppDrawerState extends State<AppDrawer> {
                 _DrawerHeader(
                   name: user.name,
                   roleLabel: roleLabel,
-                  email: user.email,
+                  employeeNumber: user.employeeNumber,
                 ),
                 const SizedBox(height: 8),
                 Expanded(
@@ -299,20 +299,20 @@ class _AppDrawerState extends State<AppDrawer> {
 }
 
 /// Premium profile header: larger avatar with a gold ring, name, a role
-/// "badge" chip, and a muted secondary line (email) — all rendered over
-/// the app's EXISTING [AppColors.primaryGradient] (ink navy → slate →
+/// "badge" chip, and a muted secondary line (الرقم الوظيفي) — all rendered
+/// over the app's EXISTING [AppColors.primaryGradient] (ink navy → slate →
 /// charcoal-teal), per the explicit instruction to reuse existing primary
 /// colors rather than introduce a new brand hue.
 class _DrawerHeader extends StatelessWidget {
   const _DrawerHeader({
     required this.name,
     required this.roleLabel,
-    required this.email,
+    required this.employeeNumber,
   });
 
   final String name;
   final String roleLabel;
-  final String email;
+  final String employeeNumber;
 
   @override
   Widget build(BuildContext context) {
@@ -371,10 +371,10 @@ class _DrawerHeader extends StatelessWidget {
               ),
             ),
           ),
-          if (email.isNotEmpty) ...[
+          if (employeeNumber.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              email,
+              'رقم وظيفي: $employeeNumber',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

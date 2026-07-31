@@ -110,7 +110,7 @@ class ManagerEmployeesTab extends StatelessWidget {
                         color: AppColors.statusRejected,
                       ),
                       title: Text(u.name),
-                      subtitle: Text(u.email),
+                      subtitle: Text('رقم وظيفي: ${u.employeeNumber}'),
                     ),
                   ),
                 ),
@@ -540,7 +540,7 @@ class _ActiveEmployeeTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${user.email} · رقم وظيفي: ${user.employeeNumber}',
+                      'رقم وظيفي: ${user.employeeNumber}',
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
@@ -704,7 +704,7 @@ class _PendingEmployeeCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        '${user.email} · رقم وظيفي: ${user.employeeNumber}',
+                        'رقم وظيفي: ${user.employeeNumber}',
                         style: const TextStyle(fontSize: 12),
                       ),
                     ],

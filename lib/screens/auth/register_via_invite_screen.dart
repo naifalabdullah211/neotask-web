@@ -19,9 +19,9 @@ class RegisterViaInviteScreen extends StatefulWidget {
 class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
   final _employeeNumberCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmPasswordCtrl = TextEditingController();
   bool _obscure = true;
   bool _submitting = false;
   bool _tokenValid = false;
@@ -46,9 +46,9 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _emailCtrl.dispose();
     _employeeNumberCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -59,7 +59,6 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
     final ok = await auth.registerViaInvite(
       token: widget.token,
       name: _nameCtrl.text.trim(),
-      email: _emailCtrl.text.trim(),
       employeeNumber: _employeeNumberCtrl.text.trim(),
       password: _passwordCtrl.text,
     );
@@ -177,31 +176,6 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                         ),
                         const SizedBox(height: 14),
                         TextFormField(
-                          controller: _emailCtrl,
-                          keyboardType: TextInputType.emailAddress,
-                          // Same LTR pin as login_screen.dart: without
-                          // forcing textDirection/textAlign, this field
-                          // inherits the app's global RTL Directionality
-                          // (main.dart), which reorders characters visually
-                          // while typing (bidi caret-jump). On a
-                          // REGISTRATION screen this is worse than on
-                          // login: a mangled email/password is silently
-                          // accepted by Firebase Auth at account-creation
-                          // time, with no way to detect it until the user
-                          // tries to log back in with what they believe
-                          // they typed.
-                          textDirection: TextDirection.ltr,
-                          textAlign: TextAlign.left,
-                          decoration: const InputDecoration(
-                            labelText: 'البريد الإلكتروني',
-                            prefixIcon: Icon(Icons.email_outlined),
-                          ),
-                          validator: (v) => (v == null || !v.contains('@'))
-                              ? 'أدخل بريدًا إلكترونيًا صحيحًا'
-                              : null,
-                        ),
-                        const SizedBox(height: 14),
-                        TextFormField(
                           controller: _employeeNumberCtrl,
                           keyboardType: TextInputType.number,
                           // Digits are LTR content too — same fix.
@@ -219,12 +193,11 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                         TextFormField(
                           controller: _passwordCtrl,
                           obscureText: _obscure,
-                          // Same LTR pin — see comment on the email field
-                          // above.
+                          // Same LTR pin — password content is LTR.
                           textDirection: TextDirection.ltr,
                           textAlign: TextAlign.left,
                           decoration: InputDecoration(
-                            labelText: 'كلمة المرور',
+                            labelText: 'الرقم السري',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -237,7 +210,21 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                             ),
                           ),
                           validator: (v) => (v == null || v.length < 6)
-                              ? 'كلمة المرور 6 أحرف على الأقل'
+                              ? 'الرقم السري 6 أحرف على الأقل'
+                              : null,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _confirmPasswordCtrl,
+                          obscureText: _obscure,
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
+                          decoration: const InputDecoration(
+                            labelText: 'تأكيح الرقم السري',
+                            prefixIcon: Icon(Icons.lock_outline),
+                          ),
+                          validator: (v) => (v != _passwordCtrl.text)
+                              ? 'الرقمان السريان لا يتطابقان'
                               : null,
                         ),
                         const SizedBox(height: 22),

@@ -159,7 +159,7 @@ class _EmployeeStatsDetailScreenState extends State<EmployeeStatsDetailScreen> {
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          widget.employee.email,
+                          'رقم وظيفي: ${widget.employee.employeeNumber}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,

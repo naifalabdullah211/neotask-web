@@ -98,7 +98,7 @@ class DesignerEmployeesTab extends StatelessWidget {
                         color: AppColors.statusRejected,
                       ),
                       title: Text(u.name),
-                      subtitle: Text(u.email),
+                      subtitle: Text('رقم وظيفي: ${u.employeeNumber}'),
                     ),
                   ),
                 ),
@@ -161,7 +161,7 @@ class _EmployeeTile extends StatelessWidget {
           ),
         ),
         title: Text(user.name),
-        subtitle: Text('${user.email} · رقم وظيفي: ${user.employeeNumber}'),
+        subtitle: Text('رقم وظيفي: ${user.employeeNumber}'),
         trailing: statusLabel != null
             ? Chip(
                 label: Text(statusLabel!, style: const TextStyle(fontSize: 11)),

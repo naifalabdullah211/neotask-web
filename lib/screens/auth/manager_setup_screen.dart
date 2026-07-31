@@ -4,10 +4,12 @@ import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import 'manager_welcome_screen.dart';
 
-/// First-run screen shown when NO manager account exists yet in the system.
-/// Since this app has a single-manager flat hierarchy, this screen creates
-/// that one manager account. Reached automatically by SplashRouter when
-/// AuthProvider.managerExists == false.
+/// Shown when NO manager account exists yet (system/manager_lock absent)
+/// AND no invite token is present in the URL. The manager self-registers by
+/// typing their own name + employee number + password directly here — no
+/// pre-seeded invite is required. After successful creation the manager is
+/// logged in immediately and can invite employees via the existing
+/// invite-link feature (manager_employees_tab.dart).
 class ManagerSetupScreen extends StatefulWidget {
   const ManagerSetupScreen({super.key});
 
@@ -18,18 +20,18 @@ class ManagerSetupScreen extends StatefulWidget {
 class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
   final _employeeNumberCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmPasswordCtrl = TextEditingController();
   bool _obscure = true;
   bool _submitting = false;
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _emailCtrl.dispose();
     _employeeNumberCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -37,21 +39,24 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
     final auth = context.read<AuthProvider>();
-    await auth.ensureManagerExists(
+    final ok = await auth.ensureManagerExists(
       name: _nameCtrl.text.trim(),
-      email: _emailCtrl.text.trim(),
       employeeNumber: _employeeNumberCtrl.text.trim(),
       password: _passwordCtrl.text,
     );
-    final ok = await auth.login(_emailCtrl.text.trim(), _passwordCtrl.text);
     if (!mounted) return;
     setState(() => _submitting = false);
     if (ok) {
-      // First-time-only welcome screen; it is the one that eventually
-      // navigates onward to SplashRouter -> ManagerHomeScreen.
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const ManagerWelcomeScreen()),
         (route) => false,
+      );
+    } else if (auth.authError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.authError!),
+          backgroundColor: AppColors.statusRejected,
+        ),
       );
     }
   }
@@ -68,6 +73,7 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
                       width: 96,
@@ -89,142 +95,110 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                         fit: BoxFit.contain,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     const Text(
-                      'مرحبًا بك في NeoTask',
+                      'إنشاء حساب المدير',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    const SizedBox(height: 8),
                     const Text(
-                      'لا يوجد حساب مدير بعد — أنشئ حساب المدير الرئيسي للبدء',
+                      'لا يوجد حساب مدير مُفعّل بعد. بصفتك أول مستخدم، أدخل '
+                      'بياناتك لإنشاء حساب المدير.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                      style: TextStyle(color: Colors.white70, height: 1.6),
                     ),
-                    const SizedBox(height: 28),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 24,
-                            offset: const Offset(0, 12),
-                          ),
-                        ],
-                      ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Text(
-                              'إنشاء حساب المدير',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            TextFormField(
-                              controller: _nameCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'الاسم الكامل',
-                                prefixIcon: Icon(Icons.person_outline),
-                              ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'أدخل الاسم'
-                                  : null,
-                            ),
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _emailCtrl,
-                              keyboardType: TextInputType.emailAddress,
-                              // Same LTR pin as login_screen.dart /
-                              // register_via_invite_screen.dart: without
-                              // forcing textDirection/textAlign, this field
-                              // inherits the app's global RTL
-                              // Directionality (main.dart), causing a bidi
-                              // caret-jump glitch while typing. On an
-                              // ACCOUNT-CREATION screen this is worse than
-                              // on login — a mangled email/password is
-                              // silently accepted by Firebase Auth with no
-                              // error shown, discovered only later when the
-                              // account holder can no longer log in with
-                              // what they believe they typed (confirmed
-                              // root cause of a prior "employee can't log
-                              // in" report on the sibling invite-registration
-                              // screen).
-                              textDirection: TextDirection.ltr,
-                              textAlign: TextAlign.left,
-                              decoration: const InputDecoration(
-                                labelText: 'البريد الإلكتروني',
-                                prefixIcon: Icon(Icons.email_outlined),
-                              ),
-                              validator: (v) => (v == null || !v.contains('@'))
-                                  ? 'أدخل بريدًا إلكترونيًا صحيحًا'
-                                  : null,
-                            ),
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _employeeNumberCtrl,
-                              keyboardType: TextInputType.number,
-                              // Digits are LTR content too — same fix.
-                              textDirection: TextDirection.ltr,
-                              textAlign: TextAlign.left,
-                              decoration: const InputDecoration(
-                                labelText: 'الرقم الوظيفي',
-                                prefixIcon: Icon(Icons.badge_outlined),
-                              ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'أدخل الرقم الوظيفي'
-                                  : null,
-                            ),
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _passwordCtrl,
-                              obscureText: _obscure,
-                              // Same LTR pin — see comment on the email
-                              // field above.
-                              textDirection: TextDirection.ltr,
-                              textAlign: TextAlign.left,
-                              decoration: InputDecoration(
-                                labelText: 'كلمة المرور',
-                                prefixIcon: const Icon(Icons.lock_outline),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscure
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
-                                  ),
-                                  onPressed: () =>
-                                      setState(() => _obscure = !_obscure),
+                    const SizedBox(height: 24),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextFormField(
+                                controller: _nameCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'الاسم الكامل',
+                                  prefixIcon: Icon(Icons.person_outline),
                                 ),
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                    ? 'أدخل الاسم'
+                                    : null,
                               ),
-                              validator: (v) => (v == null || v.length < 6)
-                                  ? 'كلمة المرور 6 أحرف على الأقل'
-                                  : null,
-                            ),
-                            const SizedBox(height: 22),
-                            ElevatedButton(
-                              onPressed: _submitting ? null : _submit,
-                              child: _submitting
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Text('إنشاء الحساب والدخول'),
-                            ),
-                          ],
+                              const SizedBox(height: 14),
+                              TextFormField(
+                                controller: _employeeNumberCtrl,
+                                keyboardType: TextInputType.number,
+                                textDirection: TextDirection.ltr,
+                                textAlign: TextAlign.left,
+                                decoration: const InputDecoration(
+                                  labelText: 'الرقم الوظيفي',
+                                  prefixIcon: Icon(Icons.badge_outlined),
+                                ),
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                    ? 'أدخل الرقم الوظيفي'
+                                    : null,
+                              ),
+                              const SizedBox(height: 14),
+                              TextFormField(
+                                controller: _passwordCtrl,
+                                obscureText: _obscure,
+                                textDirection: TextDirection.ltr,
+                                textAlign: TextAlign.left,
+                                decoration: InputDecoration(
+                                  labelText: 'الرقم السري',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscure
+                                          ? Icons.visibility_off
+                                          : Icons.visibility,
+                                    ),
+                                    onPressed: () =>
+                                        setState(() => _obscure = !_obscure),
+                                  ),
+                                ),
+                                validator: (v) => (v == null || v.length < 6)
+                                    ? 'الرقم السري 6 أحرف على الأقل'
+                                    : null,
+                              ),
+                              const SizedBox(height: 14),
+                              TextFormField(
+                                controller: _confirmPasswordCtrl,
+                                obscureText: _obscure,
+                                textDirection: TextDirection.ltr,
+                                textAlign: TextAlign.left,
+                                decoration: const InputDecoration(
+                                  labelText: 'تأكيد الرقم السري',
+                                  prefixIcon: Icon(Icons.lock_outline),
+                                ),
+                                validator: (v) => (v != _passwordCtrl.text)
+                                    ? 'الرقمان السريان لا يتطابقان'
+                                    : null,
+                              ),
+                              const SizedBox(height: 22),
+                              ElevatedButton(
+                                onPressed: _submitting ? null : _submit,
+                                child: _submitting
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text('إنشاء الحساب'),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

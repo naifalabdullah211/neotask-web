@@ -28,7 +28,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
+  final _employeeNumberCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscure = true;
 
@@ -54,7 +54,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void dispose() {
     _entranceCtrl.dispose();
-    _emailCtrl.dispose();
+    _employeeNumberCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
@@ -62,7 +62,7 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final auth = context.read<AuthProvider>();
-    final ok = await auth.login(_emailCtrl.text, _passwordCtrl.text);
+    final ok = await auth.login(_employeeNumberCtrl.text, _passwordCtrl.text);
     if (!mounted) return;
     if (ok) {
       Navigator.of(context).pushAndRemoveUntil(
@@ -106,7 +106,7 @@ class _LoginScreenState extends State<LoginScreen>
                   builder: (context, constraints) {
                     final formArgs = _LoginFormArgs(
                       formKey: _formKey,
-                      emailCtrl: _emailCtrl,
+                      employeeNumberCtrl: _employeeNumberCtrl,
                       passwordCtrl: _passwordCtrl,
                       obscure: _obscure,
                       onToggleObscure: () =>
@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen>
 class _LoginFormArgs {
   const _LoginFormArgs({
     required this.formKey,
-    required this.emailCtrl,
+    required this.employeeNumberCtrl,
     required this.passwordCtrl,
     required this.obscure,
     required this.onToggleObscure,
@@ -145,7 +145,7 @@ class _LoginFormArgs {
   });
 
   final GlobalKey<FormState> formKey;
-  final TextEditingController emailCtrl;
+  final TextEditingController employeeNumberCtrl;
   final TextEditingController passwordCtrl;
   final bool obscure;
   final VoidCallback onToggleObscure;
@@ -376,19 +376,19 @@ class _LoginCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _AuthField(
-                  label: 'البريد الإلكتروني',
-                  controller: args.emailCtrl,
-                  hint: 'example@domain.com',
-                  icon: Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
+                  label: 'الرقم الوظيفي',
+                  controller: args.employeeNumberCtrl,
+                  hint: 'مثال: 10234',
+                  icon: Icons.badge_outlined,
+                  keyboardType: TextInputType.number,
                   textInputAction: TextInputAction.next,
                   validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'أدخل البريد الإلكتروني'
+                      ? 'أدخل الرقم الوظيفي'
                       : null,
                 ),
                 const SizedBox(height: 16),
                 _AuthField(
-                  label: 'كلمة المرور',
+                  label: 'الرقم السري',
                   controller: args.passwordCtrl,
                   hint: '••••••••',
                   icon: Icons.lock_outline,
@@ -406,7 +406,7 @@ class _LoginCard extends StatelessWidget {
                     onPressed: args.onToggleObscure,
                   ),
                   validator: (v) =>
-                      (v == null || v.isEmpty) ? 'أدخل كلمة المرور' : null,
+                      (v == null || v.isEmpty) ? 'أدخل الرقم السري' : null,
                 ),
                 const SizedBox(height: 22),
                 _GradientSubmitButton(
