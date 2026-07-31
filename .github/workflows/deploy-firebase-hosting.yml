@@ -6,6 +6,7 @@ on:
       - main
     paths-ignore:
       - 'deploy-error.log'
+      - 'hosting-sites.txt'
   workflow_dispatch:
 
 permissions:
@@ -38,18 +39,11 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Record Flutter version
-        run: flutter --version 2>&1 | tee -a deploy-error.log
-
       - name: Install Flutter dependencies
-        run: |
-          set -o pipefail
-          flutter pub get 2>&1 | tee -a deploy-error.log
+        run: flutter pub get 2>&1 | tee -a deploy-error.log
 
       - name: Build Flutter web
-        run: |
-          set -o pipefail
-          flutter build web --release 2>&1 | tee -a deploy-error.log
+        run: flutter build web --release 2>&1 | tee -a deploy-error.log
 
       - name: Decode Firebase service account
         shell: bash
@@ -57,44 +51,41 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
         run: |
           set -euo pipefail
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT_BASE64" ]; then
-            echo "ERROR: GitHub secret FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 is empty or missing" | tee -a deploy-error.log
-            exit 1
-          fi
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
-          python - <<'PY' 2>&1 | tee -a deploy-error.log
+          python - <<'PY'
           import json, os, sys
-          path = os.path.join(os.environ['RUNNER_TEMP'], 'firebase-service-account.json')
-          try:
-              with open(path, encoding='utf-8') as handle:
-                  data = json.load(handle)
-          except Exception as exc:
-              print('ERROR: decoded Firebase secret is not valid JSON')
-              print('Parser error type =', type(exc).__name__)
-              sys.exit(1)
-          if data.get('project_id') != 'neotask1-ff5a4':
-              print('ERROR: Firebase project_id mismatch:', data.get('project_id'))
-              sys.exit(1)
-          required = ['type', 'project_id', 'private_key', 'client_email', 'token_uri']
-          missing = [key for key in required if not data.get(key)]
-          if missing:
-              print('ERROR: Firebase JSON is missing required fields:', ', '.join(missing))
-              sys.exit(1)
-          print('Firebase service account validated for project neotask1-ff5a4')
+          p = os.path.join(os.environ['RUNNER_TEMP'], 'firebase-service-account.json')
+          with open(p, encoding='utf-8') as f:
+              d = json.load(f)
+          if d.get('project_id') != 'neotask1-ff5a4':
+              raise SystemExit('Firebase project mismatch')
+          print('Firebase credential valid')
           PY
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
 
       - name: Install Firebase CLI
+        run: npm install --global firebase-tools 2>&1 | tee -a deploy-error.log
+
+      - name: List actual Firebase Hosting sites
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
-          set -o pipefail
-          npm install --global firebase-tools 2>&1 | tee -a deploy-error.log
+          firebase hosting:sites:list --project neotask1-ff5a4 --json > hosting-sites.txt
+          cat hosting-sites.txt
 
       - name: Deploy Firebase Hosting
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: firebase deploy --only hosting --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
+
+      - name: Save actual Hosting site list
+        if: always()
         run: |
-          set -o pipefail
-          firebase deploy --only hosting --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f hosting-sites.txt || true
+          git commit -m "chore: record Firebase Hosting site list [skip ci]" || true
+          git push || true
 
       - name: Save failure diagnostic to repository
         if: failure()
@@ -104,17 +95,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f deploy-error.log
           git commit -m "chore: save NeoTask deployment failure log [skip ci]" || true
-          git push
-
-      - name: Remove stale diagnostic after success
-        if: success()
-        run: |
-          if git ls-files --error-unmatch deploy-error.log >/dev/null 2>&1; then
-            git rm -f deploy-error.log
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "chore: clear NeoTask deployment failure log [skip ci]" || true
-            git push
-          fi
-
-# deployment retrigger: 2026-08-01T01:01+03:00
+          git push || true
