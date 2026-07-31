@@ -1,0 +1,13 @@
+{
+  "status": "success",
+  "result": {
+    "sites": [
+      {
+        "name": "projects/neotask1-ff5a4/sites/neotask1-ff5a4",
+        "defaultUrl": "https://neotask1-ff5a4.web.app",
+        "appId": "1:4737825788:web:13f3dc6bf2b2bda6c8d079",
+        "type": "DEFAULT_SITE"
+      }
+    ]
+  }
+}
