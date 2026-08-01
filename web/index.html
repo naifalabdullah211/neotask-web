@@ -110,13 +110,20 @@
       }
     }, 8000);
 
-    // Retire Flutter's legacy offline-first worker. Its cache-first response
-    // for the stable main.dart.js filename can keep an old build on iOS after
-    // a successful deploy. Clear only Flutter's own caches before loading the
-    // new bootstrap; Firebase/Auth/Firestore browser storage is untouched.
+    const NEO_TASK_BUILD_ID = '20260801-3';
+
+    // Retire Flutter's legacy offline-first worker. Unregistering a worker
+    // does not release the page it currently controls until the next
+    // navigation. Starting Flutter in that half-migrated page can mix a new
+    // index.html with stale runtime files and leave iOS on a white canvas.
+    // When a legacy worker still controls this page, migrate once and reload
+    // with a build id. Firebase/Auth/Firestore browser storage is untouched.
     async function clearLegacyFlutterCache() {
+      let controlledByLegacyWorker = false;
+
       const cleanup = async function () {
         if ('serviceWorker' in navigator) {
+          controlledByLegacyWorker = Boolean(navigator.serviceWorker.controller);
           const registrations = await navigator.serviceWorker.getRegistrations();
           await Promise.all(registrations
             .filter((registration) => registration.scope.startsWith(location.origin))
@@ -139,18 +146,31 @@
         cleanup(),
         new Promise((resolve) => setTimeout(resolve, 1500))
       ]);
+
+      return controlledByLegacyWorker;
     }
 
     async function startFlutter() {
+      let mustReload = false;
       try {
-        await clearLegacyFlutterCache();
+        mustReload = await clearLegacyFlutterCache();
       } catch (error) {
         // Cache cleanup must never become a new startup blocker. Loading the
         // network build is still safer than leaving the user on the spinner.
         console.warn('Legacy Flutter cache cleanup failed:', error);
       }
+
+      const currentUrl = new URL(window.location.href);
+      if (mustReload && currentUrl.searchParams.get('_build') !== NEO_TASK_BUILD_ID) {
+        const message = document.getElementById('boot-message');
+        if (message) message.textContent = 'جارٍ تحديث NeoTask';
+        currentUrl.searchParams.set('_build', NEO_TASK_BUILD_ID);
+        window.location.replace(currentUrl.toString());
+        return;
+      }
+
       const script = document.createElement('script');
-      script.src = 'flutter_bootstrap.js?v=20260801-2';
+      script.src = `flutter_bootstrap.js?v=${NEO_TASK_BUILD_ID}`;
       script.async = true;
       script.onerror = function () {
         const message = document.getElementById('boot-message');

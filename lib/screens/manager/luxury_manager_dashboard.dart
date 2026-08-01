@@ -35,6 +35,7 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
   _LuxuryRange _range = _LuxuryRange.week;
   DateTime _anchor = DateTime.now();
   bool _kanban = false;
+  bool _digestScheduled = false;
 
   List<AppTask> _rangeTasks(TaskProvider provider) {
     final tasks = switch (_range) {
@@ -73,28 +74,31 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
     };
   }
 
-  void _maybeGenerateDigest(
-    BuildContext context,
-    TaskProvider taskProvider,
-    String managerUid,
-  ) {
-    final activeEmployees = FirestoreService.getAllEmployees()
-        .where((user) => user.accountStatus == AccountStatus.active)
-        .toList();
-    final goalProvider = context.read<GoalProvider>();
-    final allGoals = goalProvider.allGoals;
-    final goalProgress = <String, ({int total, int completed})>{
-      for (final goal in allGoals)
-        goal.goalId: goalProvider.progressForGoal(goal.goalId),
-    };
-    context.read<DigestProvider>().maybeGenerateTodayDigest(
-      managerUid: managerUid,
-      allTasks: taskProvider.teamTasks,
-      allPolls: context.read<PollProvider>().allPolls,
-      activeEmployees: activeEmployees,
-      allGoals: allGoals,
-      goalProgress: goalProgress,
-    );
+  void _scheduleDigest(String managerUid) {
+    if (_digestScheduled) return;
+    _digestScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final taskProvider = context.read<TaskProvider>();
+      final activeEmployees = FirestoreService.getAllEmployees()
+          .where((user) => user.accountStatus == AccountStatus.active)
+          .toList();
+      final goalProvider = context.read<GoalProvider>();
+      final allGoals = goalProvider.allGoals;
+      final goalProgress = <String, ({int total, int completed})>{
+        for (final goal in allGoals)
+          goal.goalId: goalProvider.progressForGoal(goal.goalId),
+      };
+      context.read<DigestProvider>().maybeGenerateTodayDigest(
+        managerUid: managerUid,
+        allTasks: taskProvider.teamTasks,
+        allPolls: context.read<PollProvider>().allPolls,
+        activeEmployees: activeEmployees,
+        allGoals: allGoals,
+        goalProgress: goalProgress,
+      );
+    });
   }
 
   @override
@@ -113,7 +117,7 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
         ? 0
         : ((stats.completed / stats.total) * 100).round();
 
-    _maybeGenerateDigest(context, provider, manager.uid);
+    _scheduleDigest(manager.uid);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -938,6 +942,35 @@ class _TeamPulse extends StatelessWidget {
     }
     final total = employees.length;
     final chartTotal = total == 0 ? 1 : total;
+    final chartSections = total == 0
+        ? [
+            PieChartSectionData(
+              value: 1,
+              color: const Color(0xFFE8EDF3),
+              radius: 18,
+              showTitle: false,
+            ),
+          ]
+        : [
+            PieChartSectionData(
+              value: high / chartTotal,
+              color: _LuxuryColors.coral,
+              radius: 18,
+              showTitle: false,
+            ),
+            PieChartSectionData(
+              value: medium / chartTotal,
+              color: _LuxuryColors.gold,
+              radius: 18,
+              showTitle: false,
+            ),
+            PieChartSectionData(
+              value: low / chartTotal,
+              color: _LuxuryColors.mint,
+              radius: 18,
+              showTitle: false,
+            ),
+          ];
 
     return _Panel(
       padding: const EdgeInsets.all(20),
@@ -977,26 +1010,7 @@ class _TeamPulse extends StatelessWidget {
                         startDegreeOffset: -90,
                         centerSpaceRadius: 43,
                         sectionsSpace: 0,
-                        sections: [
-                          PieChartSectionData(
-                            value: high / chartTotal,
-                            color: _LuxuryColors.coral,
-                            radius: 18,
-                            showTitle: false,
-                          ),
-                          PieChartSectionData(
-                            value: medium / chartTotal,
-                            color: _LuxuryColors.gold,
-                            radius: 18,
-                            showTitle: false,
-                          ),
-                          PieChartSectionData(
-                            value: low / chartTotal,
-                            color: _LuxuryColors.mint,
-                            radius: 18,
-                            showTitle: false,
-                          ),
-                        ],
+                        sections: chartSections,
                       ),
                     ),
                     Column(
