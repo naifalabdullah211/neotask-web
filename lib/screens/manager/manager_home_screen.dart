@@ -339,7 +339,11 @@ class LuxuryTopNav extends StatelessWidget {
           bottom: false,
           child: Row(
             children: [
-              const _HeaderBrand(compact: true),
+              _HeaderAccount(
+                manager: manager,
+                onTap: onOpenMenu,
+                compact: true,
+              ),
               const Spacer(),
               IconButton(
                 tooltip: 'بحث شامل',
@@ -355,16 +359,7 @@ class LuxuryTopNav extends StatelessWidget {
                 icon: const Icon(Icons.lightbulb_outline, size: 25),
               ),
               const SizedBox(width: 3),
-              InkWell(
-                onTap: onOpenMenu,
-                customBorder: const CircleBorder(),
-                child: UserAvatar(
-                  name: manager.name,
-                  imageUrl: manager.profilePhotoUrl,
-                  radius: 24,
-                  borderColor: const Color(0xFFE6AD36),
-                ),
-              ),
+              const _HeaderBrand(compact: true),
             ],
           ),
         ),
@@ -382,10 +377,10 @@ class LuxuryTopNav extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            constraints: const BoxConstraints(minWidth: 206),
-            padding: const EdgeInsetsDirectional.only(end: 26),
-            child: const _HeaderBrand(),
+          _HeaderAccount(
+            manager: manager,
+            onTap: onOpenMenu,
+            roleLabel: roleLabel,
           ),
           Container(
             width: 1,
@@ -441,48 +436,10 @@ class LuxuryTopNav extends StatelessWidget {
             width: 1,
             color: Colors.white.withValues(alpha: 0.20),
           ),
-          InkWell(
-            onTap: onOpenMenu,
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              child: Row(
-                children: [
-                  UserAvatar(
-                    name: manager.name,
-                    imageUrl: manager.profilePhotoUrl,
-                    radius: 27,
-                    borderColor: const Color(0xFFE6AD36),
-                  ),
-                  const SizedBox(width: 11),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        manager.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
-                      ),
-                      Text(
-                        roleLabel,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.70),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 7),
-                  const Icon(Icons.keyboard_arrow_down, color: Colors.white),
-                ],
-              ),
-            ),
+          Container(
+            constraints: const BoxConstraints(minWidth: 206),
+            padding: const EdgeInsetsDirectional.only(start: 26),
+            child: const _HeaderBrand(),
           ),
         ],
       ),
@@ -527,6 +484,80 @@ class _DesktopNavButton extends StatelessWidget {
             fontSize: 17,
             fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderAccount extends StatelessWidget {
+  const _HeaderAccount({
+    required this.manager,
+    required this.onTap,
+    this.roleLabel = 'مدير القسم',
+    this.compact = false,
+  });
+
+  final AppUser manager;
+  final VoidCallback onTap;
+  final String roleLabel;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    if (compact) {
+      return InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: UserAvatar(
+          name: manager.name,
+          imageUrl: manager.profilePhotoUrl,
+          radius: 24,
+          borderColor: const Color(0xFFE6AD36),
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: Row(
+          children: [
+            UserAvatar(
+              name: manager.name,
+              imageUrl: manager.profilePhotoUrl,
+              radius: 27,
+              borderColor: const Color(0xFFE6AD36),
+            ),
+            const SizedBox(width: 11),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  manager.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+                Text(
+                  roleLabel,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.70),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 7),
+            const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+          ],
         ),
       ),
     );
