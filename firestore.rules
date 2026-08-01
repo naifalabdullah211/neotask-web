@@ -127,9 +127,10 @@ service cloud.firestore {
       //      it does NOT grant elevated role or bypass manager approval —
       //      but it is a real, unaddressed gap in the "invite-only
       //      registration" design and must be explicitly acknowledged.
-      allow create: if isOwner(uid) &&
-        request.resource.data.uid == uid &&
-        (
+      allow create: if
+        (isOwner(uid) &&
+         request.resource.data.uid == uid &&
+         (
           (request.resource.data.role == 'manager' &&
            request.resource.data.accountStatus == 'active' &&
            !exists(/databases/$(database)/documents/system/manager_lock) &&
@@ -137,7 +138,13 @@ service cloud.firestore {
           ||
           (request.resource.data.role == 'employee' &&
            request.resource.data.accountStatus == 'pendingApproval')
-        );
+         ))
+        ||
+        (isManager() &&
+         request.resource.data.uid == uid &&
+         request.resource.data.role == 'employee' &&
+         request.resource.data.accountStatus == 'active' &&
+         request.resource.data.approvedBy == request.auth.uid);
 
       // Two update paths:
       //   1) Manager updating ANOTHER user's doc — ONLY the
@@ -780,15 +787,13 @@ service cloud.firestore {
       }
     }
 
-    // Client-authored task imports write one summary job. Employee imports
-    // are written by the Admin SDK and bypass these rules after server-side
-    // manager verification.
+    // Manager-authored task and employee imports write one immutable summary.
     match /import_jobs/{jobId} {
       allow read: if isManager() || isDesigner();
       allow create: if isManager() &&
         request.resource.data.jobId == jobId &&
         request.resource.data.createdBy == request.auth.uid &&
-        request.resource.data.type == 'tasks' &&
+        request.resource.data.type in ['tasks', 'employees'] &&
         request.resource.data.rowCount is int &&
         request.resource.data.rowCount > 0 &&
         request.resource.data.rowCount <= 5000;

@@ -1,0 +1,51 @@
+name: Run NeoTask automations
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/run_automations.js'
+      - '.github/workflows/run-automations.yml'
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neotask-automation-runner
+  cancel-in-progress: false
+
+jobs:
+  run-automations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Decode Firebase service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Install automation dependencies
+        run: npm ci --prefix functions
+
+      - name: Execute active automation rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          NODE_PATH: ${{ github.workspace }}/functions/node_modules
+        run: node scripts/run_automations.js

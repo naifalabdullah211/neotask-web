@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/automation_rule_model.dart';
@@ -117,19 +118,109 @@ class WorkflowService {
         });
   }
 
-  /// Creates real Firebase Authentication accounts and Firestore profiles.
-  /// The callable verifies the manager role again on the server and returns
-  /// per-row results so one duplicate does not hide the outcome of the rest.
+  /// Creates real Firebase Authentication accounts without replacing the
+  /// manager's current session. A named secondary Firebase app owns each
+  /// temporary Auth session, while the manager's primary Firestore session
+  /// creates the protected employee profile.
   static Future<Map<String, dynamic>> importEmployees(
     List<Map<String, dynamic>> employees,
   ) async {
-    final callable = FirebaseFunctions.instance.httpsCallable(
-      'bulkImportEmployees',
-    );
-    final response = await callable.call<Map<String, dynamic>>({
-      'employees': employees,
+    final results = <Map<String, dynamic>>[];
+    var createdCount = 0;
+    for (var index = 0; index < employees.length; index++) {
+      final row = employees[index];
+      final employeeNumber = (row['employeeNumber'] as String).trim();
+      final compact = employeeNumber
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]'), '');
+      final email = '$compact@neotask.local';
+      FirebaseApp? secondaryApp;
+      fb_auth.UserCredential? credential;
+      try {
+        secondaryApp = await Firebase.initializeApp(
+          name: 'bulk-${_uuid.v4()}',
+          options: Firebase.app().options,
+        );
+        final secondaryAuth = fb_auth.FirebaseAuth.instanceFor(
+          app: secondaryApp,
+        );
+        credential = await secondaryAuth.createUserWithEmailAndPassword(
+          email: email,
+          password: row['password'] as String,
+        );
+        final now = DateTime.now().toIso8601String();
+        await _db.collection('users').doc(credential.user!.uid).set({
+          'uid': credential.user!.uid,
+          'name': (row['name'] as String).trim(),
+          'email': email,
+          'employeeNumber': employeeNumber,
+          'role': 'employee',
+          'accountStatus': 'active',
+          'approvedBy': fb_auth.FirebaseAuth.instance.currentUser!.uid,
+          'approvedAt': now,
+          'createdAt': now,
+          'soundMessagesEnabled': true,
+          'soundTasksEnabled': true,
+          'remindersEnabled': true,
+          'weeklyCapacityHours': 40,
+        });
+        createdCount++;
+        results.add({
+          'index': index,
+          'success': true,
+          'uid': credential.user!.uid,
+        });
+        try {
+          await secondaryAuth.signOut();
+        } catch (_) {
+          // The named Firebase app is deleted below, so cleanup can continue.
+        }
+      } on fb_auth.FirebaseAuthException catch (error) {
+        results.add({
+          'index': index,
+          'success': false,
+          'error': error.code == 'email-already-in-use'
+              ? 'الرقم الوظيفي موجود مسبقًا'
+              : 'تعذر إنشاء الحساب',
+        });
+      } catch (_) {
+        if (credential?.user != null) {
+          try {
+            await credential!.user!.delete();
+          } catch (_) {
+            // Best-effort rollback if Firestore profile creation failed.
+          }
+        }
+        results.add({
+          'index': index,
+          'success': false,
+          'error': 'تعذر إنشاء الحساب',
+        });
+      } finally {
+        try {
+          await secondaryApp?.delete();
+        } catch (_) {
+          // Do not abort the remaining rows because cleanup failed.
+        }
+      }
+    }
+    final managerUid = fb_auth.FirebaseAuth.instance.currentUser!.uid;
+    final jobId = _uuid.v4();
+    await _db.collection('import_jobs').doc(jobId).set({
+      'jobId': jobId,
+      'type': 'employees',
+      'rowCount': employees.length,
+      'createdCount': createdCount,
+      'failedCount': employees.length - createdCount,
+      'createdBy': managerUid,
+      'createdAt': DateTime.now().toIso8601String(),
+      'status': 'completed',
     });
-    return Map<String, dynamic>.from(response.data);
+    return {
+      'createdCount': createdCount,
+      'failedCount': employees.length - createdCount,
+      'results': results,
+    };
   }
 
   /// Imports validated tasks in chunks below Firestore's batch limit and

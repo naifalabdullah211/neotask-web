@@ -72,14 +72,6 @@ jobs:
           set -o pipefail
           npm install --global firebase-tools google-auth-library 2>&1 | tee -a deploy-error.log
 
-      - name: Install and deploy Cloud Functions
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-        run: |
-          set -o pipefail
-          npm install --prefix functions 2>&1 | tee -a deploy-error.log
-          firebase deploy --only functions --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
-
       - name: List actual Firebase Hosting sites
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
