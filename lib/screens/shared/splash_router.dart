@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/app_ready.dart';
 import '../auth/login_screen.dart';
+import '../auth/manager_setup_screen.dart';
 import '../auth/pending_approval_screen.dart';
 import '../auth/register_via_invite_screen.dart';
 import '../manager/manager_home_screen.dart';
@@ -24,6 +25,7 @@ class _SplashRouterState extends State<SplashRouter> {
   String? _inviteToken;
   bool _inviteReady = true;
   bool _sessionReady = false;
+  bool _managerStatusReady = false;
   bool _appReadyScheduled = false;
 
   @override
@@ -52,7 +54,21 @@ class _SplashRouterState extends State<SplashRouter> {
     }
     if (!mounted) return;
 
-    setState(() => _sessionReady = true);
+    if (!auth.isLoggedIn && _inviteToken == null) {
+      try {
+        await FirestoreService.initManagerStatus();
+      } catch (_) {
+        // FirestoreService defaults to "manager exists" until it receives a
+        // successful sentinel snapshot, so a network failure cannot expose
+        // the one-time manager setup route.
+      }
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _sessionReady = true;
+      _managerStatusReady = true;
+    });
     if (_inviteToken != null) {
       unawaited(_prepareInvite());
     } else if (auth.isLoggedIn) {
@@ -92,7 +108,9 @@ class _SplashRouterState extends State<SplashRouter> {
               ? RegisterViaInviteScreen(token: _inviteToken!)
               : const _InviteBootstrapView();
         } else if (!auth.isLoggedIn) {
-          destination = const LoginScreen();
+          destination = _managerStatusReady && !auth.managerExists
+              ? const ManagerSetupScreen()
+              : const LoginScreen();
         } else {
           final user = auth.currentUser!;
           if (user.accountStatus == AccountStatus.pendingApproval) {
@@ -109,7 +127,9 @@ class _SplashRouterState extends State<SplashRouter> {
         // Auth restoration may complete after the bounded startup timeout.
         // In that case the provider rebuild is the first moment an actual
         // authenticated destination exists, so release the HTML cover here.
-        if (auth.isLoggedIn) _notifyReadyAfterDestinationFrame();
+        if (auth.isLoggedIn || destination is ManagerSetupScreen) {
+          _notifyReadyAfterDestinationFrame();
+        }
 
         return destination;
       },

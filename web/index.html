@@ -317,7 +317,7 @@
       window.location.reload();
     });
 
-    const NEO_TASK_BUILD_ID = '20260801-7';
+    const NEO_TASK_BUILD_ID = '20260801-8';
     let flutterStarted = false;
 
     function setBootLoading(loading, text) {
@@ -496,6 +496,32 @@
           setBootLoading(true, 'جارٍ فتح مساحة العمل');
           startFlutter();
         });
+
+        // First launch only: check the public manager sentinel before
+        // waiting for credentials. If it is positively absent, hand off to
+        // Flutter's one-time ManagerSetupScreen. Any network/permission
+        // failure fails closed and leaves the normal login screen visible.
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const lockUrl = 'https://firestore.googleapis.com/v1/projects/' +
+            'neotask1-ff5a4/databases/(default)/documents/system/manager_lock' +
+            '?key=AIzaSyAH4nvOmEuBXlYmSgTvVedEyGGqcVhXcZ4';
+          const lockResponse = await fetch(lockUrl, {
+            cache: 'no-store',
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (lockResponse.status === 404 && !auth.currentUser) {
+            window.__neotaskAllowFirstFrameFallback = true;
+            setBootLoading(true, 'جارٍ فتح إعداد المدير');
+            await startFlutter();
+            return;
+          }
+        } catch (error) {
+          console.warn('Manager status check failed closed:', error);
+        }
+
         employeeInput.focus();
       } catch (error) {
         console.error('NeoTask instant login failed:', error);

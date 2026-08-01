@@ -18,7 +18,10 @@ class ManagerSetupScreen extends StatefulWidget {
 }
 
 class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
+  static const _setupKey = 'NAIFALABDULLAH211@';
+
   final _formKey = GlobalKey<FormState>();
+  final _setupKeyCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   final _employeeNumberCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
@@ -28,6 +31,7 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
 
   @override
   void dispose() {
+    _setupKeyCtrl.dispose();
     _nameCtrl.dispose();
     _employeeNumberCtrl.dispose();
     _passwordCtrl.dispose();
@@ -120,6 +124,20 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              TextFormField(
+                                controller: _setupKeyCtrl,
+                                obscureText: true,
+                                textDirection: TextDirection.ltr,
+                                textAlign: TextAlign.left,
+                                decoration: const InputDecoration(
+                                  labelText: 'مفتاح التأسيس',
+                                  prefixIcon: Icon(Icons.key_outlined),
+                                ),
+                                validator: (v) => v == _setupKey
+                                    ? null
+                                    : 'مفتاح التأسيس غير صحيح',
+                              ),
+                              const SizedBox(height: 14),
                               TextFormField(
                                 controller: _nameCtrl,
                                 decoration: const InputDecoration(

@@ -118,22 +118,26 @@ class FirestoreService {
   // answered by the tiny public `system/manager_lock` sentinel document
   // (created atomically alongside the manager's `users` doc — see
   // `createManagerProfile` below) instead of querying `users` directly.
-  static bool _managerLockExists = false;
+  // Fail closed: until Firestore positively confirms that the lock is
+  // absent, signed-out users are routed to LoginScreen rather than being
+  // offered manager bootstrap.
+  static bool _managerLockExists = true;
   static bool get managerLockExists => _managerLockExists;
 
+  static Future<void>? _managerStatusInit;
   static bool _publicInitialized = false;
   static bool _authInitialized = false;
   static final List<StreamSubscription> _authSubscriptions = [];
 
-  /// Sets up ONLY the listeners that are safe to run before any user is
-  /// signed in (per the security rules: `system/manager_lock` and
-  /// `invitations` are both public-read — see firestore.rules). Call this
-  /// once at app startup, before FirebaseAuth's session is even checked.
-  static Future<void> initPublic() async {
-    if (_publicInitialized) return;
+  /// Reads and watches the public manager sentinel without initializing the
+  /// invitation listener. This keeps first-run routing fast while retaining
+  /// a fail-closed default if Firestore is unreachable.
+  static Future<void> initManagerStatus() {
+    return _managerStatusInit ??= _startManagerStatusListener();
+  }
 
+  static Future<void> _startManagerStatusListener() async {
     final lockDone = Completer<void>();
-    final invitationsDone = Completer<void>();
 
     _db
         .collection('system')
@@ -144,10 +148,24 @@ class FirestoreService {
             _managerLockExists = snap.exists;
             if (!lockDone.isCompleted) lockDone.complete();
           },
-          onError: (_) {
-            if (!lockDone.isCompleted) lockDone.complete();
+          onError: (Object error, StackTrace stackTrace) {
+            if (!lockDone.isCompleted) {
+              lockDone.completeError(error, stackTrace);
+            }
           },
         );
+
+    await lockDone.future.timeout(const Duration(seconds: 8));
+  }
+
+  /// Sets up ONLY the listeners that are safe to run before any user is
+  /// signed in (per the security rules: `system/manager_lock` and
+  /// `invitations` are both public-read — see firestore.rules). Call this
+  /// once at app startup, before FirebaseAuth's session is even checked.
+  static Future<void> initPublic() async {
+    if (_publicInitialized) return;
+
+    final invitationsDone = Completer<void>();
 
     _db
         .collection('invitations')
@@ -166,7 +184,7 @@ class FirestoreService {
         );
 
     await Future.wait([
-      lockDone.future,
+      initManagerStatus(),
       invitationsDone.future,
     ]).timeout(const Duration(seconds: 15), onTimeout: () => []);
 
