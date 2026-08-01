@@ -9,6 +9,7 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
 import '../../widgets/favorite_star_button.dart';
 import '../employee/task_detail_screen.dart';
+import '../designer/designer_task_view_screen.dart';
 import '../manager/task_review_detail_screen.dart';
 
 /// Starred/favorite tasks ("المفضلة") — scoped to the current user's own
@@ -20,10 +21,12 @@ class FavoritesScreen extends StatelessWidget {
     super.key,
     required this.currentUserUid,
     required this.isManager,
+    this.readOnly = false,
   });
 
   final String currentUserUid;
   final bool isManager;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +71,9 @@ class FavoritesScreen extends StatelessWidget {
                     child: ListTile(
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => isManager
+                          builder: (_) => readOnly
+                              ? DesignerTaskViewScreen(task: t)
+                              : isManager
                               ? TaskReviewDetailScreen(task: t)
                               : TaskDetailScreen(task: t),
                         ),
@@ -85,10 +90,16 @@ class FavoritesScreen extends StatelessWidget {
                         children: [
                           TaskUrgencyDot(task: t),
                           const SizedBox(width: 8),
-                          FavoriteStarButton(
-                            userUid: currentUserUid,
-                            taskId: t.taskId,
-                          ),
+                          if (readOnly)
+                            const Icon(
+                              Icons.star,
+                              color: AppColors.favoriteGold,
+                            )
+                          else
+                            FavoriteStarButton(
+                              userUid: currentUserUid,
+                              taskId: t.taskId,
+                            ),
                         ],
                       ),
                       trailing: Column(

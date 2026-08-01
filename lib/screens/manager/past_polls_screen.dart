@@ -13,7 +13,9 @@ import 'manager_poll_detail_screen.dart';
 /// active and ended polls, and can drill into the full [PollReportScreen]
 /// from there.
 class PastPollsScreen extends StatelessWidget {
-  const PastPollsScreen({super.key});
+  const PastPollsScreen({super.key, this.readOnly = false});
+
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +43,10 @@ class PastPollsScreen extends StatelessWidget {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) =>
-                              ManagerPollDetailScreen(pollId: poll.pollId),
+                              ManagerPollDetailScreen(
+                                pollId: poll.pollId,
+                                readOnly: readOnly,
+                              ),
                         ),
                       );
                     },

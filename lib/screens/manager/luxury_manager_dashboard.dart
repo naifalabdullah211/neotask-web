@@ -128,7 +128,7 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
       builder: (context, constraints) {
         final desktop = constraints.maxWidth >= 960;
         return ColoredBox(
-          color: const Color(0xFFF5F7FA),
+          color: Colors.white,
           child: SingleChildScrollView(
             child: Column(
               children: [
@@ -139,10 +139,13 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
                   readOnly: widget.readOnly,
                 ),
                 Transform.translate(
-                  offset: Offset(0, desktop ? -38 : -28),
+                  offset: Offset(0, desktop ? -38 : 0),
                   child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: desktop ? 30 : 14,
+                    padding: EdgeInsets.fromLTRB(
+                      desktop ? 30 : 0,
+                      desktop ? 0 : 12,
+                      desktop ? 30 : 0,
+                      desktop ? 0 : 18,
                     ),
                     child: _DashboardSurface(
                       desktop: desktop,
@@ -461,15 +464,19 @@ class _DashboardSurface extends StatelessWidget {
       padding: EdgeInsets.all(desktop ? 24 : 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(desktop ? 24 : 22),
-        border: Border.all(color: const Color(0x0D082A55)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x24122643),
-            blurRadius: 38,
-            offset: Offset(0, 18),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(desktop ? 24 : 0),
+        border: desktop
+            ? Border.all(color: const Color(0x0D082A55))
+            : null,
+        boxShadow: desktop
+            ? const [
+                BoxShadow(
+                  color: Color(0x24122643),
+                  blurRadius: 38,
+                  offset: Offset(0, 18),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         children: [

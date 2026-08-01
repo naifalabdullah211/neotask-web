@@ -76,7 +76,7 @@ jobs:
       - name: Deploy Firebase Hosting
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-        run: firebase deploy --only hosting --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
+        run: firebase deploy --only hosting,firestore:rules --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
 
       - name: Save actual Hosting site list
         if: always()

@@ -25,9 +25,14 @@ import 'poll_report_screen.dart';
 /// here. Available for BOTH active and ended polls, opened from either
 /// the manager's live list or the past-polls archive.
 class ManagerPollDetailScreen extends StatefulWidget {
-  const ManagerPollDetailScreen({super.key, required this.pollId});
+  const ManagerPollDetailScreen({
+    super.key,
+    required this.pollId,
+    this.readOnly = false,
+  });
 
   final String pollId;
+  final bool readOnly;
 
   @override
   State<ManagerPollDetailScreen> createState() =>
@@ -150,7 +155,7 @@ class _ManagerPollDetailScreenState extends State<ManagerPollDetailScreen> {
       appBar: AppBar(
         title: Text(poll.title),
         actions: [
-          if (canEditOrCancel)
+          if (canEditOrCancel && !widget.readOnly)
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: 'تعديل التصويت',
@@ -267,7 +272,7 @@ class _ManagerPollDetailScreenState extends State<ManagerPollDetailScreen> {
             const SizedBox(height: 16),
 
             // ---- actions ----
-            if (poll.status == PollStatus.active) ...[
+            if (poll.status == PollStatus.active && !widget.readOnly) ...[
               FilledButton.icon(
                 onPressed: _reminding ? null : () => _remindNotVoted(poll),
                 icon: _reminding
@@ -284,7 +289,7 @@ class _ManagerPollDetailScreenState extends State<ManagerPollDetailScreen> {
               ),
               const SizedBox(height: 10),
             ],
-            if (canEditOrCancel) ...[
+            if (canEditOrCancel && !widget.readOnly) ...[
               OutlinedButton.icon(
                 onPressed: _cancelling ? null : () => _cancelPoll(poll),
                 style: OutlinedButton.styleFrom(

@@ -45,7 +45,7 @@ class _DesignerHomeScreenState extends State<DesignerHomeScreen> {
     return Scaffold(
       key: _scaffoldKey,
       drawer: const AppDrawer(),
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           LuxuryTopNav(

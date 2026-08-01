@@ -606,7 +606,8 @@ service cloud.firestore {
         // by the manager's live per-employee status view, requirement
         // #2, and the permanent report, requirement #6).
         allow read: if isSignedIn() &&
-          (employeeUid == request.auth.uid ||
+          (isDesigner() ||
+           employeeUid == request.auth.uid ||
            (isManager() &&
             get(/databases/$(database)/documents/polls/$(pollId)).data.createdBy == request.auth.uid));
 

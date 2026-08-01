@@ -21,35 +21,48 @@ import 'manager_create_task_screen.dart';
 /// for free — see that method's doc comment), un-ticking calls
 /// [TaskProvider.reopenPersonalTask].
 class ManagerMyTasksScreen extends StatelessWidget {
-  const ManagerMyTasksScreen({super.key});
+  const ManagerMyTasksScreen({
+    super.key,
+    this.readOnly = false,
+    this.managerUid,
+  });
+
+  final bool readOnly;
+  final String? managerUid;
 
   @override
   Widget build(BuildContext context) {
-    final managerUid = context.watch<AuthProvider>().currentUser!.uid;
-    final tasks = context.watch<TaskProvider>().personalTasksFor(managerUid);
+    final effectiveManagerUid =
+        managerUid ?? context.watch<AuthProvider>().currentUser!.uid;
+    final tasks = context
+        .watch<TaskProvider>()
+        .personalTasksFor(effectiveManagerUid);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('مهامي الشخصية')),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.gold,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                const ManagerCreateTaskScreen(initialIsPersonal: true),
-          ),
-        ),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: readOnly
+          ? null
+          : FloatingActionButton(
+              backgroundColor: AppColors.gold,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const ManagerCreateTaskScreen(initialIsPersonal: true),
+                ),
+              ),
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
       body: SafeArea(
         child: tasks.isEmpty
-            ? const _EmptyState()
+            ? _EmptyState(readOnly: readOnly)
             : ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
                 itemCount: tasks.length,
                 itemBuilder: (context, index) => _PersonalTaskTile(
                   task: tasks[index],
-                  managerUid: managerUid,
+                  managerUid: effectiveManagerUid,
+                  readOnly: readOnly,
                 ),
               ),
       ),
@@ -58,7 +71,9 @@ class ManagerMyTasksScreen extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({required this.readOnly});
+
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -79,11 +94,16 @@ class _EmptyState extends StatelessWidget {
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'اضغط زر الإضافة لإنشاء مهمة أو تذكير خاص بك، متابعة إنجازه لن '
-              'تؤثر على تقارير الفريق.',
+            Text(
+              readOnly
+                  ? 'لا توجد مهام شخصية مسجلة لدى المدير حاليًا.'
+                  : 'اضغط زر الإضافة لإنشاء مهمة أو تذكير خاص بك، متابعة إنجازه لن '
+                        'تؤثر على تقارير الفريق.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
             ),
           ],
         ),
@@ -93,10 +113,15 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _PersonalTaskTile extends StatelessWidget {
-  const _PersonalTaskTile({required this.task, required this.managerUid});
+  const _PersonalTaskTile({
+    required this.task,
+    required this.managerUid,
+    required this.readOnly,
+  });
 
   final AppTask task;
   final String managerUid;
+  final bool readOnly;
 
   Future<void> _toggleDone(BuildContext context, bool? checked) async {
     final provider = context.read<TaskProvider>();
@@ -160,7 +185,7 @@ class _PersonalTaskTile extends StatelessWidget {
             Checkbox(
               value: isDone,
               activeColor: AppColors.gold,
-              onChanged: (v) => _toggleDone(context, v),
+              onChanged: readOnly ? null : (v) => _toggleDone(context, v),
             ),
             Expanded(
               child: Column(
@@ -222,11 +247,12 @@ class _PersonalTaskTile extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              color: AppColors.textSecondary,
-              onPressed: () => _confirmDelete(context),
-            ),
+            if (!readOnly)
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                color: AppColors.textSecondary,
+                onPressed: () => _confirmDelete(context),
+              ),
           ],
         ),
       ),

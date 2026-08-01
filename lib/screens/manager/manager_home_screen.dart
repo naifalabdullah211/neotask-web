@@ -68,7 +68,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     return Scaffold(
       key: _scaffoldKey,
       drawer: const AppDrawer(),
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           LuxuryTopNav(
@@ -325,10 +325,7 @@ class LuxuryTopNav extends StatelessWidget {
           bottom: false,
           child: Row(
             children: [
-              _HeaderImage(
-                assetPath: 'assets/images/neotask_brand_header.png',
-                width: 152,
-              ),
+              const _HeaderBrand(compact: true),
               const Spacer(),
               InkWell(
                 onTap: onOpenMenu,
@@ -369,10 +366,7 @@ class LuxuryTopNav extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const _HeaderImage(
-            assetPath: 'assets/images/neotask_brand_header.png',
-            width: 230,
-          ),
+          const _HeaderBrand(),
           const SizedBox(width: 42),
           Expanded(
             child: Row(
@@ -544,6 +538,41 @@ class _HeaderImage extends StatelessWidget {
       fit: fit,
       alignment: alignment,
       filterQuality: FilterQuality.high,
+    );
+  }
+}
+
+class _HeaderBrand extends StatelessWidget {
+  const _HeaderBrand({this.compact = false});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'NeoTask',
+      image: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _HeaderImage(
+            assetPath: 'assets/images/neotask_brand_mark.png',
+            width: compact ? 42 : 52,
+          ),
+          SizedBox(width: compact ? 8 : 11),
+          Text(
+            'NeoTask',
+            textDirection: TextDirection.ltr,
+            style: TextStyle(
+              color: const Color(0xFFF7FAFF),
+              fontSize: compact ? 27 : 36,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1.1,
+              height: 1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

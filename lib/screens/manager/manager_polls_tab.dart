@@ -16,7 +16,9 @@ import 'past_polls_screen.dart';
 /// ([PastPollsScreen]), reachable via the app-bar action. A FAB creates a
 /// new poll.
 class ManagerPollsTab extends StatefulWidget {
-  const ManagerPollsTab({super.key});
+  const ManagerPollsTab({super.key, this.readOnly = false});
+
+  final bool readOnly;
 
   @override
   State<ManagerPollsTab> createState() => _ManagerPollsTabState();
@@ -48,7 +50,9 @@ class _ManagerPollsTabState extends State<ManagerPollsTab>
             icon: const Icon(Icons.archive_outlined),
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PastPollsScreen()),
+                MaterialPageRoute(
+                  builder: (_) => PastPollsScreen(readOnly: widget.readOnly),
+                ),
               );
             },
           ),
@@ -63,30 +67,37 @@ class _ManagerPollsTabState extends State<ManagerPollsTab>
         ),
       ),
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.mintAccent,
-        onPressed: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const CreatePollScreen()));
-        },
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: widget.readOnly
+          ? null
+          : FloatingActionButton(
+              backgroundColor: AppColors.mintAccent,
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CreatePollScreen()),
+                );
+              },
+              child: const Icon(Icons.add),
+            ),
       body: SafeArea(
         child: TabBarView(
           controller: _tabController,
           children: [
             _PollList(
               polls: pollProvider.activePolls,
+              readOnly: widget.readOnly,
               emptyMessage:
-                  'لا توجد تصويتات نشطة حاليًا. اضغط + لإنشاء تصويت جديد.',
+                  widget.readOnly
+                  ? 'لا توجد تصويتات نشطة حاليًا.'
+                  : 'لا توجد تصويتات نشطة حاليًا. اضغط + لإنشاء تصويت جديد.',
             ),
             _PollList(
               polls: pollProvider.draftPolls,
+              readOnly: widget.readOnly,
               emptyMessage: 'لا توجد مسودات محفوظة.',
             ),
             _PollList(
               polls: pollProvider.cancelledPolls,
+              readOnly: widget.readOnly,
               emptyMessage: 'لا توجد تصويتات مُلغاة.',
             ),
           ],
@@ -97,10 +108,15 @@ class _ManagerPollsTabState extends State<ManagerPollsTab>
 }
 
 class _PollList extends StatelessWidget {
-  const _PollList({required this.polls, required this.emptyMessage});
+  const _PollList({
+    required this.polls,
+    required this.emptyMessage,
+    required this.readOnly,
+  });
 
   final List<AppPoll> polls;
   final String emptyMessage;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +142,10 @@ class _PollList extends StatelessWidget {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => ManagerPollDetailScreen(pollId: poll.pollId),
+                builder: (_) => ManagerPollDetailScreen(
+                  pollId: poll.pollId,
+                  readOnly: readOnly,
+                ),
               ),
             );
           },

@@ -39,7 +39,7 @@ class AppColors {
   /// this palette was deliberately designed to avoid.
   static const Color mintAccent = Color(0xFF33D6A6);
 
-  static const Color background = Color(0xFFF5F7FB);
+  static const Color background = Colors.white;
   static const Color surface = Colors.white;
   static const Color textPrimary = Color(0xFF11182C);
   static const Color textSecondary = Color(0xFF64748B);

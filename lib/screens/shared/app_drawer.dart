@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import 'documents_screen.dart';
 import 'meetings_screen.dart';
@@ -163,35 +164,30 @@ class _AppDrawerState extends State<AppDrawer> {
                         isActive: activeKey == 'goals',
                         onTap: () => push('goals', const GoalsListScreen()),
                       ),
-                      // "تصويت" (Polls) — manager-only per the feature's
-                      // explicit requirement (poll creation, per-employee
-                      // vote detail by name, and the archive are all
-                      // manager-facing). Not shown to the designer's
-                      // read-only drawer since ManagerPollsTab carries a
-                      // create-poll FAB with no readOnly variant, and not
-                      // shown to employees here since they already have
-                      // their own "تصويت" bottom-nav tab
-                      // (employee_home_screen.dart) with the vote-only,
-                      // secrecy-respecting view.
-                      if (isManager)
+                      if (isManager || isDesigner)
                         _DrawerNavTile(
                           icon: Icons.how_to_vote_outlined,
                           label: 'تصويت',
                           isActive: activeKey == 'polls',
-                          onTap: () => push('polls', const ManagerPollsTab()),
+                          onTap: () => push(
+                            'polls',
+                            ManagerPollsTab(readOnly: isDesigner),
+                          ),
                         ),
-                      // مهامي الشخصية — manager-only (المهام الشخصية
-                      // للمدير, NEW). Not shown to employees/designer: a
-                      // "personal task" is defined as assignedTo ==
-                      // assignedBy (see AppTaskStatusX.isPersonal), which
-                      // is only meaningful for the manager role.
-                      if (isManager)
+                      if (isManager || isDesigner)
                         _DrawerNavTile(
                           icon: Icons.checklist,
                           label: 'مهامي الشخصية',
                           isActive: activeKey == 'my_tasks',
-                          onTap: () =>
-                              push('my_tasks', const ManagerMyTasksScreen()),
+                          onTap: () => push(
+                            'my_tasks',
+                            ManagerMyTasksScreen(
+                              readOnly: isDesigner,
+                              managerUid: isDesigner
+                                  ? FirestoreService.getManager()?.uid
+                                  : user.uid,
+                            ),
+                          ),
                         ),
                       _DrawerNavTile(
                         icon: Icons.folder_outlined,
@@ -234,16 +230,7 @@ class _AppDrawerState extends State<AppDrawer> {
                           ),
                         ),
                       ),
-                      // Favorites is intentionally OMITTED for the
-                      // designer role: it is a per-user starred-tasks
-                      // list that would always be empty for a designer
-                      // (favorites are never created by/for a
-                      // non-participating uid), and its live
-                      // star/unstar toggle button has no readOnly
-                      // variant — rather than build one for a screen
-                      // that would show nothing useful, it is simply
-                      // not linked from the designer's drawer at all.
-                      if (!isDesigner)
+                      if (isManager || isDesigner || auth.isEmployee)
                         _DrawerNavTile(
                           icon: Icons.star_border,
                           label: 'المفضلة',
@@ -251,8 +238,12 @@ class _AppDrawerState extends State<AppDrawer> {
                           onTap: () => push(
                             'favorites',
                             FavoritesScreen(
-                              currentUserUid: user.uid,
-                              isManager: isManager,
+                              currentUserUid: isDesigner
+                                  ? FirestoreService.getManager()?.uid ??
+                                        user.uid
+                                  : user.uid,
+                              isManager: isManager || isDesigner,
+                              readOnly: isDesigner,
                             ),
                           ),
                         ),
