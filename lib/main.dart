@@ -20,6 +20,7 @@ import 'providers/digest_provider.dart';
 import 'providers/interface_style_provider.dart';
 import 'screens/shared/splash_router.dart';
 import 'utils/app_ready.dart';
+import 'widgets/incoming_call_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -140,7 +141,7 @@ class NeoTaskApp extends StatelessWidget {
                 child: child ?? const SizedBox.shrink(),
               );
             },
-            home: const SplashRouter(),
+            home: const IncomingCallGate(child: SplashRouter()),
           );
         },
       ),

@@ -346,6 +346,104 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- one-to-one WebRTC voice-call signalling ----
+    // Audio never passes through Firestore. Only the short-lived SDP/ICE
+    // negotiation data and final call status are stored here. Every read
+    // and write is restricted to the two authenticated participants.
+    match /voice_calls/{callId} {
+      function isParticipant() {
+        return isSignedIn() &&
+          (resource.data.callerUid == request.auth.uid ||
+           resource.data.calleeUid == request.auth.uid);
+      }
+
+      allow get: if isParticipant();
+      // The only collection query in the client is scoped by
+      // `calleeUid == request.auth.uid` for incoming calls.
+      allow list: if isSignedIn() &&
+        resource.data.calleeUid == request.auth.uid;
+
+      allow create: if isSignedIn() && !isDesigner() &&
+        request.resource.data.callId == callId &&
+        request.resource.data.callerUid == request.auth.uid &&
+        request.resource.data.calleeUid is string &&
+        request.resource.data.calleeUid != request.auth.uid &&
+        request.resource.data.conversationId is string &&
+        request.resource.data.offer is map &&
+        request.resource.data.status == 'ringing' &&
+        request.resource.data.createdAt is string;
+
+      allow update: if isParticipant() && !isDesigner() &&
+        request.resource.data.callId == resource.data.callId &&
+        request.resource.data.conversationId == resource.data.conversationId &&
+        request.resource.data.taskId == resource.data.taskId &&
+        request.resource.data.callerUid == resource.data.callerUid &&
+        request.resource.data.calleeUid == resource.data.calleeUid &&
+        request.resource.data.offer == resource.data.offer &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'answer', 'answeredAt', 'endedAt', 'endedByUid'
+        ]) &&
+        (
+          (request.auth.uid == resource.data.calleeUid &&
+           resource.data.status == 'ringing' &&
+           request.resource.data.status == 'accepted' &&
+           request.resource.data.answer is map &&
+           request.resource.data.answeredAt is string &&
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasAll(['status', 'answer', 'answeredAt']))
+          ||
+          (request.auth.uid == resource.data.calleeUid &&
+           resource.data.status == 'ringing' &&
+           request.resource.data.status == 'declined' &&
+           request.resource.data.endedByUid == request.auth.uid &&
+           request.resource.data.endedAt is string)
+          ||
+          (request.auth.uid == resource.data.callerUid &&
+           resource.data.status == 'ringing' &&
+           request.resource.data.status == 'cancelled' &&
+           request.resource.data.endedByUid == request.auth.uid &&
+           request.resource.data.endedAt is string)
+          ||
+          (resource.data.status == 'ringing' &&
+           request.resource.data.status == 'missed' &&
+           request.resource.data.endedByUid == request.auth.uid &&
+           request.resource.data.endedAt is string)
+          ||
+          (resource.data.status == 'accepted' &&
+           request.resource.data.status == 'ended' &&
+           request.resource.data.endedByUid == request.auth.uid &&
+           request.resource.data.endedAt is string)
+          ||
+          (resource.data.status in ['ringing', 'accepted'] &&
+           request.resource.data.status == 'failed' &&
+           request.resource.data.endedByUid == request.auth.uid &&
+           request.resource.data.endedAt is string)
+        );
+
+      allow delete: if false;
+
+      match /caller_candidates/{candidateId} {
+        allow read: if isSignedIn() &&
+          (get(/databases/$(database)/documents/voice_calls/$(callId)).data.callerUid == request.auth.uid ||
+           get(/databases/$(database)/documents/voice_calls/$(callId)).data.calleeUid == request.auth.uid);
+        allow create: if isSignedIn() && !isDesigner() &&
+          get(/databases/$(database)/documents/voice_calls/$(callId)).data.callerUid == request.auth.uid &&
+          request.resource.data.candidate is string;
+        allow update, delete: if false;
+      }
+
+      match /callee_candidates/{candidateId} {
+        allow read: if isSignedIn() &&
+          (get(/databases/$(database)/documents/voice_calls/$(callId)).data.callerUid == request.auth.uid ||
+           get(/databases/$(database)/documents/voice_calls/$(callId)).data.calleeUid == request.auth.uid);
+        allow create: if isSignedIn() && !isDesigner() &&
+          get(/databases/$(database)/documents/voice_calls/$(callId)).data.calleeUid == request.auth.uid &&
+          request.resource.data.candidate is string;
+        allow update, delete: if false;
+      }
+    }
+
     // ---- calendar_imports / calendar_settings ----
     // Per-user data, but read via the same unfiltered-listen pattern as
     // above — gated on sign-in only. No PII beyond imported event
