@@ -98,3 +98,4 @@ jobs:
           git push || true
 
 # force modern interface deployment: 2026-08-01T01:34+03:00
+# full production deploy trigger: 2026-08-01T12:55Z
