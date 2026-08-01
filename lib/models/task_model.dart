@@ -204,6 +204,7 @@ class AppTask {
   /// Optional hierarchy and finish-to-start dependencies.
   final String? parentTaskId;
   final List<String> predecessorTaskIds;
+  final List<String> linkedDocumentIds;
   final TaskPriority priority;
   final TaskStatus status;
   final String category;
@@ -300,6 +301,7 @@ class AppTask {
     this.progressPercent = 0,
     this.parentTaskId,
     this.predecessorTaskIds = const [],
+    this.linkedDocumentIds = const [],
     required this.priority,
     required this.status,
     required this.category,
@@ -337,6 +339,7 @@ class AppTask {
     int? progressPercent,
     String? parentTaskId,
     List<String>? predecessorTaskIds,
+    List<String>? linkedDocumentIds,
     TaskPriority? priority,
     TaskStatus? status,
     String? category,
@@ -389,6 +392,7 @@ class AppTask {
           ? null
           : (parentTaskId ?? this.parentTaskId),
       predecessorTaskIds: predecessorTaskIds ?? this.predecessorTaskIds,
+      linkedDocumentIds: linkedDocumentIds ?? this.linkedDocumentIds,
       priority: priority ?? this.priority,
       status: status ?? this.status,
       category: category ?? this.category,
@@ -439,6 +443,7 @@ class AppTask {
       'progressPercent': progressPercent,
       'parentTaskId': parentTaskId,
       'predecessorTaskIds': predecessorTaskIds,
+      'linkedDocumentIds': linkedDocumentIds,
       'priority': priority.name,
       'status': status.name,
       'category': category,
@@ -493,6 +498,9 @@ class AppTask {
       parentTaskId: map['parentTaskId'] as String?,
       predecessorTaskIds: map['predecessorTaskIds'] != null
           ? List<String>.from(map['predecessorTaskIds'] as List)
+          : const [],
+      linkedDocumentIds: map['linkedDocumentIds'] != null
+          ? List<String>.from(map['linkedDocumentIds'] as List)
           : const [],
       priority: TaskPriority.values.firstWhere(
         (e) => e.name == map['priority'],

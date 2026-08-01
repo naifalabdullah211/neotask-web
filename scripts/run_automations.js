@@ -149,6 +149,53 @@ async function processRules(rules, task, taskId, trigger, eventKey, now) {
   }
 }
 
+async function processKnowledgeReviewReminders(now) {
+  const snapshot = await db.collection("documents")
+      .where("status", "==", "approved")
+      .get();
+  const managers = await db.collection("users").where("role", "==", "manager").get();
+  const managerUids = managers.docs
+      .filter((doc) => doc.data().accountStatus === "active")
+      .map((doc) => doc.id);
+  let reminders = 0;
+  for (const documentDoc of snapshot.docs) {
+    const document = documentDoc.data();
+    if (!document.reviewDueDate) continue;
+    const due = new Date(document.reviewDueDate);
+    if (Number.isNaN(due.getTime())) continue;
+    const daysRemaining = (due.getTime() - now.getTime()) / 86400000;
+    if (daysRemaining > 7) continue;
+    if (document.reviewReminderForDate === document.reviewDueDate) continue;
+
+    const recipients = new Set(managerUids);
+    if (document.ownerUid) recipients.add(document.ownerUid);
+    const batch = db.batch();
+    for (const recipientUid of recipients) {
+      const ref = db.collection("notifications").doc();
+      batch.set(ref, {
+        notificationId: ref.id,
+        recipientUid,
+        type: "knowledgeReviewDue",
+        title: daysRemaining < 0 ? "تأخرت مراجعة وثيقة" : "اقترب موعد مراجعة وثيقة",
+        body: `الوثيقة «${document.title || "بدون عنوان"}» موعد مراجعتها ${String(document.reviewDueDate).slice(0, 10)}`,
+        relatedPollId: null,
+        relatedTaskId: null,
+        relatedDocumentId: documentDoc.id,
+        payload: {reviewDueDate: document.reviewDueDate},
+        createdAt: now.toISOString(),
+        readAt: null,
+      });
+    }
+    batch.update(documentDoc.ref, {
+      reviewReminderSentAt: now.toISOString(),
+      reviewReminderForDate: document.reviewDueDate,
+    });
+    await batch.commit();
+    reminders++;
+  }
+  return {checked: snapshot.size, reminders};
+}
+
 async function main() {
   const now = new Date();
   const [ruleSnapshot, taskSnapshot] = await Promise.all([
@@ -180,7 +227,8 @@ async function main() {
     });
     executedTasks++;
   }
-  console.log(`Automation scan complete: ${rules.length} active rules, ${executedTasks} tasks checked`);
+  const knowledge = await processKnowledgeReviewReminders(now);
+  console.log(`Automation scan complete: ${rules.length} active rules, ${executedTasks} tasks checked, ${knowledge.checked} approved knowledge documents checked, ${knowledge.reminders} review reminders sent`);
 }
 
 main().catch((error) => {

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/notification_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/document_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../employee/employee_poll_vote_screen.dart';
@@ -11,6 +12,7 @@ import '../employee/task_detail_screen.dart';
 import '../manager/manager_poll_detail_screen.dart';
 import '../manager/poll_report_screen.dart';
 import '../manager/task_review_detail_screen.dart';
+import 'knowledge_document_detail_screen.dart';
 
 /// In-app notification inbox — accessible from the [NotificationBell] in
 /// both `manager_home_screen.dart` and `employee_home_screen.dart`.
@@ -129,6 +131,26 @@ class NotificationCenterScreen extends StatelessWidget {
                         ),
                       );
                     }
+                    if (n.relatedDocumentId != null && context.mounted) {
+                      final document = context
+                          .read<DocumentProvider>()
+                          .byId(n.relatedDocumentId!);
+                      final auth = context.read<AuthProvider>();
+                      final user = auth.currentUser;
+                      if (document != null && user != null && context.mounted) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => KnowledgeDocumentDetailScreen(
+                              initialDocument: document,
+                              currentUserUid: user.uid,
+                              currentUserName: user.name,
+                              isManager: auth.isManager,
+                              readOnly: auth.isDesigner,
+                            ),
+                          ),
+                        );
+                      }
+                    }
                     // NEW — Quick Comments feature: tapping a task-comment
                     // notification jumps straight to that task's detail
                     // screen (manager -> TaskReviewDetailScreen, employee
@@ -190,6 +212,10 @@ class _NotificationTile extends StatelessWidget {
     final isPollEnded = notification.type == NotificationType.pollEnded;
     final isVoteReminder = notification.type == NotificationType.voteReminder;
     final isAutomation = notification.type == NotificationType.automation;
+    final isKnowledge =
+        notification.type == NotificationType.knowledgeMention ||
+        notification.type == NotificationType.knowledgeReview ||
+        notification.type == NotificationType.knowledgeReviewDue;
     final Color accent = isTieDecision || isDueSoon || isVoteReminder
         ? AppColors.statusPending
         : isOverdue
@@ -198,6 +224,8 @@ class _NotificationTile extends StatelessWidget {
         ? AppColors.statusApproved
         : isAutomation
         ? AppColors.mintAccent
+        : isKnowledge
+        ? AppColors.gold
         : (notification.isRead ? AppColors.textSecondary : AppColors.deepBlue);
     final IconData icon = isTieDecision
         ? Icons.gavel_outlined
@@ -211,6 +239,8 @@ class _NotificationTile extends StatelessWidget {
         ? Icons.campaign_outlined
         : isAutomation
         ? Icons.bolt_outlined
+        : isKnowledge
+        ? Icons.auto_stories_outlined
         : (isTaskComment
               ? Icons.chat_bubble_outline
               : Icons.how_to_vote_outlined);

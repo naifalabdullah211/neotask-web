@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neotask_pro/models/automation_rule_model.dart';
 import 'package:neotask_pro/models/custom_form_model.dart';
+import 'package:neotask_pro/models/document_model.dart';
+import 'package:neotask_pro/models/meeting_model.dart';
 import 'package:neotask_pro/utils/import_table_parser.dart';
 
 void main() {
@@ -71,5 +73,60 @@ void main() {
     expect(table.headers, ['name', 'employeeNumber', 'password']);
     expect(table.rows.single['name'], 'نايف, عبدالله');
     expect(table.rows.single['employeeNumber'], '1001');
+  });
+
+  test('knowledge document preserves workflow, ownership and review data', () {
+    final now = DateTime(2026, 8, 1, 12);
+    final document = DocumentItem(
+      documentId: 'doc-1',
+      title: 'سياسة جرد الأدوية المخدرة',
+      category: 'سياسات',
+      uploadedBy: 'manager-1',
+      uploadedByName: 'المدير',
+      createdAt: now,
+      content: 'يتم الجرد شهريًا',
+      kind: DocumentKind.policy,
+      department: 'الصيدلية',
+      tags: const ['صيدلية', 'JCI'],
+      status: DocumentWorkflowStatus.approved,
+      version: 3,
+      reviewDueDate: DateTime(2027, 8, 1),
+    );
+    final restored = DocumentItem.fromMap(document.toMap());
+    expect(restored.status, DocumentWorkflowStatus.approved);
+    expect(restored.kind, DocumentKind.policy);
+    expect(restored.version, 3);
+    expect(restored.tags, ['صيدلية', 'JCI']);
+  });
+
+  test('meeting decision keeps task linkage through serialization', () {
+    final now = DateTime(2026, 8, 1, 12);
+    final meeting = MeetingItem(
+      meetingId: 'meeting-1',
+      title: 'اجتماع الجودة',
+      description: '',
+      startTime: now,
+      location: 'قاعة الاجتماعات',
+      createdBy: 'manager-1',
+      createdByName: 'المدير',
+      participantUids: const ['employee-1'],
+      createdAt: now,
+      agendaItems: const ['مراجعة مؤشرات الأداء'],
+      minutes: 'تم اعتماد الإجراء',
+      decisions: [
+        MeetingDecision(
+          decisionId: 'decision-1',
+          text: 'تحديث نموذج التدقيق',
+          ownerUid: 'employee-1',
+          ownerName: 'الموظف',
+          dueDate: DateTime(2026, 8, 7),
+          linkedTaskId: 'task-1',
+          createdAt: now,
+        ),
+      ],
+    );
+    final restored = MeetingItem.fromMap(meeting.toMap());
+    expect(restored.decisions.single.linkedTaskId, 'task-1');
+    expect(restored.agendaItems, ['مراجعة مؤشرات الأداء']);
   });
 }

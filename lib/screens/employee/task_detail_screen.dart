@@ -14,6 +14,7 @@ import '../../utils/project_planning.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/favorite_star_button.dart';
 import '../../widgets/task_plan_summary.dart';
+import '../../widgets/linked_knowledge_card.dart';
 import '../shared/chat_thread_screen.dart';
 import '../shared/request_reassignment_dialog.dart';
 
@@ -300,6 +301,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             ),
             const SizedBox(height: 12),
             TaskPlanSummary(task: current),
+            if (current.linkedDocumentIds.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              LinkedKnowledgeCard(task: current),
+            ],
             const SizedBox(height: 16),
             // ---- Reassignment-request status banner (NEW feature) ----
             if (current.reassignRequestedStatus == 'pending')

@@ -22,7 +22,7 @@ import '../manager/bulk_import_screen.dart';
 
 /// Shared side-menu ("Drawer") giving BOTH manager and employee access to
 /// the secondary feature set that does not fit into the bottom
-/// [NavigationBar]: المستندات، الاجتماعات، جهات الاتصال، المفضلة — plus a
+/// [NavigationBar]: مركز المعرفة، الاجتماعات، جهات الاتصال، المفضلة — plus a
 /// manager-only calendar entry (managers otherwise have no calendar view;
 /// employees already have one in their bottom bar, so it is intentionally
 /// omitted here for the employee to avoid duplicate entries).
@@ -250,8 +250,8 @@ class _AppDrawerState extends State<AppDrawer> {
                           ),
                         ),
                       _DrawerNavTile(
-                        icon: Icons.folder_outlined,
-                        label: 'المستندات',
+                        icon: Icons.auto_stories_outlined,
+                        label: 'مركز المعرفة',
                         isActive: activeKey == 'documents',
                         onTap: () => push(
                           'documents',

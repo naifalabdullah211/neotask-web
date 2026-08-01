@@ -354,23 +354,92 @@ service cloud.firestore {
       allow write: if isSignedIn() && !isDesigner();
     }
 
-    // ---- documents (shared library, manager + employee, Cloudinary-backed) ----
+    // ---- managed knowledge centre (pages/files + workflow + audit trail) ----
     match /documents/{docId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && !isDesigner() &&
-        request.resource.data.uploadedBy == request.auth.uid;
-      // Only the uploader or a manager may remove a document.
+        request.resource.data.documentId == docId &&
+        request.resource.data.uploadedBy == request.auth.uid &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.updatedBy == request.auth.uid &&
+        request.resource.data.status == 'draft' &&
+        request.resource.data.version == 1;
+      // The owner authors revisions; the manager owns approval/archive.
+      allow update: if isSignedIn() && !isDesigner() &&
+        (isManager() ||
+         ((resource.data.uploadedBy == request.auth.uid ||
+           resource.data.ownerUid == request.auth.uid) &&
+          request.resource.data.documentId == resource.data.documentId &&
+          request.resource.data.uploadedBy == resource.data.uploadedBy &&
+          request.resource.data.uploadedByName == resource.data.uploadedByName &&
+          request.resource.data.ownerUid == resource.data.ownerUid &&
+          request.resource.data.ownerName == resource.data.ownerName &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          request.resource.data.updatedBy == request.auth.uid &&
+          request.resource.data.status in ['draft', 'inReview'] &&
+          request.resource.data.version is int &&
+          request.resource.data.version >= resource.data.version &&
+          request.resource.data.version <= resource.data.version + 1 &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'title', 'fileUrl', 'fileName', 'fileType', 'category',
+            'description', 'content', 'kind', 'department', 'tags',
+            'reviewerUid', 'reviewerName', 'status', 'version', 'updatedAt',
+            'updatedBy', 'updatedByName', 'reviewDueDate', 'approvedAt',
+            'approvedBy', 'approvedByName', 'reviewReminderSentAt',
+            'reviewReminderForDate', 'linkedTaskIds'
+          ])));
       allow delete: if isSignedIn() && !isDesigner() &&
-        (resource.data.uploadedBy == request.auth.uid || isManager());
-      allow update: if false;
+        (isManager() || resource.data.uploadedBy == request.auth.uid ||
+         resource.data.ownerUid == request.auth.uid);
+
+      match /versions/{revisionId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && !isDesigner() &&
+          request.resource.data.documentId == docId &&
+          request.resource.data.changedByUid == request.auth.uid &&
+          request.resource.data.version ==
+            getAfter(/databases/$(database)/documents/documents/$(docId)).data.version &&
+          (isManager() ||
+           getAfter(/databases/$(database)/documents/documents/$(docId)).data.ownerUid == request.auth.uid ||
+           getAfter(/databases/$(database)/documents/documents/$(docId)).data.uploadedBy == request.auth.uid);
+        allow update: if false;
+        allow delete: if isSignedIn() && !isDesigner() &&
+          (isManager() ||
+           get(/databases/$(database)/documents/documents/$(docId)).data.ownerUid == request.auth.uid ||
+           get(/databases/$(database)/documents/documents/$(docId)).data.uploadedBy == request.auth.uid);
+      }
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && !isDesigner() &&
+          request.resource.data.authorUid == request.auth.uid;
+        allow update: if false;
+        allow delete: if isSignedIn() && !isDesigner() &&
+          (resource.data.authorUid == request.auth.uid || isManager() ||
+           get(/databases/$(database)/documents/documents/$(docId)).data.ownerUid == request.auth.uid ||
+           get(/databases/$(database)/documents/documents/$(docId)).data.uploadedBy == request.auth.uid);
+      }
     }
 
     // ---- meetings (schedule only, no live call integration) ----
     match /meetings/{docId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && !isDesigner() &&
+        request.resource.data.meetingId == docId &&
         request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isSignedIn() && !isDesigner() &&
+      allow update: if isSignedIn() && !isDesigner() &&
+        (isManager() ||
+         (resource.data.createdBy == request.auth.uid &&
+          request.resource.data.meetingId == resource.data.meetingId &&
+          request.resource.data.createdBy == resource.data.createdBy &&
+          request.resource.data.createdByName == resource.data.createdByName &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'title', 'description', 'startTime', 'endTime', 'location',
+            'participantUids', 'agendaItems', 'minutes', 'decisions',
+            'status', 'updatedAt'
+          ])));
+      allow delete: if isSignedIn() && !isDesigner() &&
         (resource.data.createdBy == request.auth.uid || isManager());
     }
 

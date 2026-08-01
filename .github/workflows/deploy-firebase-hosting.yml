@@ -44,6 +44,11 @@ jobs:
           set -o pipefail
           flutter pub get 2>&1 | tee -a deploy-error.log
 
+      - name: Test workflow models
+        run: |
+          set -o pipefail
+          flutter test test/workflow_features_test.dart 2>&1 | tee -a deploy-error.log
+
       - name: Build Flutter web
         run: |
           set -o pipefail

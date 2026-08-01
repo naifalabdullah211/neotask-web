@@ -14,6 +14,7 @@ import '../../utils/recurrence_utils.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/favorite_star_button.dart';
 import '../../widgets/task_plan_summary.dart';
+import '../../widgets/linked_knowledge_card.dart';
 import '../shared/chat_thread_screen.dart';
 
 /// Full task detail + three-way review decision screen for the manager.
@@ -513,6 +514,10 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
             ),
             const SizedBox(height: 12),
             TaskPlanSummary(task: current),
+            if (current.linkedDocumentIds.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              LinkedKnowledgeCard(task: current),
+            ],
             const SizedBox(height: 16),
             // NEW — manager-only action panel (تحديث الحالة / تحويل لموظف
             // آخر / حذف المهمة / إغلاق), always visible regardless of the

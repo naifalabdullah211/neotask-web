@@ -1317,8 +1317,77 @@ class FirestoreService {
     await _db.collection('documents').doc(doc.documentId).set(doc.toMap());
   }
 
+  static Future<void> saveDocumentWithRevision(
+    DocumentItem document,
+    DocumentRevision revision,
+  ) async {
+    final documentRef = _db.collection('documents').doc(document.documentId);
+    final revisionRef = documentRef
+        .collection('versions')
+        .doc(revision.revisionId);
+    final batch = _db.batch();
+    batch.set(documentRef, document.toMap());
+    batch.set(revisionRef, revision.toMap());
+    await batch.commit();
+  }
+
+  static Stream<List<DocumentRevision>> watchDocumentRevisions(
+    String documentId,
+  ) {
+    return _db
+        .collection('documents')
+        .doc(documentId)
+        .collection('versions')
+        .snapshots()
+        .map((snapshot) {
+          final items = snapshot.docs
+              .map((doc) => DocumentRevision.fromMap(doc.data()))
+              .toList();
+          items.sort((a, b) => b.version.compareTo(a.version));
+          return items;
+        });
+  }
+
+  static Future<void> saveDocumentComment(DocumentComment comment) async {
+    await _db
+        .collection('documents')
+        .doc(comment.documentId)
+        .collection('comments')
+        .doc(comment.commentId)
+        .set(comment.toMap());
+  }
+
+  static Stream<List<DocumentComment>> watchDocumentComments(
+    String documentId,
+  ) {
+    return _db
+        .collection('documents')
+        .doc(documentId)
+        .collection('comments')
+        .snapshots()
+        .map((snapshot) {
+          final items = snapshot.docs
+              .map((doc) => DocumentComment.fromMap(doc.data()))
+              .toList();
+          items.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          return items;
+        });
+  }
+
   static Future<void> deleteDocument(String documentId) async {
-    await _db.collection('documents').doc(documentId).delete();
+    final ref = _db.collection('documents').doc(documentId);
+    final snapshots = await Future.wait([
+      ref.collection('versions').get(),
+      ref.collection('comments').get(),
+    ]);
+    final batch = _db.batch();
+    for (final snapshot in snapshots) {
+      for (final child in snapshot.docs) {
+        batch.delete(child.reference);
+      }
+    }
+    batch.delete(ref);
+    await batch.commit();
   }
 
   static List<DocumentItem> getAllDocuments() {

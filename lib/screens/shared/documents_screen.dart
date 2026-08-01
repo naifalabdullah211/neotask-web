@@ -1,17 +1,17 @@
+import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../models/document_model.dart';
 import '../../providers/document_provider.dart';
 import '../../services/cloudinary_service.dart';
 import '../../theme/app_theme.dart';
+import 'knowledge_document_detail_screen.dart';
 
-/// Shared documents library ("المستندات") — visible to BOTH manager and
-/// employee. Files are uploaded directly to Cloudinary (same unsigned
-/// mechanism as chat attachments, see CloudinaryService) and indexed here.
+/// NeoTask knowledge centre: pages, SOPs, policies, files, approvals and
+/// lifecycle management. The constructor remains compatible with the former
+/// DocumentsScreen so every manager/employee/designer navigation path stays
+/// intact while the feature is upgraded in place.
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({
     super.key,
@@ -24,13 +24,6 @@ class DocumentsScreen extends StatefulWidget {
   final String currentUserUid;
   final String currentUserName;
   final bool isManager;
-
-  /// True for the read-only `designer` role (see UserRole.designer):
-  /// suppresses the upload FAB entirely. Delete is already naturally
-  /// hidden for a designer since `canDelete` requires either
-  /// `isManager` (always false for a designer) or `doc.uploadedBy ==
-  /// currentUserUid` (a designer never uploads, so never matches) — no
-  /// further change to that logic was needed, only the FAB.
   final bool readOnly;
 
   @override
@@ -38,228 +31,134 @@ class DocumentsScreen extends StatefulWidget {
 }
 
 class _DocumentsScreenState extends State<DocumentsScreen> {
-  String _selectedCategory = 'الكل';
-  bool _uploading = false;
+  String _category = 'الكل';
+  DocumentWorkflowStatus? _status;
+  String _query = '';
+  bool _busy = false;
 
-  Future<void> _pickAndUpload() async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(
-                Icons.photo_outlined,
-                color: AppColors.deepBlue,
-              ),
-              title: const Text('صورة'),
-              onTap: () => Navigator.pop(context, 'image'),
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.insert_drive_file_outlined,
-                color: AppColors.deepBlue,
-              ),
-              title: const Text('ملف'),
-              onTap: () => Navigator.pop(context, 'file'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (choice == null) return;
-
-    List<int>? bytes;
-    String? filename;
-
-    if (choice == 'image') {
-      final picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
-      if (picked == null) return;
-      bytes = await picked.readAsBytes();
-      filename = picked.name;
-    } else {
-      final result = await FilePicker.pickFiles(withData: true);
-      if (result == null || result.files.isEmpty) return;
-      bytes = result.files.first.bytes;
-      filename = result.files.first.name;
-    }
-
-    if (bytes == null) return;
+  void _message(String text) {
     if (!mounted) return;
-
-    final title = await _promptTitle(filename);
-    if (title == null) return;
-
-    setState(() => _uploading = true);
-    try {
-      final url = await CloudinaryService.uploadBytes(
-        bytes: bytes,
-        filename: filename,
-      );
-      if (!mounted) return;
-      await context.read<DocumentProvider>().addDocument(
-        title: title,
-        fileUrl: url,
-        fileName: filename,
-        fileType: choice,
-        category: _selectedCategory == 'الكل' ? 'عام' : _selectedCategory,
-        uploadedBy: widget.currentUserUid,
-        uploadedByName: widget.currentUserName,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('تم رفع المستند بنجاح')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('تعذّر رفع المستند: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _uploading = false);
-    }
-  }
-
-  Future<String?> _promptTitle(String defaultName) async {
-    final controller = TextEditingController(text: defaultName);
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('عنوان المستند'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: 'العنوان'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('رفع'),
-          ),
-        ],
-      ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
     );
-  }
-
-  Future<void> _openDocument(DocumentItem doc) async {
-    await launchUrl(
-      Uri.parse(doc.fileUrl),
-      mode: LaunchMode.externalApplication,
-    );
-  }
-
-  Future<void> _confirmDelete(DocumentItem doc) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('حذف المستند'),
-        content: Text('هل تريد حذف "${doc.title}"؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.statusRejected,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted) {
-      await context.read<DocumentProvider>().deleteDocument(doc.documentId);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DocumentProvider>();
-    final docs = provider.filterByCategory(_selectedCategory);
-    final categories = ['الكل', ...provider.categories];
+    final documents = provider.filter(
+      category: _category,
+      status: _status,
+      query: _query,
+    );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('المستندات')),
+      appBar: AppBar(
+        title: const Text('مركز المعرفة'),
+        actions: [
+          Center(
+            child: Container(
+              margin: const EdgeInsetsDirectional.only(end: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.gold,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+              child: Text('${provider.documents.length} وثيقة', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
+            _KnowledgeHero(documents: provider.documents),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                onChanged: (value) => setState(() => _query = value),
+                decoration: const InputDecoration(
+                  hintText: 'ابحث في العنوان والمحتوى والوسوم',
+                  prefixIcon: Icon(Icons.search),
+                ),
+              ),
+            ),
             SizedBox(
-              height: 44,
+              height: 46,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                children: [
+                  ChoiceChip(
+                    label: const Text('كل الحالات'),
+                    selected: _status == null,
+                    onSelected: (_) => setState(() => _status = null),
+                  ),
+                  const SizedBox(width: 6),
+                  ...DocumentWorkflowStatus.values.expand((status) => [
+                    ChoiceChip(
+                      label: Text(documentStatusLabelAr(status)),
+                      selected: _status == status,
+                      onSelected: (_) => setState(() => _status = status),
+                    ),
+                    const SizedBox(width: 6),
+                  ]),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 42,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                itemCount: categories.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+                itemCount: provider.categories.length + 1,
+                separatorBuilder: (_, __) => const SizedBox(width: 6),
                 itemBuilder: (context, index) {
-                  final cat = categories[index];
-                  final selected = cat == _selectedCategory;
-                  return ChoiceChip(
-                    label: Text(cat),
-                    selected: selected,
-                    onSelected: (_) => setState(() => _selectedCategory = cat),
+                  final category = index == 0 ? 'الكل' : provider.categories[index - 1];
+                  return FilterChip(
+                    label: Text(category),
+                    selected: category == _category,
+                    onSelected: (_) => setState(() => _category = category),
                   );
                 },
               ),
             ),
-            if (_uploading) const LinearProgressIndicator(),
+            if (_busy) const LinearProgressIndicator(minHeight: 2),
             Expanded(
-              child: docs.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'لا توجد مستندات بعد',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: docs.length,
-                      itemBuilder: (context, index) {
-                        final doc = docs[index];
-                        final canDelete =
-                            doc.uploadedBy == widget.currentUserUid ||
-                            widget.isManager;
-                        return Card(
-                          child: ListTile(
-                            leading: Icon(
-                              doc.fileType == 'image'
-                                  ? Icons.image_outlined
-                                  : Icons.description_outlined,
-                              color: AppColors.deepBlue,
+              child: documents.isEmpty
+                  ? const _EmptyKnowledge()
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final columns = constraints.maxWidth >= 1050
+                            ? 3
+                            : constraints.maxWidth >= 680
+                            ? 2
+                            : 1;
+                        if (columns == 1) {
+                          return ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: documents.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) => _DocumentCard(
+                              document: documents[index],
+                              onOpen: () => _open(documents[index]),
+                              onDelete: _canDelete(documents[index]) ? () => _delete(documents[index]) : null,
                             ),
-                            title: Text(
-                              doc.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${doc.category} · ${doc.uploadedByName} · '
-                              '${intl.DateFormat('yyyy/MM/dd').format(doc.createdAt)}',
-                            ),
-                            onTap: () => _openDocument(doc),
-                            trailing: canDelete
-                                ? IconButton(
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      color: AppColors.statusRejected,
-                                    ),
-                                    onPressed: () => _confirmDelete(doc),
-                                  )
-                                : null,
+                          );
+                        }
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(16),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: columns,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 2.2,
+                          ),
+                          itemCount: documents.length,
+                          itemBuilder: (context, index) => _DocumentCard(
+                            document: documents[index],
+                            onOpen: () => _open(documents[index]),
+                            onDelete: _canDelete(documents[index]) ? () => _delete(documents[index]) : null,
                           ),
                         );
                       },
@@ -270,10 +169,319 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       ),
       floatingActionButton: widget.readOnly
           ? null
-          : FloatingActionButton(
-              onPressed: _uploading ? null : _pickAndUpload,
-              child: const Icon(Icons.upload_file),
+          : FloatingActionButton.extended(
+              onPressed: _busy ? null : _showCreateMenu,
+              icon: const Icon(Icons.add),
+              label: const Text('إضافة معرفة'),
             ),
     );
   }
+
+  bool _canDelete(DocumentItem document) =>
+      !widget.readOnly &&
+      (widget.isManager || document.ownerUid == widget.currentUserUid || document.uploadedBy == widget.currentUserUid);
+
+  void _open(DocumentItem document) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => KnowledgeDocumentDetailScreen(
+          initialDocument: document,
+          currentUserUid: widget.currentUserUid,
+          currentUserName: widget.currentUserName,
+          isManager: widget.isManager,
+          readOnly: widget.readOnly,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCreateMenu() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Wrap(children: [
+          const ListTile(title: Text('إضافة إلى مركز المعرفة', style: AppTextStyles.screenTitle)),
+          ListTile(
+            leading: const CircleAvatar(backgroundColor: Color(0xFFEAF0F5), child: Icon(Icons.article_outlined, color: AppColors.deepBlue)),
+            title: const Text('إنشاء صفحة معرفة'),
+            subtitle: const Text('سياسة أو إجراء أو دليل مكتوب داخل NeoTask'),
+            onTap: () => Navigator.pop(context, 'page'),
+          ),
+          ListTile(
+            leading: const CircleAvatar(backgroundColor: Color(0xFFFFF4D9), child: Icon(Icons.upload_file_outlined, color: AppColors.gold)),
+            title: const Text('رفع ملف'),
+            subtitle: const Text('PDF أو Word أو Excel أو صورة'),
+            onTap: () => Navigator.pop(context, 'file'),
+          ),
+        ]),
+      ),
+    );
+    if (choice == 'page') await _createPage();
+    if (choice == 'file') await _uploadFile();
+  }
+
+  Future<void> _createPage() async {
+    final data = await _showKnowledgeEditor(defaultKind: DocumentKind.knowledgePage);
+    if (data == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final document = await context.read<DocumentProvider>().addDocument(
+        title: data.title,
+        category: data.category,
+        uploadedBy: widget.currentUserUid,
+        uploadedByName: widget.currentUserName,
+        description: data.description,
+        content: data.content,
+        kind: data.kind,
+        department: data.department,
+        tags: data.tags,
+      );
+      _message('تم إنشاء صفحة المعرفة');
+      if (mounted) _open(document);
+    } catch (error) {
+      _message('تعذّر إنشاء الصفحة: $error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _uploadFile() async {
+    final result = await fp.FilePicker.platform.pickFiles(withData: true);
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null || !mounted) {
+      _message('تعذّرت قراءة الملف');
+      return;
+    }
+    final data = await _showKnowledgeEditor(
+      defaultKind: DocumentKind.file,
+      defaultTitle: file.name,
+      contentOptional: true,
+    );
+    if (data == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final url = await CloudinaryService.uploadBytes(bytes: bytes, filename: file.name);
+      if (!mounted) return;
+      final document = await context.read<DocumentProvider>().addDocument(
+        title: data.title,
+        fileUrl: url,
+        fileName: file.name,
+        fileType: 'file',
+        category: data.category,
+        uploadedBy: widget.currentUserUid,
+        uploadedByName: widget.currentUserName,
+        description: data.description,
+        content: data.content,
+        kind: data.kind,
+        department: data.department,
+        tags: data.tags,
+      );
+      _message('تم رفع الملف وإضافته إلى مركز المعرفة');
+      if (mounted) _open(document);
+    } catch (error) {
+      _message('تعذّر رفع الملف: $error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<_KnowledgeDraft?> _showKnowledgeEditor({
+    required DocumentKind defaultKind,
+    String defaultTitle = '',
+    bool contentOptional = false,
+  }) async {
+    final title = TextEditingController(text: defaultTitle);
+    final description = TextEditingController();
+    final content = TextEditingController();
+    final category = TextEditingController(text: _category == 'الكل' ? 'عام' : _category);
+    final department = TextEditingController(text: 'عام');
+    final tags = TextEditingController();
+    var kind = defaultKind;
+    return showDialog<_KnowledgeDraft>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('بيانات المعرفة'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                DropdownButtonFormField<DocumentKind>(
+                  initialValue: kind,
+                  decoration: const InputDecoration(labelText: 'النوع'),
+                  items: DocumentKind.values.map((item) => DropdownMenuItem(value: item, child: Text(documentKindLabelAr(item)))).toList(),
+                  onChanged: (value) => setState(() => kind = value ?? kind),
+                ),
+                const SizedBox(height: 10),
+                TextField(controller: title, decoration: const InputDecoration(labelText: 'العنوان *')),
+                const SizedBox(height: 10),
+                TextField(controller: description, maxLines: 2, decoration: const InputDecoration(labelText: 'ملخص قصير')),
+                const SizedBox(height: 10),
+                TextField(controller: content, minLines: contentOptional ? 2 : 5, maxLines: 10, decoration: InputDecoration(labelText: contentOptional ? 'ملاحظات أو محتوى إضافي' : 'المحتوى *')),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: TextField(controller: category, decoration: const InputDecoration(labelText: 'التصنيف'))),
+                  const SizedBox(width: 10),
+                  Expanded(child: TextField(controller: department, decoration: const InputDecoration(labelText: 'القسم'))),
+                ]),
+                const SizedBox(height: 10),
+                TextField(controller: tags, decoration: const InputDecoration(labelText: 'الوسوم مفصولة بفاصلة', hintText: 'جودة، JCI، صيدلية')),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: () {
+                if (title.text.trim().isEmpty || (!contentOptional && content.text.trim().isEmpty)) return;
+                Navigator.pop(context, _KnowledgeDraft(
+                  title: title.text.trim(),
+                  description: description.text.trim(),
+                  content: content.text.trim(),
+                  category: category.text.trim().isEmpty ? 'عام' : category.text.trim(),
+                  department: department.text.trim().isEmpty ? 'عام' : department.text.trim(),
+                  tags: tags.text.split(RegExp(r'[,،]')).map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toSet().toList(),
+                  kind: kind,
+                ));
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _delete(DocumentItem document) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف نهائي'),
+        content: Text('سيُحذف «${document.title}» مع سجل إصداراته وتعليقاته. هل أنت متأكد؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: AppColors.statusRejected), onPressed: () => Navigator.pop(context, true), child: const Text('حذف')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await context.read<DocumentProvider>().deleteDocument(document.documentId);
+    _message('تم حذف الوثيقة');
+  }
+}
+
+class _KnowledgeHero extends StatelessWidget {
+  const _KnowledgeHero({required this.documents});
+  final List<DocumentItem> documents;
+  @override
+  Widget build(BuildContext context) {
+    final approved = documents.where((item) => item.status == DocumentWorkflowStatus.approved).length;
+    final review = documents.where((item) => item.status == DocumentWorkflowStatus.inReview).length;
+    final due = documents.where((item) => item.reviewDueDate != null && item.reviewDueDate!.isBefore(DateTime.now().add(const Duration(days: 30)))).length;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(AppRadius.lg)),
+      child: Wrap(spacing: 24, runSpacing: 10, children: [
+        _HeroStat(value: '$approved', label: 'معتمدة', icon: Icons.verified_outlined),
+        _HeroStat(value: '$review', label: 'للمراجعة', icon: Icons.rate_review_outlined),
+        _HeroStat(value: '$due', label: 'مراجعة قريبة', icon: Icons.event_repeat_outlined),
+      ]),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.value, required this.label, required this.icon});
+  final String value;
+  final String label;
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Icon(icon, color: AppColors.goldLight),
+    const SizedBox(width: 8),
+    Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+    const SizedBox(width: 5),
+    Text(label, style: AppTextStyles.bodySm),
+  ]);
+}
+
+class _DocumentCard extends StatelessWidget {
+  const _DocumentCard({required this.document, required this.onOpen, this.onDelete});
+  final DocumentItem document;
+  final VoidCallback onOpen;
+  final VoidCallback? onDelete;
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = switch (document.status) {
+      DocumentWorkflowStatus.draft => AppColors.textSecondary,
+      DocumentWorkflowStatus.inReview => AppColors.gold,
+      DocumentWorkflowStatus.approved => AppColors.emerald,
+      DocumentWorkflowStatus.archived => AppColors.navy,
+    };
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(color: const Color(0xFFF1F5F8), borderRadius: BorderRadius.circular(12)),
+              child: Icon(document.kind == DocumentKind.file ? Icons.description_outlined : Icons.menu_book_outlined, color: AppColors.deepBlue),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+              Row(children: [
+                Expanded(child: Text(document.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.cardTitle)),
+                Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+              ]),
+              const SizedBox(height: 5),
+              Text('${documentStatusLabelAr(document.status)} · ${document.department} · v${document.version}', style: AppTextStyles.bodySecondary),
+              const SizedBox(height: 4),
+              Text('آخر تحديث ${intl.DateFormat('yyyy/MM/dd').format(document.updatedAt)} · ${document.updatedByName}', maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.bodySecondary),
+            ])),
+            if (onDelete != null)
+              PopupMenuButton<String>(
+                onSelected: (_) => onDelete!(),
+                itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('حذف'))],
+              )
+            else
+              const Icon(Icons.chevron_left, color: AppColors.textSecondary),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyKnowledge extends StatelessWidget {
+  const _EmptyKnowledge();
+  @override
+  Widget build(BuildContext context) => const Center(
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.auto_stories_outlined, size: 54, color: AppColors.textSecondary),
+      SizedBox(height: 12),
+      Text('لا توجد نتائج في مركز المعرفة', style: AppTextStyles.screenTitle),
+      SizedBox(height: 5),
+      Text('أنشئ سياسة أو إجراء أو ارفع ملفًا', style: AppTextStyles.bodySecondary),
+    ]),
+  );
+}
+
+class _KnowledgeDraft {
+  const _KnowledgeDraft({required this.title, required this.description, required this.content, required this.category, required this.department, required this.tags, required this.kind});
+  final String title;
+  final String description;
+  final String content;
+  final String category;
+  final String department;
+  final List<String> tags;
+  final DocumentKind kind;
 }

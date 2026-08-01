@@ -56,6 +56,9 @@ enum NotificationType {
   pollEnded,
   voteReminder,
   automation,
+  knowledgeMention,
+  knowledgeReview,
+  knowledgeReviewDue,
 }
 
 class AppNotification {
@@ -66,6 +69,7 @@ class AppNotification {
   final String body;
   final String? relatedPollId;
   final String? relatedTaskId; // NEW — Quick Comments feature
+  final String? relatedDocumentId;
   final Map<String, dynamic>? payload; // e.g. per-employee vote breakdown
   final DateTime createdAt;
   final DateTime? readAt;
@@ -78,6 +82,7 @@ class AppNotification {
     required this.body,
     this.relatedPollId,
     this.relatedTaskId,
+    this.relatedDocumentId,
     this.payload,
     required this.createdAt,
     this.readAt,
@@ -94,6 +99,7 @@ class AppNotification {
       body: body,
       relatedPollId: relatedPollId,
       relatedTaskId: relatedTaskId,
+      relatedDocumentId: relatedDocumentId,
       payload: payload,
       createdAt: createdAt,
       readAt: readAt ?? this.readAt,
@@ -109,6 +115,7 @@ class AppNotification {
       'body': body,
       'relatedPollId': relatedPollId,
       'relatedTaskId': relatedTaskId,
+      'relatedDocumentId': relatedDocumentId,
       'payload': payload,
       'createdAt': createdAt.toIso8601String(),
       'readAt': readAt?.toIso8601String(),
@@ -127,6 +134,7 @@ class AppNotification {
       body: map['body'] as String? ?? '',
       relatedPollId: map['relatedPollId'] as String?,
       relatedTaskId: map['relatedTaskId'] as String?,
+      relatedDocumentId: map['relatedDocumentId'] as String?,
       payload: (map['payload'] as Map?)?.cast<String, dynamic>(),
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
