@@ -1,7 +1,7 @@
 {{flutter_js}}
 {{flutter_build_config}}
 
-const neoTaskBuildId = '20260801-6';
+const neoTaskBuildId = '20260801-7';
 const jsBuild = _flutter.buildConfig.builds.find(
   (build) => typeof build.mainJsPath === 'string',
 );

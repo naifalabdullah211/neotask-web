@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="NeoTask">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
   <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="preload" as="image" href="assets/assets/images/neotask_brand_full.png?v=20260801-6">
+  <link rel="preload" as="image" href="assets/assets/images/neotask_brand_full.png?v=20260801-7">
 
   <title>NeoTask</title>
   <link rel="manifest" href="manifest.json">
@@ -82,13 +82,44 @@
       font-weight: 700;
     }
     .boot-field {
+      position: relative;
       height: 50px;
       margin-bottom: 16px;
       border: 1px solid #dce3ea;
       border-radius: 13px;
       background: #f9fbfc;
+      overflow: hidden;
+    }
+    .boot-field input {
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      padding: 0 15px;
+      border: 0;
+      outline: 0;
+      color: #112946;
+      background: transparent;
+      font: inherit;
+      font-size: 15px;
+      text-align: right;
+    }
+    .boot-field input::placeholder { color: #a7b0bc; }
+    .boot-field input:focus { box-shadow: inset 0 0 0 2px rgba(27, 58, 107, .18); }
+    .boot-password input { padding-left: 52px; }
+    .boot-password-toggle {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 48px;
+      border: 0;
+      color: #718096;
+      background: transparent;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
     }
     .boot-action {
+      width: 100%;
+      border: 0;
       height: 50px;
       display: flex;
       align-items: center;
@@ -100,6 +131,18 @@
       background: linear-gradient(135deg, #15355c, #315c79);
       font-size: 14px;
       font-weight: 800;
+      cursor: pointer;
+    }
+    .boot-action:disabled { cursor: wait; opacity: .82; }
+    .boot-action .spinner { display: none; }
+    .boot-action.is-loading .spinner { display: block; }
+    .boot-error {
+      min-height: 20px;
+      margin: 10px 0 0;
+      color: #c94c4c;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
     }
     .boot-secure {
       margin: 16px 0 0;
@@ -208,14 +251,22 @@
     <div class="boot-shell">
       <main class="boot-form-side">
         <section class="boot-card">
-          <img src="assets/assets/images/neotask_brand_full.png?v=20260801-6" alt="NeoTask">
+          <img src="assets/assets/images/neotask_brand_full.png?v=20260801-7" alt="NeoTask">
           <h2 class="boot-title">مرحبًا بعودتك</h2>
           <p class="boot-subtitle">سجّل الدخول للوصول إلى مساحة عملك</p>
-          <span class="boot-label">الرقم الوظيفي</span>
-          <div class="boot-field"></div>
-          <span class="boot-label">الرقم السري</span>
-          <div class="boot-field"></div>
-          <div class="boot-action"><span class="spinner"></span><span id="boot-message">جارٍ تجهيز تسجيل الدخول</span></div>
+          <form id="boot-login" novalidate>
+            <label class="boot-label" for="boot-employee-number">الرقم الوظيفي</label>
+            <div class="boot-field">
+              <input id="boot-employee-number" name="employeeNumber" type="text" inputmode="text" autocomplete="username" placeholder="مثال: 10234" aria-label="الرقم الوظيفي" required>
+            </div>
+            <label class="boot-label" for="boot-password">الرقم السري</label>
+            <div class="boot-field boot-password">
+              <input id="boot-password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" aria-label="الرقم السري" required>
+              <button id="boot-password-toggle" class="boot-password-toggle" type="button" aria-label="إظهار الرقم السري">إظهار</button>
+            </div>
+            <button id="boot-submit" class="boot-action" type="submit"><span class="spinner"></span><span id="boot-message">تسجيل الدخول</span></button>
+            <p id="boot-error" class="boot-error" role="alert"></p>
+          </form>
           <p class="boot-secure">بياناتك آمنة ومشفرة بالكامل</p>
           <button id="boot-retry" type="button">إعادة المحاولة</button>
         </section>
@@ -240,10 +291,14 @@
     // actual destination screen has completed a frame.
     window.addEventListener('neotask-app-ready', removeBootStatus);
 
+    // A first Flutter frame can still be a blank CanvasKit surface on WebKit.
+    // Only trust it when the instant HTML auth route is unavailable, or when
+    // an invite intentionally needs to hand off to Flutter immediately.
+    window.__neotaskAllowFirstFrameFallback = false;
     window.addEventListener('flutter-first-frame', function () {
-      // Fail-safe for startup-error screens or an unexpected route that cannot
-      // send the explicit ready event. This must not be the normal hide path.
-      setTimeout(removeBootStatus, 15000);
+      if (window.__neotaskAllowFirstFrameFallback) {
+        requestAnimationFrame(removeBootStatus);
+      }
     });
 
     window.addEventListener('error', function (event) {
@@ -262,18 +317,23 @@
       window.location.reload();
     });
 
-    setTimeout(function () {
-      const message = document.getElementById('boot-message');
-      if (message && document.getElementById('boot-status')) {
-        message.textContent = 'تعذّر إكمال التشغيل';
-        const spinner = document.querySelector('#boot-status .spinner');
-        const retry = document.getElementById('boot-retry');
-        if (spinner) spinner.style.display = 'none';
-        if (retry) retry.style.display = 'block';
-      }
-    }, 15000);
+    const NEO_TASK_BUILD_ID = '20260801-7';
+    let flutterStarted = false;
 
-    const NEO_TASK_BUILD_ID = '20260801-6';
+    function setBootLoading(loading, text) {
+      const action = document.getElementById('boot-submit');
+      const message = document.getElementById('boot-message');
+      if (action) {
+        action.disabled = loading;
+        action.classList.toggle('is-loading', loading);
+      }
+      if (message && text) message.textContent = text;
+    }
+
+    function setBootError(text) {
+      const error = document.getElementById('boot-error');
+      if (error) error.textContent = text || '';
+    }
 
     // Retire Flutter's legacy offline-first worker. Unregistering a worker
     // does not release the page it currently controls until the next
@@ -312,6 +372,8 @@
     }
 
     async function startFlutter() {
+      if (flutterStarted) return;
+      flutterStarted = true;
       let mustReload = false;
       try {
         // Normal refreshes skip this completely. It only runs once while an
@@ -344,7 +406,105 @@
       document.body.appendChild(script);
     }
 
-    startFlutter();
+    async function startInstantLogin() {
+      const inviteToken = new URL(window.location.href).searchParams.get('invite');
+      if (inviteToken) {
+        window.__neotaskAllowFirstFrameFallback = true;
+        setBootLoading(true, 'جارٍ فتح الدعوة');
+        await startFlutter();
+        return;
+      }
+
+      const form = document.getElementById('boot-login');
+      const employeeInput = document.getElementById('boot-employee-number');
+      const passwordInput = document.getElementById('boot-password');
+      const passwordToggle = document.getElementById('boot-password-toggle');
+      let resolveAuth;
+      let rejectAuth;
+      const authReady = new Promise(function (resolve, reject) {
+        resolveAuth = resolve;
+        rejectAuth = reject;
+      });
+      authReady.catch(function () {});
+
+      passwordToggle.addEventListener('click', function () {
+        const reveal = passwordInput.type === 'password';
+        passwordInput.type = reveal ? 'text' : 'password';
+        passwordToggle.textContent = reveal ? 'إخفاء' : 'إظهار';
+        passwordToggle.setAttribute('aria-label', reveal ? 'إخفاء الرقم السري' : 'إظهار الرقم السري');
+      });
+
+      // Attach before importing Firebase so the visible form is never a dead
+      // control, even on a very slow mobile connection.
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        setBootError('');
+
+        const employeeNumber = employeeInput.value.trim();
+        const password = passwordInput.value;
+        const cleaned = employeeNumber.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!cleaned || !password) {
+          setBootError('أدخل الرقم الوظيفي والرقم السري');
+          return;
+        }
+
+        setBootLoading(true, 'جارٍ التحقق');
+        try {
+          const { auth, authSdk } = await authReady;
+          await authSdk.signInWithEmailAndPassword(
+            auth,
+            `${cleaned}@neotask.local`,
+            password,
+          );
+          setBootLoading(true, 'جارٍ فتح مساحة العمل');
+          await startFlutter();
+        } catch (error) {
+          const code = error && error.code ? error.code : '';
+          const invalidCredential = code === 'auth/invalid-credential' ||
+            code === 'auth/user-not-found' ||
+            code === 'auth/wrong-password' ||
+            code === 'auth/invalid-email';
+          setBootError(invalidCredential
+            ? 'الرقم الوظيفي أو الرقم السري غير صحيح'
+            : code === 'auth/too-many-requests'
+              ? 'محاولات كثيرة، انتظر قليلًا ثم أعد المحاولة'
+              : 'تعذّر الاتصال بخدمة الدخول، أعد المحاولة');
+          setBootLoading(false, 'تسجيل الدخول');
+        }
+      });
+
+      try {
+        const [{ initializeApp }, authSdk] = await Promise.all([
+          import('./firebase-sdk/firebase-app.js?v=20260801-7'),
+          import('./firebase-sdk/firebase-auth.js?v=20260801-7'),
+        ]);
+        const app = initializeApp({
+          apiKey: 'AIzaSyAH4nvOmEuBXlYmSgTvVedEyGGqcVhXcZ4',
+          appId: '1:4737825788:web:13f3dc6bf2b2bda6c8d079',
+          messagingSenderId: '4737825788',
+          projectId: 'neotask1-ff5a4',
+          authDomain: 'neotask1-ff5a4.firebaseapp.com',
+          storageBucket: 'neotask1-ff5a4.firebasestorage.app',
+        });
+        const auth = authSdk.getAuth(app);
+        resolveAuth({ auth, authSdk });
+        authSdk.onAuthStateChanged(auth, function (user) {
+          if (!user || flutterStarted) return;
+          setBootLoading(true, 'جارٍ فتح مساحة العمل');
+          startFlutter();
+        });
+        employeeInput.focus();
+      } catch (error) {
+        console.error('NeoTask instant login failed:', error);
+        rejectAuth(error);
+        window.__neotaskAllowFirstFrameFallback = true;
+        setBootError('تعذّر تجهيز الدخول السريع، جارٍ فتح التطبيق');
+        setBootLoading(true, 'جارٍ فتح التطبيق');
+        await startFlutter();
+      }
+    }
+
+    startInstantLogin();
   </script>
 </body>
 </html>

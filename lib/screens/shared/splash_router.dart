@@ -23,6 +23,8 @@ class SplashRouter extends StatefulWidget {
 class _SplashRouterState extends State<SplashRouter> {
   String? _inviteToken;
   bool _inviteReady = true;
+  bool _sessionReady = false;
+  bool _appReadyScheduled = false;
 
   @override
   void initState() {
@@ -33,18 +35,28 @@ class _SplashRouterState extends State<SplashRouter> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      notifyAppReady();
-      unawaited(_restoreSession());
-      if (_inviteToken != null) unawaited(_prepareInvite());
+      unawaited(_initializeRoute());
     });
   }
 
-  Future<void> _restoreSession() async {
+  Future<void> _initializeRoute() async {
     final auth = context.read<AuthProvider>();
     try {
-      await auth.restoreSession();
+      // Never expose the signed-out Flutter route while Firebase is still
+      // restoring an existing browser session. The HTML login stays visible
+      // until this finishes, and the timeout prevents a slow Firestore request
+      // from blocking the UI indefinitely.
+      await auth.restoreSession().timeout(const Duration(seconds: 8));
     } catch (_) {
-      // The login screen remains usable if Safari cannot restore the session.
+      // The route remains usable if Safari cannot restore the session.
+    }
+    if (!mounted) return;
+
+    setState(() => _sessionReady = true);
+    if (_inviteToken != null) {
+      unawaited(_prepareInvite());
+    } else if (auth.isLoggedIn) {
+      _notifyReadyAfterDestinationFrame();
     }
   }
 
@@ -52,12 +64,25 @@ class _SplashRouterState extends State<SplashRouter> {
     try {
       await FirestoreService.initPublic();
     } finally {
-      if (mounted) setState(() => _inviteReady = true);
+      if (mounted) {
+        setState(() => _inviteReady = true);
+        _notifyReadyAfterDestinationFrame();
+      }
     }
+  }
+
+  void _notifyReadyAfterDestinationFrame() {
+    if (_appReadyScheduled) return;
+    _appReadyScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) notifyAppReady();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_sessionReady) return const _SessionBootstrapView();
+
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         Widget destination;
@@ -81,8 +106,25 @@ class _SplashRouterState extends State<SplashRouter> {
           }
         }
 
+        // Auth restoration may complete after the bounded startup timeout.
+        // In that case the provider rebuild is the first moment an actual
+        // authenticated destination exists, so release the HTML cover here.
+        if (auth.isLoggedIn) _notifyReadyAfterDestinationFrame();
+
         return destination;
       },
+    );
+  }
+}
+
+class _SessionBootstrapView extends StatelessWidget {
+  const _SessionBootstrapView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFFF6F8FB),
+      body: SizedBox.shrink(),
     );
   }
 }
