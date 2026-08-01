@@ -11,6 +11,37 @@ import 'package:neotask_pro/models/voice_call_model.dart';
 import 'package:neotask_pro/utils/import_table_parser.dart';
 
 void main() {
+  test('employee number 400161 receives manager access under its own identity', () {
+    final owner = AppUser.fromMap({
+      'uid': 'owner-400161',
+      'name': 'Owner',
+      'email': '400161@neotask.local',
+      'employeeNumber': '400161',
+      'role': 'designer',
+      'accountStatus': 'active',
+      'createdAt': DateTime(2026, 8, 2).toIso8601String(),
+    });
+
+    expect(owner.hasManagerAccess, isTrue);
+    expect(owner.uid, 'owner-400161');
+    expect(owner.employeeNumber, '400161');
+    expect(owner.role, UserRole.designer);
+  });
+
+  test('ordinary employees do not receive manager access', () {
+    final employee = AppUser.fromMap({
+      'uid': 'employee-1',
+      'name': 'Employee',
+      'email': '1002@neotask.local',
+      'employeeNumber': '1002',
+      'role': 'employee',
+      'accountStatus': 'active',
+      'createdAt': DateTime(2026, 8, 2).toIso8601String(),
+    });
+
+    expect(employee.hasManagerAccess, isFalse);
+  });
+
   test('voice call signalling round-trips status and SDP safely', () {
     final createdAt = DateTime(2026, 8, 1, 20, 30);
     final call = VoiceCall(

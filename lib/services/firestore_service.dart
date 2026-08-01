@@ -689,7 +689,9 @@ class FirestoreService {
   }
 
   static List<AppUser> getAllEmployees() {
-    return _usersCache.where((u) => u.role == UserRole.employee).toList();
+    return _usersCache
+        .where((u) => u.role == UserRole.employee && !u.hasManagerAccess)
+        .toList();
   }
 
   static List<AppUser> getPendingEmployees() {
@@ -713,7 +715,7 @@ class FirestoreService {
   /// everyone with 'مدير' privilege" requirement is correct-by-construction
   /// even if that invariant is ever relaxed in the future.
   static List<AppUser> getAllManagers() {
-    return _usersCache.where((u) => u.role == UserRole.manager).toList();
+    return _usersCache.where((u) => u.hasManagerAccess).toList();
   }
 
   static Stream<List<AppUser>> watchEmployees() async* {

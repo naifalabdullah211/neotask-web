@@ -8,6 +8,13 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+const FULL_ACCESS_EMPLOYEE_NUMBER = "400161";
+
+function hasManagerAccess(user) {
+  return Boolean(user) && user.accountStatus === "active" &&
+    (user.role === "manager" ||
+     String(user.employeeNumber || "").trim() === FULL_ACCESS_EMPLOYEE_NUMBER);
+}
 
 function taskField(task, field) {
   if (field === "status") return task.status || "";
@@ -44,9 +51,9 @@ function temporalTriggerMatches(rule, task, now) {
 
 async function recipientIds(rule, task) {
   if (rule.action === "notifyAssignee") return [task.assignedTo].filter(Boolean);
-  const managers = await db.collection("users").where("role", "==", "manager").get();
+  const managers = await db.collection("users").where("accountStatus", "==", "active").get();
   return managers.docs
-      .filter((doc) => doc.data().accountStatus === "active")
+      .filter((doc) => hasManagerAccess(doc.data()))
       .map((doc) => doc.id);
 }
 
@@ -153,9 +160,9 @@ async function processKnowledgeReviewReminders(now) {
   const snapshot = await db.collection("documents")
       .where("status", "==", "approved")
       .get();
-  const managers = await db.collection("users").where("role", "==", "manager").get();
+  const managers = await db.collection("users").where("accountStatus", "==", "active").get();
   const managerUids = managers.docs
-      .filter((doc) => doc.data().accountStatus === "active")
+      .filter((doc) => hasManagerAccess(doc.data()))
       .map((doc) => doc.id);
   let reminders = 0;
   for (const documentDoc of snapshot.docs) {

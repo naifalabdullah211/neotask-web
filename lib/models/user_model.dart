@@ -26,6 +26,12 @@ enum UserRole { manager, employee, designer }
 enum AccountStatus { pendingApproval, active, rejected, deleted }
 
 class AppUser {
+  /// The owner's operational account. It keeps its own Firebase identity and
+  /// employee number while receiving the complete manager workspace and
+  /// write permissions. The same identifier is enforced independently in
+  /// Firestore rules and server-side jobs.
+  static const fullAccessEmployeeNumber = '400161';
+
   final String uid;
   final String name;
   final String email;
@@ -62,6 +68,11 @@ class AppUser {
   /// already been acknowledged. Existing manager accounts safely default to
   /// zero, so the current welcome screen is shown once after deployment.
   final int managerWelcomeVersion;
+
+  bool get hasManagerAccess =>
+      accountStatus == AccountStatus.active &&
+      (role == UserRole.manager ||
+          employeeNumber.trim() == fullAccessEmployeeNumber);
 
   AppUser({
     required this.uid,

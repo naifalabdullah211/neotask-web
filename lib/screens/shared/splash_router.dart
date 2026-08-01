@@ -133,8 +133,9 @@ class _SplashRouterState extends State<SplashRouter> {
           final user = auth.currentUser!;
           if (user.accountStatus == AccountStatus.pendingApproval) {
             destination = const PendingApprovalScreen();
-          } else if (user.role == UserRole.manager) {
-            destination = user.managerWelcomeVersion < managerWelcomeVersion
+          } else if (user.hasManagerAccess) {
+            destination = user.role == UserRole.manager &&
+                    user.managerWelcomeVersion < managerWelcomeVersion
                 ? const ManagerWelcomeScreen()
                 : const ManagerHomeScreen();
           } else if (user.role == UserRole.designer) {

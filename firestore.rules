@@ -48,9 +48,14 @@ service cloud.firestore {
     // (this is documented, standard Firestore behavior) — safe to use here
     // even though a plain employee cannot otherwise read arbitrary fields
     // of another user's profile via a client query.
+    // Full manager authority belongs to the primary manager account and to
+    // the owner's operational account 400161. The latter keeps its original
+    // user role/uid so every write remains attributable in audit history.
     function isManager() {
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+        user.accountStatus == 'active' &&
+        (user.role == 'manager' || user.employeeNumber == '400161');
     }
 
     // `designer` — read-only observer role (see UserRole.designer doc
@@ -63,8 +68,10 @@ service cloud.firestore {
     // (tasks/criteria/goals/users) need no additional check, since a
     // designer account can never be its own author/assignee there.
     function isDesigner() {
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'designer';
+        user.role == 'designer' &&
+        user.employeeNumber != '400161';
     }
 
     // ---- system/manager_lock sentinel ----
@@ -749,14 +756,12 @@ service cloud.firestore {
       //       except non-result-affecting admin notes" requirement.
       allow update: if
         (isManager() &&
-         resource.data.createdBy == request.auth.uid &&
          (resource.data.status == 'draft' || resource.data.status == 'active') &&
          request.resource.data.status == resource.data.status &&
          request.resource.data.diff(resource.data).affectedKeys()
            .hasOnly(['title', 'description', 'choices', 'participantUids',
                      'startDateTime', 'deadline', 'privacyEnabled'])) ||
         (isManager() &&
-         resource.data.createdBy == request.auth.uid &&
          resource.data.status == 'draft' &&
          request.resource.data.status == 'active' &&
          request.resource.data.diff(resource.data).affectedKeys()
@@ -764,7 +769,6 @@ service cloud.firestore {
                      'participantUids', 'startDateTime', 'deadline',
                      'privacyEnabled'])) ||
         (isManager() &&
-         resource.data.createdBy == request.auth.uid &&
          (resource.data.status == 'draft' || resource.data.status == 'active') &&
          request.resource.data.status == 'cancelled' &&
          request.resource.data.diff(resource.data).affectedKeys()
@@ -779,22 +783,19 @@ service cloud.firestore {
            .hasOnly(['status', 'reportGenerated', 'endedAt', 'choiceCounts',
                      'winningChoiceIndex', 'isTie', 'tiedChoiceIndexes'])) ||
         (isManager() &&
-         resource.data.createdBy == request.auth.uid &&
          resource.data.status == 'ended' &&
          request.resource.data.status == 'ended' &&
          request.resource.data.diff(resource.data).affectedKeys()
            .hasOnly(['winningChoiceIndex', 'isTie', 'managerDecisionBy', 'managerDecisionAt'])) ||
         (isManager() &&
-         resource.data.createdBy == request.auth.uid &&
          request.resource.data.diff(resource.data).affectedKeys()
            .hasOnly(['lastReminderSentAt'])) ||
         (isManager() &&
-         resource.data.createdBy == request.auth.uid &&
          resource.data.status == 'ended' &&
          request.resource.data.diff(resource.data).affectedKeys()
            .hasOnly(['adminNotes']));
 
-      allow delete: if isManager() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isManager();
 
       // ---- votes (genuine SUBCOLLECTION, doc ID == employeeUid — see
       //      poll_vote_model.dart doc comment on why this is NOT an
@@ -809,8 +810,7 @@ service cloud.firestore {
         allow read: if isSignedIn() &&
           (isDesigner() ||
            employeeUid == request.auth.uid ||
-           (isManager() &&
-            get(/databases/$(database)/documents/polls/$(pollId)).data.createdBy == request.auth.uid));
+           isManager());
 
         // Cast or CHANGE a vote — only the voting employee themselves,
         // only while the poll is genuinely `active` AND its `deadline`
@@ -830,8 +830,7 @@ service cloud.firestore {
           request.time < get(/databases/$(database)/documents/polls/$(pollId)).data.deadline &&
           get(/databases/$(database)/documents/polls/$(pollId)).data.participantUids.hasAny([request.auth.uid]);
 
-        allow delete: if isManager() &&
-          get(/databases/$(database)/documents/polls/$(pollId)).data.createdBy == request.auth.uid;
+        allow delete: if isManager();
       }
     }
 
@@ -857,7 +856,6 @@ service cloud.firestore {
       // own tie-decision branch above — everything else on a report is
       // permanently frozen at generation time.
       allow update: if isManager() &&
-        get(/databases/$(database)/documents/polls/$(pollId)).data.createdBy == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['winningChoiceIndex', 'isTie']);
 
@@ -903,7 +901,7 @@ service cloud.firestore {
     // server-authored by Cloud Functions and immutable from every client.
     match /automation_rules/{ruleId} {
       allow read: if isManager() || isDesigner();
-      allow create, update: if isManager() &&
+      allow create: if isManager() &&
         request.resource.data.ruleId == ruleId &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.name is string &&
@@ -916,7 +914,20 @@ service cloud.firestore {
         request.resource.data.dueWithinHours is int &&
         request.resource.data.dueWithinHours >= 1 &&
         request.resource.data.dueWithinHours <= 168;
-      allow delete: if isManager() && resource.data.createdBy == request.auth.uid;
+      allow update: if isManager() &&
+        request.resource.data.ruleId == resource.data.ruleId &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 3 &&
+        request.resource.data.name.size() <= 120 &&
+        request.resource.data.trigger in ['taskCreated', 'statusChanged', 'dueSoon', 'overdue'] &&
+        request.resource.data.conditionField in ['any', 'status', 'priority', 'category', 'assignee', 'progress'] &&
+        request.resource.data.conditionOperator in ['equals', 'contains', 'greaterOrEqual'] &&
+        request.resource.data.action in ['notifyAssignee', 'notifyManager', 'setPriority', 'reassign'] &&
+        request.resource.data.dueWithinHours is int &&
+        request.resource.data.dueWithinHours >= 1 &&
+        request.resource.data.dueWithinHours <= 168;
+      allow delete: if isManager();
     }
 
     match /automation_runs/{runId} {
@@ -930,9 +941,20 @@ service cloud.firestore {
     match /custom_forms/{formId} {
       allow get: if (resource.data.isActive == true) || isManager() || isDesigner();
       allow list: if isManager() || isDesigner();
-      allow create, update: if isManager() &&
+      allow create: if isManager() &&
         request.resource.data.formId == formId &&
         request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() >= 2 &&
+        request.resource.data.title.size() <= 160 &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() <= 1500 &&
+        request.resource.data.fields is list &&
+        request.resource.data.fields.size() >= 1 &&
+        request.resource.data.fields.size() <= 50;
+      allow update: if isManager() &&
+        request.resource.data.formId == resource.data.formId &&
+        request.resource.data.createdBy == resource.data.createdBy &&
         request.resource.data.title is string &&
         request.resource.data.title.size() >= 2 &&
         request.resource.data.title.size() <= 160 &&
@@ -1003,8 +1025,7 @@ service cloud.firestore {
 
       allow update: if false;
 
-      allow delete: if isManager() &&
-        resource.data.authorUid == request.auth.uid;
+      allow delete: if isManager();
     }
 
     // ---- password_change_audit (Part 1 — manager-driven password reset
