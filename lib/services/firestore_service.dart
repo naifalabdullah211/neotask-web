@@ -159,6 +159,25 @@ class FirestoreService {
     await lockDone.future.timeout(const Duration(seconds: 8));
   }
 
+  /// Repairs legacy installations where a valid manager profile predates the
+  /// public manager sentinel. The transaction is idempotent and the security
+  /// rules require the authenticated caller's existing profile to be an
+  /// active manager, so an employee cannot claim or manufacture this lock.
+  static Future<void> ensureManagerLockForExistingManager(
+    String managerUid,
+  ) async {
+    final lockRef = _db.collection('system').doc('manager_lock');
+    await _db.runTransaction((transaction) async {
+      final current = await transaction.get(lockRef);
+      if (current.exists) return;
+      transaction.set(lockRef, {
+        'createdBy': managerUid,
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+    });
+    _managerLockExists = true;
+  }
+
   /// Sets up ONLY the listeners that are safe to run before any user is
   /// signed in (per the security rules: `system/manager_lock` and
   /// `invitations` are both public-read — see firestore.rules). Call this

@@ -88,6 +88,7 @@ class AuthProvider extends ChangeNotifier {
       _currentUser = null;
     } else {
       _currentUser = user;
+      await _repairMissingManagerLock(user);
     }
     notifyListeners();
   }
@@ -253,6 +254,7 @@ class AuthProvider extends ChangeNotifier {
     }
 
     _currentUser = user;
+    await _repairMissingManagerLock(user);
     _isLoading = false;
     notifyListeners();
     return true;
@@ -477,6 +479,23 @@ class AuthProvider extends ChangeNotifier {
     await FirestoreService.updateManagerWelcomeVersion(user.uid, version);
     _currentUser = user.copyWith(managerWelcomeVersion: version);
     notifyListeners();
+  }
+
+  Future<void> _repairMissingManagerLock(AppUser user) async {
+    if (user.role != UserRole.manager || FirestoreService.managerLockExists) {
+      return;
+    }
+    try {
+      await FirestoreService.ensureManagerLockForExistingManager(
+        user.uid,
+      ).timeout(const Duration(seconds: 5));
+    } catch (error) {
+      // A missing legacy sentinel must never invalidate a legitimate manager
+      // session. The next authenticated launch retries the idempotent repair.
+      if (kDebugMode) {
+        debugPrint('Manager lock repair deferred: $error');
+      }
+    }
   }
 
   /// Manager-driven password change for ANOTHER user (see
