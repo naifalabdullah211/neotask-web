@@ -27,6 +27,7 @@ class _SplashRouterState extends State<SplashRouter> {
   bool _sessionReady = false;
   bool _managerStatusReady = false;
   bool _appReadyScheduled = false;
+  bool _forceLogin = false;
 
   @override
   void initState() {
@@ -34,6 +35,7 @@ class _SplashRouterState extends State<SplashRouter> {
     final token = Uri.base.queryParameters['invite'];
     _inviteToken = (token != null && token.isNotEmpty) ? token : null;
     _inviteReady = _inviteToken == null;
+    _forceLogin = Uri.base.path.replaceAll(RegExp(r'/+$'), '') == '/login';
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -54,7 +56,7 @@ class _SplashRouterState extends State<SplashRouter> {
     }
     if (!mounted) return;
 
-    if (!auth.isLoggedIn && _inviteToken == null) {
+    if (!auth.isLoggedIn && _inviteToken == null && !_forceLogin) {
       try {
         await FirestoreService.initManagerStatus();
       } catch (_) {
@@ -108,7 +110,9 @@ class _SplashRouterState extends State<SplashRouter> {
               ? RegisterViaInviteScreen(token: _inviteToken!)
               : const _InviteBootstrapView();
         } else if (!auth.isLoggedIn) {
-          destination = _managerStatusReady && !auth.managerExists
+          destination = !_forceLogin &&
+                  _managerStatusReady &&
+                  !auth.managerExists
               ? const ManagerSetupScreen()
               : const LoginScreen();
         } else {
