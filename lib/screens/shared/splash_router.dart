@@ -24,6 +24,12 @@ class SplashRouter extends StatefulWidget {
 }
 
 class _SplashRouterState extends State<SplashRouter> {
+  // NeoTask is an established production workspace with an existing manager.
+  // Keep the historical bootstrap screen closed on signed-out devices even if
+  // its legacy sentinel is missing; the authenticated manager repairs that
+  // sentinel after login via AuthProvider.
+  static const bool _managerBootstrapClosed = true;
+
   String? _inviteToken;
   String? _publicFormId;
   bool _inviteReady = true;
@@ -118,6 +124,7 @@ class _SplashRouterState extends State<SplashRouter> {
               : const _InviteBootstrapView();
         } else if (!auth.isLoggedIn) {
           destination = !_forceLogin &&
+                  !_managerBootstrapClosed &&
                   _managerStatusReady &&
                   !auth.managerExists
               ? const ManagerSetupScreen()
