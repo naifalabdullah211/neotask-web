@@ -40,10 +40,14 @@ jobs:
           cache: true
 
       - name: Install Flutter dependencies
-        run: flutter pub get 2>&1 | tee -a deploy-error.log
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee -a deploy-error.log
 
       - name: Build Flutter web
-        run: flutter build web --release --pwa-strategy=none 2>&1 | tee -a deploy-error.log
+        run: |
+          set -o pipefail
+          flutter build web --release --pwa-strategy=none 2>&1 | tee -a deploy-error.log
 
       - name: Decode Firebase service account
         shell: bash
@@ -63,20 +67,77 @@ jobs:
           PY
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
 
-      - name: Install Firebase CLI
-        run: npm install --global firebase-tools 2>&1 | tee -a deploy-error.log
+      - name: Install Firebase deployment tools
+        run: |
+          set -o pipefail
+          npm install --global firebase-tools google-auth-library 2>&1 | tee -a deploy-error.log
 
       - name: List actual Firebase Hosting sites
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
+          set -euo pipefail
           firebase hosting:sites:list --project neotask1-ff5a4 --json > hosting-sites.txt
           cat hosting-sites.txt
+
+      - name: Deploy Firestore rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          NODE_PATH: ${{ runner.tool_cache }}/node
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$(npm root -g)"
+          node <<'NODE' 2>&1 | tee -a deploy-error.log
+          const fs = require('fs');
+          const {GoogleAuth} = require('google-auth-library');
+
+          async function deployRules() {
+            const projectId = 'neotask1-ff5a4';
+            const projectName = `projects/${projectId}`;
+            const releaseName = `${projectName}/releases/cloud.firestore`;
+            const auth = new GoogleAuth({
+              keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+              scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+            });
+            const client = await auth.getClient();
+            const source = fs.readFileSync('firestore.rules', 'utf8');
+
+            const rulesetResponse = await client.request({
+              url: `https://firebaserules.googleapis.com/v1/${projectName}/rulesets`,
+              method: 'POST',
+              data: {
+                source: {
+                  files: [{name: 'firestore.rules', content: source}],
+                },
+              },
+            });
+            const rulesetName = rulesetResponse.data.name;
+            if (!rulesetName) throw new Error('Rules API did not return a ruleset name');
+
+            await client.request({
+              url: `https://firebaserules.googleapis.com/v1/${releaseName}`,
+              method: 'PATCH',
+              data: {
+                release: {name: releaseName, rulesetName},
+                updateMask: 'rulesetName',
+              },
+            });
+            console.log(`Firestore rules released: ${rulesetName}`);
+          }
+
+          deployRules().catch((error) => {
+            const details = error.response?.data || error.message || error;
+            console.error('Firestore rules deployment failed:', JSON.stringify(details));
+            process.exit(1);
+          });
+          NODE
 
       - name: Deploy Firebase Hosting
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-        run: firebase deploy --only hosting,firestore:rules --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
+        run: |
+          set -o pipefail
+          firebase deploy --only hosting --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
 
       - name: Save actual Hosting site list
         if: always()
@@ -98,4 +159,4 @@ jobs:
           git push || true
 
 # force modern interface deployment: 2026-08-01T01:34+03:00
-# full production deploy trigger: 2026-08-01T12:55Z
+# full production deploy with direct Rules API: 2026-08-01T13:08Z
