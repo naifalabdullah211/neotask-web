@@ -6,6 +6,7 @@ import '../../providers/task_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/neo_bottom_nav_bar.dart';
+import '../../widgets/user_avatar.dart';
 import '../shared/splash_router.dart';
 import '../shared/app_drawer.dart';
 import 'employee_tasks_tab.dart';
@@ -23,6 +24,7 @@ class EmployeeHomeScreen extends StatefulWidget {
 
 class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
   int _index = 0;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   static const _titles = ['مهامي', 'التقويم', 'المحادثة', 'تصويت'];
 
@@ -35,6 +37,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
         .unviewedTaskCountForEmployee(employeeUid);
 
     return Scaffold(
+      key: _scaffoldKey,
       drawer: const AppDrawer(),
       appBar: AppBar(
         title: Row(
@@ -60,6 +63,23 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
             },
           ),
           NotificationBell(userUid: employeeUid),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Tooltip(
+              message: 'الملف الشخصي والقائمة',
+              child: InkWell(
+                onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                customBorder: const CircleBorder(),
+                child: UserAvatar(
+                  name: auth.currentUser!.name,
+                  imageUrl: auth.currentUser!.profilePhotoUrl,
+                  radius: 17,
+                  borderColor: AppColors.gold,
+                  borderWidth: 1.5,
+                ),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: 'تسجيل الخروج',
             icon: const Icon(Icons.logout),

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/cloudinary_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/user_avatar.dart';
 
 /// "الإعدادات" (Settings) — previously a completely empty placeholder
 /// wired to a "قريبًا" (coming soon) snackbar (see app_drawer.dart doc
@@ -42,6 +45,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _savingSoundMessages = false;
   bool _savingSoundTasks = false;
   bool _savingReminders = false;
+  bool _uploadingProfilePhoto = false;
+
+  Future<void> _pickAndUploadProfilePhoto(AuthProvider auth) async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 88,
+      maxWidth: 1200,
+      maxHeight: 1200,
+    );
+    if (picked == null || !mounted) return;
+
+    final bytes = await picked.readAsBytes();
+    if (bytes.length > 5 * 1024 * 1024) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('حجم الصورة يجب ألا يتجاوز 5 ميجابايت')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _uploadingProfilePhoto = true);
+    try {
+      final url = await CloudinaryService.uploadBytes(
+        bytes: bytes,
+        filename: 'profile_${auth.currentUser!.uid}_${picked.name}',
+      );
+      await auth.updateOwnProfilePhoto(url);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تحديث الصورة الشخصية'),
+            backgroundColor: AppColors.statusApproved,
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تعذّر رفع الصورة: $error'),
+            backgroundColor: AppColors.statusRejected,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingProfilePhoto = false);
+    }
+  }
 
   Future<void> _updatePreference({
     required AppUser user,
@@ -76,6 +128,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
+            _SectionHeader(icon: Icons.account_circle_outlined, title: 'الملف الشخصي'),
+            const SizedBox(height: AppSpacing.sm),
+            _SettingsCard(
+              children: [
+                Row(
+                  children: [
+                    UserAvatar(
+                      name: user.name,
+                      imageUrl: user.profilePhotoUrl,
+                      radius: 38,
+                    ),
+                    const SizedBox(width: AppSpacing.lg),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'الرقم الوظيفي: ${user.employeeNumber}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          OutlinedButton.icon(
+                            onPressed: _uploadingProfilePhoto
+                                ? null
+                                : () => _pickAndUploadProfilePhoto(auth),
+                            icon: _uploadingProfilePhoto
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.add_a_photo_outlined, size: 18),
+                            label: Text(
+                              _uploadingProfilePhoto
+                                  ? 'جارٍ رفع الصورة...'
+                                  : user.profilePhotoUrl == null
+                                  ? 'إضافة صورة شخصية'
+                                  : 'تغيير الصورة الشخصية',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xxl),
             _SectionHeader(
               icon: Icons.volume_up_outlined,
               title: 'الإشعارات الصوتية',

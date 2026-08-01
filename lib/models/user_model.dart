@@ -35,6 +35,7 @@ class AppUser {
   final String? approvedBy;
   final DateTime? approvedAt;
   final DateTime createdAt;
+  final String? profilePhotoUrl;
 
   // ---- Per-user preferences (الإعدادات الشخصية) — NEW, added for the
   // Settings screen (الإشعارات الصوتية + التذكيرات sections). All default
@@ -62,6 +63,7 @@ class AppUser {
     this.approvedBy,
     this.approvedAt,
     required this.createdAt,
+    this.profilePhotoUrl,
     this.soundMessagesEnabled = true,
     this.soundTasksEnabled = true,
     this.remindersEnabled = true,
@@ -75,6 +77,7 @@ class AppUser {
     AccountStatus? accountStatus,
     String? approvedBy,
     DateTime? approvedAt,
+    String? profilePhotoUrl,
     bool? soundMessagesEnabled,
     bool? soundTasksEnabled,
     bool? remindersEnabled,
@@ -89,6 +92,7 @@ class AppUser {
       approvedBy: approvedBy ?? this.approvedBy,
       approvedAt: approvedAt ?? this.approvedAt,
       createdAt: createdAt,
+      profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
       soundMessagesEnabled: soundMessagesEnabled ?? this.soundMessagesEnabled,
       soundTasksEnabled: soundTasksEnabled ?? this.soundTasksEnabled,
       remindersEnabled: remindersEnabled ?? this.remindersEnabled,
@@ -106,6 +110,7 @@ class AppUser {
       'approvedBy': approvedBy,
       'approvedAt': approvedAt?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      if (profilePhotoUrl != null) 'profilePhotoUrl': profilePhotoUrl,
       'soundMessagesEnabled': soundMessagesEnabled,
       'soundTasksEnabled': soundTasksEnabled,
       'remindersEnabled': remindersEnabled,
@@ -133,6 +138,7 @@ class AppUser {
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
           : DateTime.now(),
+      profilePhotoUrl: map['profilePhotoUrl'] as String?,
       // Safe casting + explicit default (NOT null-assertion) per this
       // project's Firebase data-consistency guideline — accounts created
       // before these fields existed simply back-fill to `true` here,

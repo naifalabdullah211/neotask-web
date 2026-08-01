@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/user_avatar.dart';
 import 'documents_screen.dart';
 import 'meetings_screen.dart';
 import 'contacts_screen.dart';
@@ -141,6 +142,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   name: user.name,
                   roleLabel: roleLabel,
                   employeeNumber: user.employeeNumber,
+                  profilePhotoUrl: user.profilePhotoUrl,
                 ),
                 const SizedBox(height: 8),
                 Expanded(
@@ -299,11 +301,13 @@ class _DrawerHeader extends StatelessWidget {
     required this.name,
     required this.roleLabel,
     required this.employeeNumber,
+    required this.profilePhotoUrl,
   });
 
   final String name;
   final String roleLabel;
   final String employeeNumber;
+  final String? profilePhotoUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -314,24 +318,12 @@ class _DrawerHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.gold, width: 2),
-            ),
-            child: CircleAvatar(
-              radius: 32,
-              backgroundColor: AppColors.goldLight,
-              child: Text(
-                name.isNotEmpty ? name[0] : '؟',
-                style: const TextStyle(
-                  color: AppColors.navy,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 26,
-                ),
-              ),
-            ),
+          UserAvatar(
+            name: name,
+            imageUrl: profilePhotoUrl,
+            radius: 35,
+            borderColor: AppColors.gold,
+            borderWidth: 2,
           ),
           const SizedBox(height: 14),
           Text(

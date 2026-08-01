@@ -10,6 +10,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/neo_bottom_nav_bar.dart';
+import '../../widgets/user_avatar.dart';
 import '../shared/splash_router.dart';
 import '../shared/app_drawer.dart';
 import 'manager_dashboard_tab.dart';
@@ -330,23 +331,11 @@ class LuxuryTopNav extends StatelessWidget {
               InkWell(
                 onTap: onOpenMenu,
                 customBorder: const CircleBorder(),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFFE6AD36),
-                      width: 2,
-                    ),
-                  ),
-                  child: ClipOval(
-                    child: const _HeaderImage(
-                      assetPath: 'assets/images/manager_profile.png',
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
-                    ),
-                  ),
+                child: UserAvatar(
+                  name: manager.name,
+                  imageUrl: manager.profilePhotoUrl,
+                  radius: 24,
+                  borderColor: const Color(0xFFE6AD36),
                 ),
               ),
             ],
@@ -411,23 +400,11 @@ class LuxuryTopNav extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               child: Row(
                 children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFFE6AD36),
-                        width: 2,
-                      ),
-                    ),
-                    child: ClipOval(
-                      child: const _HeaderImage(
-                        assetPath: 'assets/images/manager_profile.png',
-                        fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
-                      ),
-                    ),
+                  UserAvatar(
+                    name: manager.name,
+                    imageUrl: manager.profilePhotoUrl,
+                    radius: 27,
+                    borderColor: const Color(0xFFE6AD36),
                   ),
                   const SizedBox(width: 11),
                   Column(

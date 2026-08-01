@@ -173,27 +173,31 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
         children: [
           Wrap(
             spacing: 8,
+            runSpacing: 8,
             children: [
-              ChoiceChip(
-                label: const Text('يومي'),
+              _ReportRangeButton(
+                icon: Icons.today_outlined,
+                label: 'يومي',
                 selected: _range == _ReportRange.day,
-                onSelected: (_) => setState(() => _range = _ReportRange.day),
+                onTap: () => setState(() => _range = _ReportRange.day),
               ),
-              ChoiceChip(
-                label: const Text('أسبوعي'),
+              _ReportRangeButton(
+                icon: Icons.date_range_outlined,
+                label: 'أسبوعي',
                 selected: _range == _ReportRange.week,
-                onSelected: (_) => setState(() => _range = _ReportRange.week),
+                onTap: () => setState(() => _range = _ReportRange.week),
               ),
-              ChoiceChip(
-                label: const Text('شهري'),
+              _ReportRangeButton(
+                icon: Icons.calendar_month_outlined,
+                label: 'شهري',
                 selected: _range == _ReportRange.month,
-                onSelected: (_) => setState(() => _range = _ReportRange.month),
+                onTap: () => setState(() => _range = _ReportRange.month),
               ),
-              ChoiceChip(
-                label: const Text('موظف محدد'),
+              _ReportRangeButton(
+                icon: Icons.person_search_outlined,
+                label: 'موظف محدد',
                 selected: _range == _ReportRange.employee,
-                onSelected: (_) =>
-                    setState(() => _range = _ReportRange.employee),
+                onTap: () => setState(() => _range = _ReportRange.employee),
               ),
             ],
           ),
@@ -282,6 +286,62 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReportRangeButton extends StatelessWidget {
+  const _ReportRangeButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected ? AppColors.navy : AppColors.deepBlue;
+    return Material(
+      color: selected ? AppColors.mintAccent : Colors.white,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        hoverColor: AppColors.mintAccent.withValues(alpha: 0.18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: selected ? AppColors.mintAccent : AppColors.divider,
+              width: selected ? 1.5 : 1,
+            ),
+            boxShadow: selected ? AppElevation.lowShadow : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 19, color: foreground),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 13.5,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

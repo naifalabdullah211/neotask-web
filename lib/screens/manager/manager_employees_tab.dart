@@ -8,6 +8,7 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/task_stats.dart';
+import '../../widgets/user_avatar.dart';
 import 'employee_stats_detail_screen.dart';
 
 /// Manager's Employees tab:
@@ -519,15 +520,13 @@ class _ActiveEmployeeTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
+              UserAvatar(
+                name: user.name,
+                imageUrl: user.profilePhotoUrl,
+                radius: 21,
+                borderColor: AppColors.deepBlue.withValues(alpha: 0.22),
+                borderWidth: 1,
                 backgroundColor: AppColors.deepBlue.withValues(alpha: 0.1),
-                child: Text(
-                  user.name.isNotEmpty ? user.name[0] : '?',
-                  style: const TextStyle(
-                    color: AppColors.deepBlue,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -690,9 +689,13 @@ class _PendingEmployeeCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(
-                  Icons.person_outline,
-                  color: AppColors.statusPending,
+                UserAvatar(
+                  name: user.name,
+                  imageUrl: user.profilePhotoUrl,
+                  radius: 20,
+                  borderColor: AppColors.statusPending,
+                  borderWidth: 1,
+                  backgroundColor: AppColors.statusPending.withValues(alpha: 0.1),
                 ),
                 const SizedBox(width: 8),
                 Expanded(

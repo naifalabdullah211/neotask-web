@@ -458,6 +458,16 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Updates only the signed-in account's personal profile photo.
+  Future<void> updateOwnProfilePhoto(String profilePhotoUrl) async {
+    final user = _currentUser;
+    if (user == null) return;
+    final updated = user.copyWith(profilePhotoUrl: profilePhotoUrl);
+    await FirestoreService.saveUser(updated);
+    _currentUser = updated;
+    notifyListeners();
+  }
+
   /// Manager-driven password change for ANOTHER user (see
   /// `manager_employees_tab.dart._startChangePasswordFlow`). A regular
   /// client cannot change another Firebase Auth user's password directly —

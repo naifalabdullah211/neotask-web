@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/user_avatar.dart';
 
 /// Read-only employees tab for the `designer` observer role. Mirrors
 /// ManagerEmployeesTab's list-display sections (pending / active / rejected
@@ -150,15 +151,13 @@ class _EmployeeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        leading: CircleAvatar(
+        leading: UserAvatar(
+          name: user.name,
+          imageUrl: user.profilePhotoUrl,
+          radius: 20,
+          borderColor: AppColors.deepBlue.withValues(alpha: 0.22),
+          borderWidth: 1,
           backgroundColor: AppColors.deepBlue.withValues(alpha: 0.1),
-          child: Text(
-            user.name.isNotEmpty ? user.name[0] : '?',
-            style: const TextStyle(
-              color: AppColors.deepBlue,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
         ),
         title: Text(user.name),
         subtitle: Text('رقم وظيفي: ${user.employeeNumber}'),

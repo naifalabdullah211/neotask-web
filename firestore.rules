@@ -146,19 +146,20 @@ service cloud.firestore {
       //      writing `role` after creation (blocks self-promotion to
       //      manager) and prevents a manager from silently rewriting
       //      someone else's email/name via this path.
-      //   2) Self-service preference update (NEW, added for the Settings
-      //      screen) — see branch below.
+      //   2) Self-service settings update — preferences and the account
+      //      owner's Cloudinary-hosted profile photo only.
       allow update: if (isManager() &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['accountStatus', 'approvedBy', 'approvedAt'])) ||
-        // Self-service preference update (NEW — Settings screen: sound
-        // toggles §3(أ) + reminders toggle §3(ب)). Any signed-in user may
-        // update ONLY their OWN doc, and ONLY these three boolean
-        // preference fields — role/accountStatus/email/etc. remain
-        // exclusively manager-controlled via the branch above.
+        // Any signed-in user may update ONLY their OWN settings fields.
+        // Profile photos must come from NeoTask's configured Cloudinary
+        // account; role/accountStatus/email remain protected.
         (isOwner(uid) &&
          request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['soundMessagesEnabled', 'soundTasksEnabled', 'remindersEnabled']));
+           .hasOnly(['soundMessagesEnabled', 'soundTasksEnabled', 'remindersEnabled', 'profilePhotoUrl']) &&
+         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['profilePhotoUrl']) ||
+          (request.resource.data.profilePhotoUrl is string &&
+           request.resource.data.profilePhotoUrl.matches('https://res[.]cloudinary[.]com/unofnu8o/.*'))));
 
       allow delete: if false; // soft-delete only, via accountStatus field
     }
