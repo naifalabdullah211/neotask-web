@@ -43,7 +43,7 @@ jobs:
         run: flutter pub get 2>&1 | tee -a deploy-error.log
 
       - name: Build Flutter web
-        run: flutter build web --release 2>&1 | tee -a deploy-error.log
+        run: flutter build web --release --pwa-strategy=none 2>&1 | tee -a deploy-error.log
 
       - name: Decode Firebase service account
         shell: bash

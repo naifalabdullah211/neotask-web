@@ -55,6 +55,17 @@
       font-size: 15px;
       font-weight: 600;
     }
+    #boot-retry {
+      display: none;
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 22px;
+      color: #fff;
+      background: #1B3A6B;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
@@ -63,6 +74,7 @@
     <img src="assets/assets/images/neotask_logo.png" alt="NeoTask">
     <div class="spinner"></div>
     <div id="boot-message">جارٍ تشغيل NeoTask</div>
+    <button id="boot-retry" type="button">إعادة المحاولة</button>
   </div>
 
   <script>
@@ -77,14 +89,79 @@
       console.error('NeoTask startup error:', event.error || event.message);
     });
 
+    window.addEventListener('unhandledrejection', function (event) {
+      const message = document.getElementById('boot-message');
+      if (message) message.textContent = 'تعذّر تحميل التطبيق، أعد المحاولة';
+      console.error('NeoTask startup rejection:', event.reason);
+    });
+
+    document.getElementById('boot-retry').addEventListener('click', function () {
+      window.location.reload();
+    });
+
     setTimeout(function () {
       const message = document.getElementById('boot-message');
       if (message && document.getElementById('boot-status')) {
-        message.textContent = 'استغرق التشغيل وقتًا أطول من المتوقع';
+        message.textContent = 'تعذّر إكمال التشغيل';
+        const spinner = document.querySelector('#boot-status .spinner');
+        const retry = document.getElementById('boot-retry');
+        if (spinner) spinner.style.display = 'none';
+        if (retry) retry.style.display = 'block';
       }
-    }, 20000);
-  </script>
+    }, 8000);
 
-  <script src="flutter_bootstrap.js" async></script>
+    // Retire Flutter's legacy offline-first worker. Its cache-first response
+    // for the stable main.dart.js filename can keep an old build on iOS after
+    // a successful deploy. Clear only Flutter's own caches before loading the
+    // new bootstrap; Firebase/Auth/Firestore browser storage is untouched.
+    async function clearLegacyFlutterCache() {
+      const cleanup = async function () {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations
+            .filter((registration) => registration.scope.startsWith(location.origin))
+            .map((registration) => registration.unregister()));
+        }
+        if ('caches' in window) {
+          const names = await caches.keys();
+          const flutterCaches = new Set([
+            'flutter-app-cache',
+            'flutter-temp-cache',
+            'flutter-app-manifest'
+          ]);
+          await Promise.all(names
+            .filter((name) => flutterCaches.has(name))
+            .map((name) => caches.delete(name)));
+        }
+      };
+
+      await Promise.race([
+        cleanup(),
+        new Promise((resolve) => setTimeout(resolve, 1500))
+      ]);
+    }
+
+    async function startFlutter() {
+      try {
+        await clearLegacyFlutterCache();
+      } catch (error) {
+        // Cache cleanup must never become a new startup blocker. Loading the
+        // network build is still safer than leaving the user on the spinner.
+        console.warn('Legacy Flutter cache cleanup failed:', error);
+      }
+      const script = document.createElement('script');
+      script.src = 'flutter_bootstrap.js?v=20260801-2';
+      script.async = true;
+      script.onerror = function () {
+        const message = document.getElementById('boot-message');
+        const retry = document.getElementById('boot-retry');
+        if (message) message.textContent = 'تعذّر تحميل التطبيق';
+        if (retry) retry.style.display = 'block';
+      };
+      document.body.appendChild(script);
+    }
+
+    startFlutter();
+  </script>
 </body>
 </html>

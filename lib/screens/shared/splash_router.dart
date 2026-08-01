@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/firestore_service.dart';
 import '../auth/login_screen.dart';
 import '../auth/pending_approval_screen.dart';
 import '../auth/register_via_invite_screen.dart';
@@ -19,6 +20,7 @@ class SplashRouter extends StatefulWidget {
 
 class _SplashRouterState extends State<SplashRouter> {
   bool _checked = false;
+  bool _preferLoginFallback = false;
   String? _inviteToken;
   String? _startupMessage;
 
@@ -32,15 +34,37 @@ class _SplashRouterState extends State<SplashRouter> {
     final uri = Uri.base;
     final token = uri.queryParameters['invite'];
     final auth = context.read<AuthProvider>();
+    var publicDataReady = false;
+
+    // Start public Firestore data and Firebase Auth restoration together.
+    // Neither operation is allowed to delay the first usable screen for more
+    // than four seconds. The futures deliberately continue in the background:
+    // when connectivity recovers, AuthProvider notifies the router and the
+    // manager is routed into the authenticated app automatically.
+    final publicInit = FirestoreService.initPublic().then((_) {
+      publicDataReady = true;
+      if (mounted && _checked) {
+        setState(() => _preferLoginFallback = false);
+      }
+    });
+    final sessionRestore = auth.restoreSession().then((_) {
+      if (mounted && _checked) {
+        setState(() => _startupMessage = null);
+      }
+    });
 
     try {
-      // Never allow Firestore/session restoration to trap the whole app on
-      // the splash screen. A slow or blocked network now falls back to the
-      // appropriate setup/login route instead of spinning forever.
-      await auth.restoreSession().timeout(const Duration(seconds: 12));
+      await Future.wait([
+        publicInit,
+        sessionRestore,
+      ]).timeout(const Duration(seconds: 4));
     } catch (_) {
-      _startupMessage =
-          'تعذّر استعادة الجلسة تلقائيًا، يمكنك تسجيل الدخول من جديد';
+      // This is an established production app. If the public manager sentinel
+      // could not be read yet, default to LoginScreen instead of accidentally
+      // exposing first-run manager setup. A later successful public read
+      // rebuilds this router and restores the exact manager/setup decision.
+      _preferLoginFallback = !publicDataReady;
+      _startupMessage = 'تعذّر استعادة الجلسة سريعًا، يمكنك تسجيل الدخول الآن';
     }
 
     if (!mounted) return;
@@ -68,7 +92,7 @@ class _SplashRouterState extends State<SplashRouter> {
               ),
               const SizedBox(height: 6),
               Text(
-                'لن يستغرق أكثر من 12 ثانية',
+                'يتم التحقق من الجلسة',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -87,7 +111,7 @@ class _SplashRouterState extends State<SplashRouter> {
         if (_inviteToken != null && !auth.isLoggedIn) {
           destination = RegisterViaInviteScreen(token: _inviteToken!);
         } else if (!auth.isLoggedIn) {
-          destination = auth.managerExists
+          destination = (auth.managerExists || _preferLoginFallback)
               ? const LoginScreen()
               : const ManagerSetupScreen();
         } else {

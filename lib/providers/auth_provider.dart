@@ -62,7 +62,12 @@ class AuthProvider extends ChangeNotifier {
   /// the user signed in across reloads on Web/Android by itself — no manual
   /// SharedPreferences caching is needed anymore).
   Future<void> restoreSession() async {
-    final fbUser = _fbAuth.currentUser;
+    // On Web, especially iOS Safari, Firebase Auth may still be hydrating its
+    // IndexedDB-backed session when this provider is created. Waiting for the
+    // first auth-state event avoids incorrectly treating that short window as
+    // a signed-out session. SplashRouter applies the UI timeout, so this work
+    // may safely finish in the background on a slow connection.
+    final fbUser = await _fbAuth.authStateChanges().first;
     if (fbUser == null) {
       _currentUser = null;
       notifyListeners();
