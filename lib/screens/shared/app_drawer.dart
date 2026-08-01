@@ -16,6 +16,9 @@ import '../manager/manager_polls_tab.dart';
 import '../manager/manager_my_tasks_screen.dart';
 import '../manager/manager_ideas_screen.dart';
 import '../manager/project_plan_screen.dart';
+import '../manager/automation_rules_screen.dart';
+import '../manager/custom_forms_screen.dart';
+import '../manager/bulk_import_screen.dart';
 
 /// Shared side-menu ("Drawer") giving BOTH manager and employee access to
 /// the secondary feature set that does not fit into the bottom
@@ -160,6 +163,36 @@ class _AppDrawerState extends State<AppDrawer> {
                           onTap: () => push(
                             'project_plan',
                             ProjectPlanScreen(readOnly: isDesigner),
+                          ),
+                        ),
+                      if (isManager || isDesigner)
+                        _DrawerNavTile(
+                          icon: Icons.bolt_outlined,
+                          label: 'الأتمتة الشرطية',
+                          isActive: activeKey == 'automations',
+                          onTap: () => push(
+                            'automations',
+                            AutomationRulesScreen(readOnly: isDesigner),
+                          ),
+                        ),
+                      if (isManager || isDesigner)
+                        _DrawerNavTile(
+                          icon: Icons.dynamic_form_outlined,
+                          label: 'النماذج المخصصة',
+                          isActive: activeKey == 'custom_forms',
+                          onTap: () => push(
+                            'custom_forms',
+                            CustomFormsScreen(readOnly: isDesigner),
+                          ),
+                        ),
+                      if (isManager || isDesigner)
+                        _DrawerNavTile(
+                          icon: Icons.upload_file_outlined,
+                          label: 'استيراد Excel / CSV',
+                          isActive: activeKey == 'bulk_import',
+                          onTap: () => push(
+                            'bulk_import',
+                            BulkImportScreen(readOnly: isDesigner),
                           ),
                         ),
                       if (showCalendar)

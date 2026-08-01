@@ -13,6 +13,7 @@ import '../auth/register_via_invite_screen.dart';
 import '../manager/manager_home_screen.dart';
 import '../employee/employee_home_screen.dart';
 import '../designer/designer_home_screen.dart';
+import '../public/public_form_screen.dart';
 
 class SplashRouter extends StatefulWidget {
   const SplashRouter({super.key});
@@ -23,6 +24,7 @@ class SplashRouter extends StatefulWidget {
 
 class _SplashRouterState extends State<SplashRouter> {
   String? _inviteToken;
+  String? _publicFormId;
   bool _inviteReady = true;
   bool _sessionReady = false;
   bool _managerStatusReady = false;
@@ -34,6 +36,8 @@ class _SplashRouterState extends State<SplashRouter> {
     super.initState();
     final token = Uri.base.queryParameters['invite'];
     _inviteToken = (token != null && token.isNotEmpty) ? token : null;
+    final formId = Uri.base.queryParameters['form'];
+    _publicFormId = (formId != null && formId.isNotEmpty) ? formId : null;
     _inviteReady = _inviteToken == null;
     _forceLogin = Uri.base.path.replaceAll(RegExp(r'/+$'), '') == '/login';
 
@@ -105,7 +109,9 @@ class _SplashRouterState extends State<SplashRouter> {
       builder: (context, auth, _) {
         Widget destination;
 
-        if (_inviteToken != null && !auth.isLoggedIn) {
+        if (_publicFormId != null) {
+          destination = PublicFormScreen(formId: _publicFormId!);
+        } else if (_inviteToken != null && !auth.isLoggedIn) {
           destination = _inviteReady
               ? RegisterViaInviteScreen(token: _inviteToken!)
               : const _InviteBootstrapView();

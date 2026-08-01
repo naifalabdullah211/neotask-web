@@ -718,6 +718,83 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- manager-configurable workflow automations ----
+    // Rule definitions are manager-owned configuration. Execution logs are
+    // server-authored by Cloud Functions and immutable from every client.
+    match /automation_rules/{ruleId} {
+      allow read: if isManager() || isDesigner();
+      allow create, update: if isManager() &&
+        request.resource.data.ruleId == ruleId &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 3 &&
+        request.resource.data.name.size() <= 120 &&
+        request.resource.data.trigger in ['taskCreated', 'statusChanged', 'dueSoon', 'overdue'] &&
+        request.resource.data.conditionField in ['any', 'status', 'priority', 'category', 'assignee', 'progress'] &&
+        request.resource.data.conditionOperator in ['equals', 'contains', 'greaterOrEqual'] &&
+        request.resource.data.action in ['notifyAssignee', 'notifyManager', 'setPriority', 'reassign'] &&
+        request.resource.data.dueWithinHours is int &&
+        request.resource.data.dueWithinHours >= 1 &&
+        request.resource.data.dueWithinHours <= 168;
+      allow delete: if isManager() && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /automation_runs/{runId} {
+      allow read: if isManager() || isDesigner();
+      allow write: if false;
+    }
+
+    // ---- custom forms and public response intake ----
+    // Anonymous visitors may get one active form by its unguessable UUID and
+    // submit a bounded answer map. Listing all forms remains manager-only.
+    match /custom_forms/{formId} {
+      allow get: if (resource.data.isActive == true) || isManager() || isDesigner();
+      allow list: if isManager() || isDesigner();
+      allow create, update: if isManager() &&
+        request.resource.data.formId == formId &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() >= 2 &&
+        request.resource.data.title.size() <= 160 &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() <= 1500 &&
+        request.resource.data.fields is list &&
+        request.resource.data.fields.size() >= 1 &&
+        request.resource.data.fields.size() <= 50;
+      allow delete: if false;
+
+      match /responses/{responseId} {
+        allow read: if isManager() || isDesigner();
+        allow create: if
+          get(/databases/$(database)/documents/custom_forms/$(formId)).data.isActive == true &&
+          request.resource.data.keys().hasOnly([
+            'responseId', 'formId', 'answers', 'submittedAt', 'source'
+          ]) &&
+          request.resource.data.responseId == responseId &&
+          request.resource.data.formId == formId &&
+          request.resource.data.answers is map &&
+          request.resource.data.answers.size() <= 50 &&
+          request.resource.data.submittedAt is string &&
+          request.resource.data.source == 'publicLink';
+        allow update, delete: if false;
+      }
+    }
+
+    // Client-authored task imports write one summary job. Employee imports
+    // are written by the Admin SDK and bypass these rules after server-side
+    // manager verification.
+    match /import_jobs/{jobId} {
+      allow read: if isManager() || isDesigner();
+      allow create: if isManager() &&
+        request.resource.data.jobId == jobId &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.type == 'tasks' &&
+        request.resource.data.rowCount is int &&
+        request.resource.data.rowCount > 0 &&
+        request.resource.data.rowCount <= 5000;
+      allow update, delete: if false;
+    }
+
     // ---- manager_ideas ----
     // A private idea inbox shared only by the manager and NeoTask's
     // read-only observer. Employees cannot read it. The observer remains

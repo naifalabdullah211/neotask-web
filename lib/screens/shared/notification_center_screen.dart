@@ -189,12 +189,15 @@ class _NotificationTile extends StatelessWidget {
     // ManagerPollDetailScreen.
     final isPollEnded = notification.type == NotificationType.pollEnded;
     final isVoteReminder = notification.type == NotificationType.voteReminder;
+    final isAutomation = notification.type == NotificationType.automation;
     final Color accent = isTieDecision || isDueSoon || isVoteReminder
         ? AppColors.statusPending
         : isOverdue
         ? AppColors.overdue
         : isPollEnded
         ? AppColors.statusApproved
+        : isAutomation
+        ? AppColors.mintAccent
         : (notification.isRead ? AppColors.textSecondary : AppColors.deepBlue);
     final IconData icon = isTieDecision
         ? Icons.gavel_outlined
@@ -206,6 +209,8 @@ class _NotificationTile extends StatelessWidget {
         ? Icons.assessment_outlined
         : isVoteReminder
         ? Icons.campaign_outlined
+        : isAutomation
+        ? Icons.bolt_outlined
         : (isTaskComment
               ? Icons.chat_bubble_outline
               : Icons.how_to_vote_outlined);

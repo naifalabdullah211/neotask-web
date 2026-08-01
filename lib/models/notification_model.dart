@@ -55,6 +55,7 @@ enum NotificationType {
   //     PollProvider.remindNotYetVoted (cooldown-gated).
   pollEnded,
   voteReminder,
+  automation,
 }
 
 class AppNotification {

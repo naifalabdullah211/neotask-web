@@ -17,6 +17,9 @@ class ManagerCreateTaskScreen extends StatefulWidget {
     super.key,
     this.initialDueDate,
     this.initialIsPersonal = false,
+    this.initialTitle,
+    this.initialDescription,
+    this.initialCategory,
   });
 
   /// Optional pre-filled due date — passed in when this screen is opened
@@ -29,6 +32,9 @@ class ManagerCreateTaskScreen extends StatefulWidget {
   /// "مهامي الشخصية" FAB (ManagerMyTasksScreen), so the type toggle below
   /// starts pre-selected on "شخصية" instead of the default "لفريق".
   final bool initialIsPersonal;
+  final String? initialTitle;
+  final String? initialDescription;
+  final String? initialCategory;
 
   @override
   State<ManagerCreateTaskScreen> createState() =>
@@ -62,6 +68,9 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
   @override
   void initState() {
     super.initState();
+    _titleCtrl.text = widget.initialTitle ?? '';
+    _descCtrl.text = widget.initialDescription ?? '';
+    _categoryCtrl.text = widget.initialCategory ?? 'عام';
     _isPersonal = widget.initialIsPersonal;
     _dueDate =
         widget.initialDueDate ?? DateTime.now().add(const Duration(days: 1));
