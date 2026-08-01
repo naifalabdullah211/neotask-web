@@ -389,16 +389,48 @@ class LuxuryTopNav extends StatelessWidget {
           ),
           const SizedBox(width: 26),
           Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < _labels.length; i++)
-                  _DesktopNavButton(
-                    label: _labels[i],
-                    selected: selectedIndex == i,
-                    onTap: () => onTabSelected(i),
-                  ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minWidth: constraints.maxWidth,
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (var i = 0; i < _labels.length; i++) ...[
+                                if (i > 0) const SizedBox(width: 10),
+                                _DesktopNavButton(
+                                  label: _labels[i],
+                                  selected: selectedIndex == i,
+                                  onTap: () => onTabSelected(i),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
           const SizedBox(width: 28),
@@ -460,29 +492,58 @@ class _DesktopNavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        height: 104,
-        margin: const EdgeInsets.symmetric(horizontal: 18),
-        padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
-        decoration: BoxDecoration(
-          border: selected
-              ? const Border(
-                  bottom: BorderSide(color: Color(0xFF45CDA0), width: 3),
-                )
-              : null,
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(13),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          height: 48,
+          constraints: const BoxConstraints(minWidth: 86),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
             color: selected
-                ? Colors.white
-                : Colors.white.withValues(alpha: 0.78),
-            fontSize: 17,
-            fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                ? const Color(0xFF33D6A6).withValues(alpha: 0.14)
+                : Colors.white.withValues(alpha: 0.035),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF33D6A6).withValues(alpha: 0.38)
+                  : Colors.white.withValues(alpha: 0.06),
+            ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: selected
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.78),
+                    fontSize: 16,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 3,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: selected ? 30 : 0,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF33D6A6),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
