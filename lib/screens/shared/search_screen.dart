@@ -4,6 +4,7 @@ import '../../models/criterion_model.dart';
 import '../../models/goal_model.dart';
 import '../../models/task_model.dart';
 import '../../models/user_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/criterion_provider.dart';
 import '../../providers/goal_provider.dart';
 import '../../providers/task_provider.dart';
@@ -11,6 +12,9 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../employee/task_detail_screen.dart';
+import '../designer/designer_task_view_screen.dart';
+import '../manager/employee_stats_detail_screen.dart';
+import '../manager/task_review_detail_screen.dart';
 import 'criterion_detail_screen.dart';
 import 'goal_detail_screen.dart';
 
@@ -24,9 +28,8 @@ import 'goal_detail_screen.dart';
 ///
 /// JUDGMENT CALL (flagged — the manager did not answer this question,
 /// "Q7", about icon placement/result presentation): this screen is
-/// reached via a search icon placed in the AppBar of BOTH manager and
-/// employee home screens (see manager_home_screen.dart /
-/// employee_home_screen.dart). Results are grouped into labeled sections
+/// reached via a search icon placed in the AppBar of manager, observer, and
+/// employee home screens. Results are grouped into labeled sections
 /// (موظفون / أهداف / معايير / مهام) rather than a single flat list, since
 /// the query can plausibly match more than one entity type at once (e.g.
 /// searching an employee's name should surface both that employee's
@@ -215,6 +218,8 @@ class _EmployeeResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    final canOpenStats = auth.isManager || auth.isDesigner;
     final criterionCount = context
         .read<CriterionProvider>()
         .criteriaForEmployee(user.uid)
@@ -235,7 +240,17 @@ class _EmployeeResultTile extends StatelessWidget {
         child: Text(user.name.isNotEmpty ? user.name[0] : '؟'),
       ),
       title: Text(user.name),
-      subtitle: Text('$taskCount مهمة • $criterionCount معيار'),
+      subtitle: Text(
+        'رقم وظيفي: ${user.employeeNumber} • $taskCount مهمة • $criterionCount معيار',
+      ),
+      trailing: canOpenStats ? const Icon(Icons.chevron_left) : null,
+      onTap: canOpenStats
+          ? () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EmployeeStatsDetailScreen(employee: user),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -274,6 +289,13 @@ class _TaskResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    final Widget destination = auth.isDesigner
+        ? DesignerTaskViewScreen(task: task)
+        : auth.isManager
+        ? TaskReviewDetailScreen(task: task)
+        : TaskDetailScreen(task: task);
+
     return ListTile(
       leading: const Icon(Icons.task_outlined),
       title: Text(task.title),
@@ -287,7 +309,7 @@ class _TaskResultTile extends StatelessWidget {
       trailing: const Icon(Icons.chevron_left),
       onTap: () => Navigator.of(
         context,
-      ).push(MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task))),
+      ).push(MaterialPageRoute(builder: (_) => destination)),
     );
   }
 }

@@ -16,7 +16,11 @@ import 'employee_stats_detail_screen.dart';
 /// 2) Approve/reject pending self-registered employees.
 /// 3) View the flat list of all active employees.
 class ManagerEmployeesTab extends StatelessWidget {
-  const ManagerEmployeesTab({super.key});
+  const ManagerEmployeesTab({super.key, this.readOnly = false});
+
+  /// Keeps every manager-facing employee-management control visible to the
+  /// observer while preventing all writes.
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +46,7 @@ class ManagerEmployeesTab extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _InviteGeneratorCard(),
+              _InviteGeneratorCard(readOnly: readOnly),
               const SizedBox(height: 20),
               if (pending.isNotEmpty) ...[
                 Row(
@@ -63,7 +67,9 @@ class ManagerEmployeesTab extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                ...pending.map((u) => _PendingEmployeeCard(user: u)),
+                ...pending.map(
+                  (u) => _PendingEmployeeCard(user: u, readOnly: readOnly),
+                ),
                 const SizedBox(height: 20),
               ],
               Text(
@@ -86,6 +92,7 @@ class ManagerEmployeesTab extends StatelessWidget {
                 ...active.map(
                   (u) => _ActiveEmployeeTile(
                     user: u,
+                    readOnly: readOnly,
                     otherActiveEmployees: active
                         .where((o) => o.uid != u.uid)
                         .toList(),
@@ -164,9 +171,11 @@ class ManagerEmployeesTab extends StatelessWidget {
 class _ActiveEmployeeTile extends StatelessWidget {
   final AppUser user;
   final List<AppUser> otherActiveEmployees;
+  final bool readOnly;
   const _ActiveEmployeeTile({
     required this.user,
     required this.otherActiveEmployees,
+    required this.readOnly,
   });
 
   Future<void> _startDeleteFlow(BuildContext context) async {
@@ -556,15 +565,17 @@ class _ActiveEmployeeTile extends StatelessWidget {
                   color: AppColors.textSecondary,
                 ),
                 onSelected: (value) {
+                  if (readOnly) return;
                   if (value == 'delete') _startDeleteFlow(context);
                   if (value == 'change_password') {
                     _startChangePasswordFlow(context);
                   }
                 },
                 itemBuilder: (context) => [
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'change_password',
-                    child: Row(
+                    enabled: !readOnly,
+                    child: const Row(
                       children: [
                         Icon(
                           Icons.lock_reset,
@@ -576,9 +587,10 @@ class _ActiveEmployeeTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'delete',
-                    child: Row(
+                    enabled: !readOnly,
+                    child: const Row(
                       children: [
                         Icon(
                           Icons.person_remove,
@@ -676,7 +688,8 @@ class _MiniStatsRow extends StatelessWidget {
 
 class _PendingEmployeeCard extends StatelessWidget {
   final AppUser user;
-  const _PendingEmployeeCard({required this.user});
+  final bool readOnly;
+  const _PendingEmployeeCard({required this.user, required this.readOnly});
 
   @override
   Widget build(BuildContext context) {
@@ -723,7 +736,9 @@ class _PendingEmployeeCard extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.statusRejected,
                     ),
-                    onPressed: () async {
+                    onPressed: readOnly
+                        ? null
+                        : () async {
                       final managerUid = context
                           .read<AuthProvider>()
                           .currentUser!
@@ -743,7 +758,9 @@ class _PendingEmployeeCard extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.statusApproved,
                     ),
-                    onPressed: () async {
+                    onPressed: readOnly
+                        ? null
+                        : () async {
                       final managerUid = context
                           .read<AuthProvider>()
                           .currentUser!
@@ -767,6 +784,10 @@ class _PendingEmployeeCard extends StatelessWidget {
 }
 
 class _InviteGeneratorCard extends StatefulWidget {
+  const _InviteGeneratorCard({required this.readOnly});
+
+  final bool readOnly;
+
   @override
   State<_InviteGeneratorCard> createState() => _InviteGeneratorCardState();
 }
@@ -832,6 +853,7 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
             const SizedBox(height: 12),
             TextField(
               controller: _nameCtrl,
+              enabled: !widget.readOnly,
               decoration: const InputDecoration(
                 labelText: 'اسم الموظف المتوقع (اختياري)',
                 prefixIcon: Icon(Icons.person_outline),
@@ -841,13 +863,31 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _generating ? null : _generate,
+                onPressed: widget.readOnly || _generating ? null : _generate,
                 icon: const Icon(Icons.add_link),
                 label: Text(
                   _generating ? 'جارٍ الإنشاء...' : 'إنشاء رابط دعوة',
                 ),
               ),
             ),
+            if (widget.readOnly) ...[
+              const SizedBox(height: 10),
+              const Row(
+                children: [
+                  Icon(Icons.visibility_outlined, size: 16),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'عرض فقط: المدير ينشئ الرابط من هنا ثم يرسله للموظف، وبعد التسجيل يوافق على طلب الانضمام.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             if (_lastInvite != null) ...[
               const SizedBox(height: 14),
               Container(

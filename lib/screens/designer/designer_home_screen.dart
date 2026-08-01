@@ -10,6 +10,7 @@ import '../manager/manager_ideas_screen.dart';
 import '../manager/manager_reports_tab.dart';
 import '../manager/manager_review_tab.dart';
 import '../shared/app_drawer.dart';
+import '../shared/search_screen.dart';
 import 'designer_chat_tab.dart';
 import 'designer_employees_tab.dart';
 
@@ -63,6 +64,9 @@ class _DesignerHomeScreenState extends State<DesignerHomeScreen> {
                   readOnly: true,
                 ),
               ),
+            ),
+            onOpenSearch: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SearchScreen()),
             ),
           ),
           Expanded(child: IndexedStack(index: _index, children: pages)),

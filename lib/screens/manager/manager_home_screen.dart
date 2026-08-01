@@ -84,6 +84,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                 builder: (_) => ManagerIdeasScreen(manager: manager),
               ),
             ),
+            onOpenSearch: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SearchScreen()),
+            ),
           ),
           Expanded(
             child: IndexedStack(index: _index, children: pages),
@@ -299,6 +302,7 @@ class LuxuryTopNav extends StatelessWidget {
     required this.onTabSelected,
     required this.onOpenMenu,
     required this.onOpenIdeas,
+    required this.onOpenSearch,
     this.roleLabel = 'مدير القسم',
   });
 
@@ -308,6 +312,7 @@ class LuxuryTopNav extends StatelessWidget {
   final ValueChanged<int> onTabSelected;
   final VoidCallback onOpenMenu;
   final VoidCallback onOpenIdeas;
+  final VoidCallback onOpenSearch;
   final String roleLabel;
 
   static const _labels = [
@@ -336,6 +341,13 @@ class LuxuryTopNav extends StatelessWidget {
             children: [
               const _HeaderBrand(compact: true),
               const Spacer(),
+              IconButton(
+                tooltip: 'بحث شامل',
+                onPressed: onOpenSearch,
+                color: Colors.white,
+                icon: const Icon(Icons.search, size: 25),
+              ),
+              const SizedBox(width: 3),
               IconButton(
                 tooltip: 'أفكار المدير',
                 onPressed: onOpenIdeas,
@@ -395,6 +407,18 @@ class LuxuryTopNav extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 28),
+          IconButton(
+            tooltip: 'بحث شامل',
+            onPressed: onOpenSearch,
+            color: Colors.white,
+            icon: const Icon(Icons.search, size: 27),
+          ),
+          Container(
+            height: 40,
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            width: 1,
+            color: Colors.white.withValues(alpha: 0.20),
+          ),
           IconButton(
             tooltip: 'أفكار المدير',
             onPressed: onOpenIdeas,
