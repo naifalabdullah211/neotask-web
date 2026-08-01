@@ -91,7 +91,7 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                         ],
                       ),
                       child: Image.asset(
-                        'assets/images/neotask_logo.png',
+                        'assets/images/neotask_brand_mark.png',
                         fit: BoxFit.contain,
                       ),
                     ),

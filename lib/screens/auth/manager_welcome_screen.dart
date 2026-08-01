@@ -87,7 +87,7 @@ class _ManagerWelcomeScreenState extends State<ManagerWelcomeScreen>
                               ],
                             ),
                             child: Image.asset(
-                              'assets/images/neotask_logo.png',
+                              'assets/images/neotask_brand_mark.png',
                               fit: BoxFit.contain,
                             ),
                           ),

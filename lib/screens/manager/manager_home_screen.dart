@@ -176,7 +176,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              'assets/images/neotask_logo.png',
+              'assets/images/neotask_brand_mark.png',
               height: 28,
               fit: BoxFit.contain,
             ),
@@ -324,7 +324,7 @@ class _LuxuryTopNav extends StatelessWidget {
           child: Row(
             children: [
               _HeaderImage(
-                assetPath: 'assets/images/neotask_logo_header.png',
+                assetPath: 'assets/images/neotask_brand_header.png',
                 width: 152,
               ),
               const Spacer(),
@@ -368,7 +368,7 @@ class _LuxuryTopNav extends StatelessWidget {
       child: Row(
         children: [
           const _HeaderImage(
-            assetPath: 'assets/images/neotask_logo_header.png',
+            assetPath: 'assets/images/neotask_brand_header.png',
             width: 230,
           ),
           const SizedBox(width: 42),

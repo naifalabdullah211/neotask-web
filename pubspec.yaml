@@ -39,8 +39,8 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/neotask_logo.png
-    - assets/images/neotask_logo_full.png
-    - assets/images/neotask_logo_header.png
+    - assets/images/neotask_brand_mark.png
+    - assets/images/neotask_brand_full.png
+    - assets/images/neotask_brand_header.png
     - assets/images/manager_profile.png
     - assets/images/login_bg.jpg

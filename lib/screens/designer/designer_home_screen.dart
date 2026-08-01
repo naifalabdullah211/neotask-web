@@ -57,7 +57,7 @@ class _DesignerHomeScreenState extends State<DesignerHomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              'assets/images/neotask_logo.png',
+              'assets/images/neotask_brand_mark.png',
               height: 28,
               fit: BoxFit.contain,
             ),

@@ -390,7 +390,7 @@ class _BrandBlock extends StatelessWidget {
     return Column(
       children: [
         Image.asset(
-          'assets/images/neotask_logo_full.png',
+          'assets/images/neotask_brand_full.png',
           width: 190,
           height: 76,
           fit: BoxFit.contain,

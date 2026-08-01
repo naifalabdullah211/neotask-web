@@ -60,6 +60,15 @@
         ]
       },
       {
+        "source": "/assets/assets/images/neotask_brand_*.png",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
         "source": "/manifest.json",
         "headers": [
           {
