@@ -7,9 +7,30 @@ import 'package:neotask_pro/models/custom_form_model.dart';
 import 'package:neotask_pro/models/document_model.dart';
 import 'package:neotask_pro/models/meeting_model.dart';
 import 'package:neotask_pro/models/user_model.dart';
+import 'package:neotask_pro/models/voice_call_model.dart';
 import 'package:neotask_pro/utils/import_table_parser.dart';
 
 void main() {
+  test('voice call signalling round-trips status and SDP safely', () {
+    final createdAt = DateTime(2026, 8, 1, 20, 30);
+    final call = VoiceCall(
+      callId: 'call-1',
+      conversationId: 'general-employee-1',
+      callerUid: 'manager-1',
+      calleeUid: 'employee-1',
+      status: VoiceCallStatus.ringing,
+      offer: const {'type': 'offer', 'sdp': 'test-sdp'},
+      createdAt: createdAt,
+    );
+
+    final restored = VoiceCall.fromMap(call.toMap());
+    expect(restored.callId, 'call-1');
+    expect(restored.status, VoiceCallStatus.ringing);
+    expect(restored.offer['type'], 'offer');
+    expect(restored.otherParticipant('manager-1'), 'employee-1');
+    expect(restored.isTerminal, isFalse);
+  });
+
   test('manager welcome version defaults safely and persists', () {
     final legacy = AppUser.fromMap({
       'uid': 'manager-1',

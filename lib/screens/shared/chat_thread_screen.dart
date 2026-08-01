@@ -11,6 +11,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/voice_message_recorder_button.dart';
 import '../../widgets/voice_message_player.dart';
+import 'voice_call_screen.dart';
 
 /// Shared chat thread UI — reused for BOTH the general (task-independent)
 /// manager<->employee conversation AND per-task conversation threads. The
@@ -474,6 +475,28 @@ class ChatThreadScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
+        actions: [
+          if (!readOnly)
+            IconButton(
+              tooltip: 'اتصال صوتي',
+              icon: const Icon(Icons.call_outlined),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    fullscreenDialog: true,
+                    builder: (_) => VoiceCallScreen.outgoing(
+                      conversationId: conversationId,
+                      taskId: taskId,
+                      currentUserUid: currentUserUid,
+                      otherUserUid: otherUserUid,
+                      otherUserName:
+                          FirestoreService.getUser(otherUserUid)?.name ?? title,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
         bottom: subtitle != null
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(20),
@@ -728,6 +751,7 @@ class _MessageBubble extends StatelessWidget {
     final hasAttachment = message.attachmentUrl != null;
     final isImage = message.attachmentType == 'image';
     final isVoice = message.attachmentType == 'voice';
+    final isCall = message.attachmentType == 'call';
     final isReply = message.replyToMessageId != null;
 
     return GestureDetector(
@@ -822,7 +846,29 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (message.text.isNotEmpty)
+              if (isCall)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.call_outlined,
+                      size: 20,
+                      color: isMine ? AppColors.mintAccent : AppColors.deepBlue,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        message.text,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else if (message.text.isNotEmpty)
                 Padding(
                   padding: EdgeInsets.only(
                     top: hasAttachment ? 6 : 0,
