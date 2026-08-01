@@ -598,33 +598,33 @@ class _ExecutionPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 10,
+          Row(
             children: [
-              const Text(
-                'مسار التنفيذ',
-                style: TextStyle(
-                  color: _LuxuryColors.navy,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
+              const Expanded(
+                child: Text(
+                  'مسار التنفيذ',
+                  style: TextStyle(
+                    color: _LuxuryColors.navy,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              _DashboardControls(
-                range: range,
-                rangeLabel: rangeLabel,
+              _ViewModeButton(
                 kanban: kanban,
-                onRangeChanged: onRangeChanged,
-                onShiftRange: onShiftRange,
-                onViewChanged: onViewChanged,
+                onChanged: onViewChanged,
+                compact: !desktop,
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          const Divider(height: 1),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          _DashboardControls(
+            range: range,
+            rangeLabel: rangeLabel,
+            onRangeChanged: onRangeChanged,
+            onShiftRange: onShiftRange,
+          ),
+          const SizedBox(height: 16),
           if (kanban)
             SizedBox(
               height: desktop ? 520 : 650,
@@ -670,67 +670,283 @@ class _DashboardControls extends StatelessWidget {
   const _DashboardControls({
     required this.range,
     required this.rangeLabel,
-    required this.kanban,
     required this.onRangeChanged,
     required this.onShiftRange,
-    required this.onViewChanged,
   });
 
   final _LuxuryRange range;
   final String rangeLabel;
-  final bool kanban;
   final ValueChanged<_LuxuryRange> onRangeChanged;
   final ValueChanged<int> onShiftRange;
-  final ValueChanged<bool> onViewChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        SegmentedButton<_LuxuryRange>(
-          showSelectedIcon: false,
-          segments: const [
-            ButtonSegment(value: _LuxuryRange.day, label: Text('يومي')),
-            ButtonSegment(value: _LuxuryRange.week, label: Text('أسبوعي')),
-            ButtonSegment(value: _LuxuryRange.month, label: Text('شهري')),
-          ],
-          selected: {range},
-          onSelectionChanged: (values) => onRangeChanged(values.first),
-          style: const ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            textStyle: WidgetStatePropertyAll(
-              TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stack = constraints.maxWidth < 690;
+        final picker = _ExecutionRangePicker(
+          range: range,
+          onChanged: onRangeChanged,
+        );
+        final navigation = _ExecutionDateNavigator(
+          label: rangeLabel,
+          onShift: onShiftRange,
+        );
+
+        return Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5F8FC),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: const Color(0xFFDCE4EE)),
+          ),
+          child: stack
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    picker,
+                    const SizedBox(height: 9),
+                    navigation,
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(flex: 4, child: picker),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 1,
+                      height: 38,
+                      color: const Color(0xFFD4DDE8),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 5, child: navigation),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _ExecutionRangePicker extends StatelessWidget {
+  const _ExecutionRangePicker({required this.range, required this.onChanged});
+
+  final _LuxuryRange range;
+  final ValueChanged<_LuxuryRange> onChanged;
+
+  static const _options = [
+    (_LuxuryRange.day, 'يومي', Icons.today_outlined),
+    (_LuxuryRange.week, 'أسبوعي', Icons.view_week_outlined),
+    (_LuxuryRange.month, 'شهري', Icons.calendar_month_outlined),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8EDF4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          for (final (value, label, icon) in _options)
+            Expanded(
+              child: _ExecutionRangeButton(
+                label: label,
+                icon: icon,
+                selected: range == value,
+                onTap: () => onChanged(value),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExecutionRangeButton extends StatelessWidget {
+  const _ExecutionRangeButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      decoration: BoxDecoration(
+        color: selected ? _LuxuryColors.navy : Colors.transparent,
+        borderRadius: BorderRadius.circular(9),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: _LuxuryColors.navy.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(9),
+        child: InkWell(
+          onTap: selected ? null : onTap,
+          borderRadius: BorderRadius.circular(9),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 17,
+                  color: selected ? Colors.white : _LuxuryColors.muted,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? Colors.white : _LuxuryColors.navy,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        IconButton(
-          tooltip: 'الفترة السابقة',
-          visualDensity: VisualDensity.compact,
-          onPressed: () => onShiftRange(-1),
-          icon: const Icon(Icons.chevron_right),
-        ),
-        Text(
-          rangeLabel,
-          style: const TextStyle(fontSize: 12, color: _LuxuryColors.muted),
-        ),
-        IconButton(
-          tooltip: 'الفترة التالية',
-          visualDensity: VisualDensity.compact,
-          onPressed: () => onShiftRange(1),
-          icon: const Icon(Icons.chevron_left),
-        ),
-        IconButton.filledTonal(
-          tooltip: kanban ? 'عرض القائمة' : 'عرض اللوحة',
-          visualDensity: VisualDensity.compact,
-          onPressed: () => onViewChanged(!kanban),
-          icon: Icon(
-            kanban ? Icons.view_list_outlined : Icons.view_kanban_outlined,
+      ),
+    );
+  }
+}
+
+class _ExecutionDateNavigator extends StatelessWidget {
+  const _ExecutionDateNavigator({required this.label, required this.onShift});
+
+  final String label;
+  final ValueChanged<int> onShift;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 46,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD7E0EB)),
+      ),
+      child: Row(
+        children: [
+          _DateArrowButton(
+            tooltip: 'الفترة السابقة',
+            icon: Icons.chevron_right,
+            onPressed: () => onShift(-1),
           ),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.date_range_outlined,
+                  size: 17,
+                  color: _LuxuryColors.muted,
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: _LuxuryColors.navy,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _DateArrowButton(
+            tooltip: 'الفترة التالية',
+            icon: Icons.chevron_left,
+            onPressed: () => onShift(1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DateArrowButton extends StatelessWidget {
+  const _DateArrowButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      color: _LuxuryColors.navy,
+      visualDensity: VisualDensity.compact,
+      icon: Icon(icon, size: 21),
+    );
+  }
+}
+
+class _ViewModeButton extends StatelessWidget {
+  const _ViewModeButton({
+    required this.kanban,
+    required this.onChanged,
+    required this.compact,
+  });
+
+  final bool kanban;
+  final ValueChanged<bool> onChanged;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: () => onChanged(!kanban),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _LuxuryColors.navy,
+        side: const BorderSide(color: Color(0xFFD7E0EB)),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 10 : 14,
+          vertical: 11,
         ),
-      ],
+      ),
+      icon: Icon(
+        kanban ? Icons.view_list_outlined : Icons.view_kanban_outlined,
+        size: 18,
+      ),
+      label: Text(
+        compact
+            ? (kanban ? 'قائمة' : 'لوحة')
+            : (kanban ? 'عرض القائمة' : 'عرض اللوحة'),
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

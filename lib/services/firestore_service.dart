@@ -20,6 +20,7 @@ import '../models/poll_vote_model.dart';
 import '../models/poll_report_model.dart';
 import '../models/notification_model.dart';
 import '../models/manager_digest_model.dart';
+import '../models/manager_idea_model.dart';
 
 /// FirestoreService — REPLACES LocalDbService (Hive) as of this commit.
 ///
@@ -552,6 +553,42 @@ class FirestoreService {
     _pollsCache = [];
     _notificationsCache = [];
     _authInitialized = false;
+  }
+
+  // ---------------- MANAGER IDEAS ----------------
+
+  /// Ideas are intentionally streamed directly instead of joining the
+  /// global cache: only the manager and the read-only observer open this
+  /// small, dedicated surface.
+  static Stream<List<ManagerIdea>> watchManagerIdeas() {
+    return _db
+        .collection('manager_ideas')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => ManagerIdea.fromMap(doc.data()))
+              .toList(),
+        );
+  }
+
+  static Future<void> addManagerIdea({
+    required String content,
+    required AppUser manager,
+  }) async {
+    final document = _db.collection('manager_ideas').doc();
+    final idea = ManagerIdea(
+      ideaId: document.id,
+      content: content.trim(),
+      authorUid: manager.uid,
+      authorName: manager.name,
+      createdAt: DateTime.now(),
+    );
+    await document.set(idea.toMap());
+  }
+
+  static Future<void> deleteManagerIdea(String ideaId) async {
+    await _db.collection('manager_ideas').doc(ideaId).delete();
   }
 
   // ---------------- USERS ----------------

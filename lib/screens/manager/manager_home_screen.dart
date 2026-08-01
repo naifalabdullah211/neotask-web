@@ -20,6 +20,7 @@ import 'manager_reports_tab.dart';
 import 'manager_chat_tab.dart';
 import 'quick_add_task_sheet.dart';
 import 'luxury_manager_dashboard.dart';
+import 'manager_ideas_screen.dart';
 import '../shared/search_screen.dart';
 
 class ManagerHomeScreen extends StatefulWidget {
@@ -78,6 +79,11 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             manager: manager,
             onTabSelected: (index) => setState(() => _index = index),
             onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
+            onOpenIdeas: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ManagerIdeasScreen(manager: manager),
+              ),
+            ),
           ),
           Expanded(
             child: IndexedStack(index: _index, children: pages),
@@ -292,6 +298,7 @@ class LuxuryTopNav extends StatelessWidget {
     required this.manager,
     required this.onTabSelected,
     required this.onOpenMenu,
+    required this.onOpenIdeas,
     this.roleLabel = 'مدير القسم',
   });
 
@@ -300,6 +307,7 @@ class LuxuryTopNav extends StatelessWidget {
   final AppUser manager;
   final ValueChanged<int> onTabSelected;
   final VoidCallback onOpenMenu;
+  final VoidCallback onOpenIdeas;
   final String roleLabel;
 
   static const _labels = [
@@ -328,6 +336,13 @@ class LuxuryTopNav extends StatelessWidget {
             children: [
               const _HeaderBrand(compact: true),
               const Spacer(),
+              IconButton(
+                tooltip: 'أفكار المدير',
+                onPressed: onOpenIdeas,
+                color: const Color(0xFFE6AD36),
+                icon: const Icon(Icons.lightbulb_outline, size: 25),
+              ),
+              const SizedBox(width: 3),
               InkWell(
                 onTap: onOpenMenu,
                 customBorder: const CircleBorder(),
@@ -355,8 +370,17 @@ class LuxuryTopNav extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const _HeaderBrand(),
-          const SizedBox(width: 42),
+          Container(
+            constraints: const BoxConstraints(minWidth: 206),
+            padding: const EdgeInsetsDirectional.only(end: 26),
+            child: const _HeaderBrand(),
+          ),
+          Container(
+            width: 1,
+            height: 46,
+            color: Colors.white.withValues(alpha: 0.18),
+          ),
+          const SizedBox(width: 26),
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -372,10 +396,10 @@ class LuxuryTopNav extends StatelessWidget {
           ),
           const SizedBox(width: 28),
           IconButton(
-            tooltip: 'المحادثات',
-            onPressed: () => onTabSelected(4),
-            color: Colors.white,
-            icon: const Icon(Icons.mail_outline, size: 27),
+            tooltip: 'أفكار المدير',
+            onPressed: onOpenIdeas,
+            color: const Color(0xFFE6AD36),
+            icon: const Icon(Icons.lightbulb_outline, size: 27),
           ),
           Container(
             height: 40,

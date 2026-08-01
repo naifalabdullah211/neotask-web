@@ -6,6 +6,7 @@ import '../../providers/task_provider.dart';
 import '../../widgets/neo_bottom_nav_bar.dart';
 import '../manager/luxury_manager_dashboard.dart';
 import '../manager/manager_home_screen.dart';
+import '../manager/manager_ideas_screen.dart';
 import '../manager/manager_reports_tab.dart';
 import '../manager/manager_review_tab.dart';
 import '../shared/app_drawer.dart';
@@ -55,6 +56,14 @@ class _DesignerHomeScreenState extends State<DesignerHomeScreen> {
             roleLabel: 'متابعة · عرض فقط',
             onTabSelected: (index) => setState(() => _index = index),
             onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
+            onOpenIdeas: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ManagerIdeasScreen(
+                  manager: observer,
+                  readOnly: true,
+                ),
+              ),
+            ),
           ),
           Expanded(child: IndexedStack(index: _index, children: pages)),
         ],

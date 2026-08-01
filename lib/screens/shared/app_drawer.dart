@@ -14,6 +14,7 @@ import 'splash_router.dart';
 import '../manager/manager_calendar_screen.dart';
 import '../manager/manager_polls_tab.dart';
 import '../manager/manager_my_tasks_screen.dart';
+import '../manager/manager_ideas_screen.dart';
 
 /// Shared side-menu ("Drawer") giving BOTH manager and employee access to
 /// the secondary feature set that does not fit into the bottom
@@ -174,6 +175,19 @@ class _AppDrawerState extends State<AppDrawer> {
                           onTap: () => push(
                             'polls',
                             ManagerPollsTab(readOnly: isDesigner),
+                          ),
+                        ),
+                      if (isManager || isDesigner)
+                        _DrawerNavTile(
+                          icon: Icons.lightbulb_outline,
+                          label: 'أفكار المدير',
+                          isActive: activeKey == 'manager_ideas',
+                          onTap: () => push(
+                            'manager_ideas',
+                            ManagerIdeasScreen(
+                              manager: user,
+                              readOnly: isDesigner,
+                            ),
                           ),
                         ),
                       if (isManager || isDesigner)

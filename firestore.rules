@@ -698,6 +698,40 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- manager_ideas ----
+    // A private idea inbox shared only by the manager and NeoTask's
+    // read-only observer. Employees cannot read it. The observer remains
+    // strictly read-only; only the manager may create or remove their own
+    // idea documents.
+    match /manager_ideas/{ideaId} {
+      allow read: if isManager() || isDesigner();
+
+      allow create: if isManager() &&
+        request.resource.data.keys().hasOnly([
+          'ideaId',
+          'content',
+          'authorUid',
+          'authorName',
+          'createdAt',
+          'status'
+        ]) &&
+        request.resource.data.ideaId == ideaId &&
+        request.resource.data.authorUid == request.auth.uid &&
+        request.resource.data.content is string &&
+        request.resource.data.content.size() >= 3 &&
+        request.resource.data.content.size() <= 1000 &&
+        request.resource.data.authorName is string &&
+        request.resource.data.authorName.size() >= 1 &&
+        request.resource.data.authorName.size() <= 120 &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.status == 'new';
+
+      allow update: if false;
+
+      allow delete: if isManager() &&
+        resource.data.authorUid == request.auth.uid;
+    }
+
     // ---- password_change_audit (Part 1 — manager-driven password reset
     //      audit trail) ----
     // Append-only log of WHO changed a password, FOR WHOM, and WHEN. The
