@@ -468,6 +468,17 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Records that the manager acknowledged the current welcome experience.
+  /// The versioned marker is account-scoped in Firestore, so it is not shown
+  /// again when the same manager later signs in from another device.
+  Future<void> completeManagerWelcome(int version) async {
+    final user = _currentUser;
+    if (user == null || user.role != UserRole.manager) return;
+    await FirestoreService.updateManagerWelcomeVersion(user.uid, version);
+    _currentUser = user.copyWith(managerWelcomeVersion: version);
+    notifyListeners();
+  }
+
   /// Manager-driven password change for ANOTHER user (see
   /// `manager_employees_tab.dart._startChangePasswordFlow`). A regular
   /// client cannot change another Firebase Auth user's password directly —

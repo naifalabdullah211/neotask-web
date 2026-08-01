@@ -6,9 +6,25 @@ import 'package:neotask_pro/models/automation_rule_model.dart';
 import 'package:neotask_pro/models/custom_form_model.dart';
 import 'package:neotask_pro/models/document_model.dart';
 import 'package:neotask_pro/models/meeting_model.dart';
+import 'package:neotask_pro/models/user_model.dart';
 import 'package:neotask_pro/utils/import_table_parser.dart';
 
 void main() {
+  test('manager welcome version defaults safely and persists', () {
+    final legacy = AppUser.fromMap({
+      'uid': 'manager-1',
+      'name': 'دكتور محمد الخلاوي',
+      'employeeNumber': '1001',
+      'role': 'manager',
+      'accountStatus': 'active',
+      'createdAt': DateTime(2026, 8, 1).toIso8601String(),
+    });
+    expect(legacy.managerWelcomeVersion, 0);
+
+    final acknowledged = legacy.copyWith(managerWelcomeVersion: 1);
+    expect(AppUser.fromMap(acknowledged.toMap()).managerWelcomeVersion, 1);
+  });
+
   test('automation rule persists every executable setting', () {
     final now = DateTime(2026, 8, 1, 12);
     final rule = AutomationRule(

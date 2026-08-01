@@ -167,7 +167,11 @@ service cloud.firestore {
         // account; role/accountStatus/email remain protected.
         (isOwner(uid) &&
          request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['soundMessagesEnabled', 'soundTasksEnabled', 'remindersEnabled', 'profilePhotoUrl']) &&
+           .hasOnly(['soundMessagesEnabled', 'soundTasksEnabled', 'remindersEnabled', 'profilePhotoUrl', 'managerWelcomeVersion']) &&
+         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['managerWelcomeVersion']) ||
+          (resource.data.role == 'manager' &&
+           request.resource.data.managerWelcomeVersion is int &&
+           request.resource.data.managerWelcomeVersion == 1)) &&
          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['profilePhotoUrl']) ||
           (request.resource.data.profilePhotoUrl is string &&
            request.resource.data.profilePhotoUrl.matches('https://res[.]cloudinary[.]com/unofnu8o/.*'))));

@@ -8,6 +8,7 @@ import '../../services/firestore_service.dart';
 import '../../utils/app_ready.dart';
 import '../auth/login_screen.dart';
 import '../auth/manager_setup_screen.dart';
+import '../auth/manager_welcome_screen.dart';
 import '../auth/pending_approval_screen.dart';
 import '../auth/register_via_invite_screen.dart';
 import '../manager/manager_home_screen.dart';
@@ -126,7 +127,9 @@ class _SplashRouterState extends State<SplashRouter> {
           if (user.accountStatus == AccountStatus.pendingApproval) {
             destination = const PendingApprovalScreen();
           } else if (user.role == UserRole.manager) {
-            destination = const ManagerHomeScreen();
+            destination = user.managerWelcomeVersion < managerWelcomeVersion
+                ? const ManagerWelcomeScreen()
+                : const ManagerHomeScreen();
           } else if (user.role == UserRole.designer) {
             destination = const DesignerHomeScreen();
           } else {

@@ -596,6 +596,17 @@ class FirestoreService {
     await _db.collection('users').doc(user.uid).set(user.toMap());
   }
 
+  /// Persists only the one-time manager welcome acknowledgement. A partial
+  /// update avoids rewriting profile, role, approval, or preference fields.
+  static Future<void> updateManagerWelcomeVersion(
+    String managerUid,
+    int version,
+  ) async {
+    await _db.collection('users').doc(managerUid).update({
+      'managerWelcomeVersion': version,
+    });
+  }
+
   /// Appends an audit entry to `password_change_audit` (Part 1 — manager-
   /// driven password reset). Append-only, admin-internal log: WHO changed
   /// the password, FOR WHOM, and WHEN. The password value itself is NEVER

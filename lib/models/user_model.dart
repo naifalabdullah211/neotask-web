@@ -58,6 +58,11 @@ class AppUser {
   /// safely default to a standard 40-hour week.
   final double weeklyCapacityHours;
 
+  /// Version of the account-scoped manager welcome experience that has
+  /// already been acknowledged. Existing manager accounts safely default to
+  /// zero, so the current welcome screen is shown once after deployment.
+  final int managerWelcomeVersion;
+
   AppUser({
     required this.uid,
     required this.name,
@@ -73,6 +78,7 @@ class AppUser {
     this.soundTasksEnabled = true,
     this.remindersEnabled = true,
     this.weeklyCapacityHours = 40,
+    this.managerWelcomeVersion = 0,
   });
 
   AppUser copyWith({
@@ -88,6 +94,7 @@ class AppUser {
     bool? soundTasksEnabled,
     bool? remindersEnabled,
     double? weeklyCapacityHours,
+    int? managerWelcomeVersion,
   }) {
     return AppUser(
       uid: uid,
@@ -104,6 +111,8 @@ class AppUser {
       soundTasksEnabled: soundTasksEnabled ?? this.soundTasksEnabled,
       remindersEnabled: remindersEnabled ?? this.remindersEnabled,
       weeklyCapacityHours: weeklyCapacityHours ?? this.weeklyCapacityHours,
+      managerWelcomeVersion:
+          managerWelcomeVersion ?? this.managerWelcomeVersion,
     );
   }
 
@@ -123,6 +132,8 @@ class AppUser {
       'soundTasksEnabled': soundTasksEnabled,
       'remindersEnabled': remindersEnabled,
       'weeklyCapacityHours': weeklyCapacityHours,
+      if (managerWelcomeVersion > 0)
+        'managerWelcomeVersion': managerWelcomeVersion,
     };
   }
 
@@ -157,6 +168,8 @@ class AppUser {
       remindersEnabled: map['remindersEnabled'] as bool? ?? true,
       weeklyCapacityHours:
           (map['weeklyCapacityHours'] as num?)?.toDouble() ?? 40,
+      managerWelcomeVersion:
+          (map['managerWelcomeVersion'] as num?)?.toInt() ?? 0,
     );
   }
 }
