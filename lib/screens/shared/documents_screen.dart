@@ -247,7 +247,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   Future<void> _uploadFile() async {
-    final result = await fp.FilePicker.platform.pickFiles(withData: true);
+    final result = await fp.FilePicker.pickFiles(withData: true);
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     final bytes = file.bytes;
