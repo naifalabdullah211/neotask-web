@@ -150,7 +150,11 @@ service cloud.firestore {
       //      owner's Cloudinary-hosted profile photo only.
       allow update: if (isManager() &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['accountStatus', 'approvedBy', 'approvedAt'])) ||
+          .hasOnly(['accountStatus', 'approvedBy', 'approvedAt', 'weeklyCapacityHours']) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['weeklyCapacityHours']) ||
+         (request.resource.data.weeklyCapacityHours is number &&
+          request.resource.data.weeklyCapacityHours > 0 &&
+          request.resource.data.weeklyCapacityHours <= 168))) ||
         // Any signed-in user may update ONLY their OWN settings fields.
         // Profile photos must come from NeoTask's configured Cloudinary
         // account; role/accountStatus/email remain protected.
@@ -209,7 +213,23 @@ service cloud.firestore {
          request.resource.data.assignedTo == resource.data.assignedTo &&
          request.resource.data.assignedBy == resource.data.assignedBy &&
          request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['status', 'submittedAt', 'submissionNote', 'updatedAt', 'viewedByEmployee', 'activityLog'])) ||
+           .hasOnly(['status', 'submittedAt', 'submissionNote', 'updatedAt', 'viewedByEmployee', 'activityLog', 'progressPercent']) &&
+         (request.resource.data.status == resource.data.status ||
+          (resource.data.status == 'assigned' && request.resource.data.status == 'inProgress') ||
+          (resource.data.status == 'inProgress' && request.resource.data.status == 'submitted') ||
+          ((resource.data.status == 'rejected' || resource.data.status == 'editRequested') &&
+           request.resource.data.status == 'inProgress')) &&
+         (!(resource.data.status == 'inProgress' &&
+            request.resource.data.status == 'submitted') ||
+          request.resource.data.progressPercent == 100) &&
+         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['progressPercent']) ||
+          (request.resource.data.progressPercent is int &&
+           request.resource.data.progressPercent >= 0 &&
+           request.resource.data.progressPercent <= 100 &&
+           (resource.data.status == 'assigned' || resource.data.status == 'inProgress') &&
+           (request.resource.data.progressPercent == 0 ||
+            request.resource.data.status == 'inProgress' ||
+            request.resource.data.status == 'submitted')))) ||
         (isSignedIn() &&
          resource.data.assignedTo == request.auth.uid &&
          request.resource.data.assignedTo == resource.data.assignedTo &&

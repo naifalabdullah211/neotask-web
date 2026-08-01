@@ -10,8 +10,10 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/recurrence_utils.dart';
+import '../../utils/project_planning.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/favorite_star_button.dart';
+import '../../widgets/task_plan_summary.dart';
 import '../shared/chat_thread_screen.dart';
 import '../shared/request_reassignment_dialog.dart';
 
@@ -47,12 +49,87 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Future<void> _startWork(String uid) async {
     setState(() => _busy = true);
-    await context.read<TaskProvider>().updateStatus(
-      widget.task.taskId,
-      TaskStatus.inProgress,
-      uid,
+    try {
+      await context.read<TaskProvider>().updateStatus(
+        widget.task.taskId,
+        TaskStatus.inProgress,
+        uid,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Bad state: ', '')),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _updateProgress(AppTask task, String uid) async {
+    var draft = task.progressPercent.toDouble();
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'تحديث نسبة الإنجاز',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '${draft.round()}%',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 32,
+                  color: AppColors.deepBlue,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Slider(
+                value: draft,
+                min: 0,
+                max: 100,
+                divisions: 20,
+                label: '${draft.round()}%',
+                onChanged: (value) => setSheetState(() => draft = value),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(sheetContext, draft.round()),
+                child: const Text('حفظ التقدم'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-    if (mounted) setState(() => _busy = false);
+    if (selected == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await context.read<TaskProvider>().updateProgress(
+        taskId: task.taskId,
+        employeeUid: uid,
+        progressPercent: selected,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Bad state: ', '')),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _requestReassignment(String uid) async {
@@ -65,11 +142,22 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Future<void> _resumeWork(String uid) async {
     setState(() => _busy = true);
-    await context.read<TaskProvider>().resumeAfterFeedback(
-      widget.task.taskId,
-      uid,
-    );
-    if (mounted) setState(() => _busy = false);
+    try {
+      await context.read<TaskProvider>().resumeAfterFeedback(
+        widget.task.taskId,
+        uid,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Bad state: ', '')),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   /// "تعليقات سريعة" (Quick Comments) — lets the employee add a short
@@ -120,16 +208,28 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
     final taskProvider = context.read<TaskProvider>();
     setState(() => _busy = true);
-    await taskProvider.submitForReview(
-      widget.task.taskId,
-      uid,
-      note.trim().isEmpty ? null : note.trim(),
-    );
-    if (!mounted) return;
-    setState(() => _busy = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم إرسال المهمة للمراجعة بنجاح')),
-    );
+    try {
+      await taskProvider.submitForReview(
+        widget.task.taskId,
+        uid,
+        note.trim().isEmpty ? null : note.trim(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إرسال المهمة للمراجعة بنجاح')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Bad state: ', '')),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -141,6 +241,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
     final current = matches.isNotEmpty ? matches.first : widget.task;
     final history = taskProvider.historyForTask(current.taskId);
+    final blocked = ProjectPlanning.isBlocked(current, taskProvider.allTasks);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -197,6 +298,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            TaskPlanSummary(task: current),
             const SizedBox(height: 16),
             // ---- Reassignment-request status banner (NEW feature) ----
             if (current.reassignRequestedStatus == 'pending')
@@ -234,16 +337,33 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             const SizedBox(height: 8),
             if (current.status == TaskStatus.assigned)
               ElevatedButton.icon(
-                onPressed: _busy ? null : () => _startWork(uid),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('بدء العمل على المهمة'),
+                onPressed: _busy || blocked ? null : () => _startWork(uid),
+                icon: Icon(blocked ? Icons.lock_outline : Icons.play_arrow),
+                label: Text(
+                  blocked
+                      ? 'بانتظار اكتمال المهام السابقة'
+                      : 'بدء العمل على المهمة',
+                ),
               ),
-            if (current.status == TaskStatus.inProgress)
+            if (current.status == TaskStatus.assigned ||
+                current.status == TaskStatus.inProgress) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _busy || blocked
+                    ? null
+                    : () => _updateProgress(current, uid),
+                icon: const Icon(Icons.trending_up),
+                label: const Text('تحديث نسبة الإنجاز'),
+              ),
+            ],
+            if (current.status == TaskStatus.inProgress) ...[
+              const SizedBox(height: 8),
               ElevatedButton.icon(
                 onPressed: _busy ? null : () => _submitForReview(uid),
                 icon: const Icon(Icons.send),
                 label: const Text('إرسال للمراجعة'),
               ),
+            ],
             if (current.status == TaskStatus.rejected ||
                 current.status == TaskStatus.editRequested)
               Column(

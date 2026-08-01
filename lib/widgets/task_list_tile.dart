@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
+import 'package:provider/provider.dart';
 import '../models/task_model.dart';
+import '../providers/task_provider.dart';
 import '../screens/manager/task_review_detail_screen.dart';
 import '../theme/app_theme.dart';
 import 'status_chip.dart';
 import 'task_urgency_indicator.dart';
 import 'favorite_star_button.dart';
+import '../utils/project_planning.dart';
 
 /// SHARED standard task-list row (Card + ListTile with urgency dot,
 /// status/priority chips, category/due-date line, favorite star) —
@@ -25,6 +28,8 @@ class TaskListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final allTasks = context.watch<TaskProvider>().allTasks;
+    final blocked = ProjectPlanning.isBlocked(task, allTasks);
     return Card(
       child: ListTile(
         onTap: () {
@@ -55,12 +60,36 @@ class TaskListTile extends StatelessWidget {
               children: [
                 StatusChip(statusName: task.status.name),
                 PriorityBadge(priorityName: task.priority.name, compact: true),
+                if (blocked)
+                  const Chip(
+                    avatar: Icon(Icons.lock_clock, size: 15),
+                    label: Text('متوقفة بتبعية'),
+                    visualDensity: VisualDensity.compact,
+                  ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm - 2),
             Text(
               '${task.category} · ${intl.DateFormat('yyyy/MM/dd').format(task.dueDate)}',
               style: AppTextStyles.bodySecondary,
+            ),
+            const SizedBox(height: 7),
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: LinearProgressIndicator(
+                      value: task.progressPercent / 100,
+                      minHeight: 6,
+                      backgroundColor: AppColors.divider,
+                      color: AppColors.deepBlue,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('${task.progressPercent}%'),
+              ],
             ),
           ],
         ),

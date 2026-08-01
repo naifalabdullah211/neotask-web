@@ -7,6 +7,7 @@ import '../services/firestore_service.dart';
 import '../theme/app_theme.dart' show statusLabelAr;
 import '../utils/recurrence_utils.dart';
 import '../utils/task_stats.dart';
+import '../utils/project_planning.dart';
 
 class TaskProvider extends ChangeNotifier {
   static const _uuid = Uuid();
@@ -337,6 +338,10 @@ class TaskProvider extends ChangeNotifier {
     required String assignedTo,
     required String assignedBy,
     required DateTime dueDate,
+    DateTime? startDate,
+    double plannedHours = 1,
+    String? parentTaskId,
+    List<String> predecessorTaskIds = const [],
     required TaskPriority priority,
     required String category,
     RecurrenceType recurrenceType = RecurrenceType.none,
@@ -346,6 +351,22 @@ class TaskProvider extends ChangeNotifier {
     DateTime? recurrenceEndDate,
   }) async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final effectiveStartDate =
+        startDate ?? (dueDate.isBefore(today) ? dueDate : today);
+    if (dueDate.isBefore(effectiveStartDate)) {
+      throw ArgumentError('تاريخ الاستحقاق يجب أن يكون بعد تاريخ البداية');
+    }
+    if (plannedHours <= 0) {
+      throw ArgumentError('الساعات المخططة يجب أن تكون أكبر من صفر');
+    }
+    final validTaskIds = _allTasks.map((task) => task.taskId).toSet();
+    if (parentTaskId != null && !validTaskIds.contains(parentTaskId)) {
+      throw ArgumentError('المهمة الرئيسية المحددة غير موجودة');
+    }
+    if (predecessorTaskIds.any((id) => !validTaskIds.contains(id))) {
+      throw ArgumentError('إحدى المهام السابقة المحددة غير موجودة');
+    }
     final task = AppTask(
       taskId: _uuid.v4(),
       title: title,
@@ -353,6 +374,10 @@ class TaskProvider extends ChangeNotifier {
       assignedTo: assignedTo,
       assignedBy: assignedBy,
       dueDate: dueDate,
+      startDate: effectiveStartDate,
+      plannedHours: plannedHours,
+      parentTaskId: parentTaskId,
+      predecessorTaskIds: predecessorTaskIds.toSet().toList(),
       priority: priority,
       status: TaskStatus.assigned,
       category: category,
@@ -382,8 +407,20 @@ class TaskProvider extends ChangeNotifier {
   ) async {
     final task = FirestoreService.getTask(taskId);
     if (task == null) return;
-    final updated = task.copyWith(status: status, updatedAt: DateTime.now());
-    await FirestoreService.saveTask(updated);
+    if (status == TaskStatus.inProgress &&
+        actorUid == task.assignedTo &&
+        ProjectPlanning.isBlocked(task, _allTasks)) {
+      final names = ProjectPlanning.unresolvedPredecessors(
+        task,
+        _allTasks,
+      ).map((item) => item.title).join('، ');
+      throw StateError('لا يمكن بدء المهمة قبل اكتمال: $names');
+    }
+    final now = DateTime.now();
+    await FirestoreService.updateTaskFields(taskId, {
+      'status': status.name,
+      'updatedAt': now.toIso8601String(),
+    });
     await _logHistory(
       taskId,
       HistoryAction.statusChange,
@@ -399,13 +436,21 @@ class TaskProvider extends ChangeNotifier {
   ) async {
     final task = FirestoreService.getTask(taskId);
     if (task == null) return;
-    final updated = task.copyWith(
-      status: TaskStatus.submitted,
-      submittedAt: DateTime.now(),
-      submissionNote: note,
-      updatedAt: DateTime.now(),
-    );
-    await FirestoreService.saveTask(updated);
+    if (ProjectPlanning.isBlocked(task, _allTasks)) {
+      final names = ProjectPlanning.unresolvedPredecessors(
+        task,
+        _allTasks,
+      ).map((item) => item.title).join('، ');
+      throw StateError('لا يمكن إرسال المهمة قبل اكتمال: $names');
+    }
+    final now = DateTime.now();
+    await FirestoreService.updateTaskFields(taskId, {
+      'status': TaskStatus.submitted.name,
+      'progressPercent': 100,
+      'submittedAt': now.toIso8601String(),
+      'submissionNote': note,
+      'updatedAt': now.toIso8601String(),
+    });
     await _logHistory(taskId, HistoryAction.submit, employeeUid, note: note);
   }
 
@@ -423,6 +468,16 @@ class TaskProvider extends ChangeNotifier {
 
     final task = FirestoreService.getTask(taskId);
     if (task == null) return;
+
+    if (decision == 'approve') {
+      final openChildren = ProjectPlanning.openChildren(taskId, _allTasks);
+      if (openChildren.isNotEmpty) {
+        throw StateError(
+          'لا يمكن اعتماد المهمة الرئيسية قبل إكمال المهام الفرعية: '
+          '${openChildren.map((item) => item.title).join('، ')}',
+        );
+      }
+    }
 
     TaskStatus newStatus;
     HistoryAction action;
@@ -445,6 +500,7 @@ class TaskProvider extends ChangeNotifier {
 
     final updated = task.copyWith(
       status: newStatus,
+      progressPercent: decision == 'approve' ? 100 : task.progressPercent,
       reviewedAt: DateTime.now(),
       reviewedBy: managerUid,
       reviewDecision: decision,
@@ -471,6 +527,8 @@ class TaskProvider extends ChangeNotifier {
           assignedTo: task.assignedTo,
           assignedBy: task.assignedBy,
           dueDate: nextDate,
+          startDate: nextDate.subtract(task.dueDate.difference(task.startDate)),
+          plannedHours: task.plannedHours,
           priority: task.priority,
           category: task.category,
           recurrenceType: task.recurrenceType,
@@ -488,11 +546,14 @@ class TaskProvider extends ChangeNotifier {
   Future<void> resumeAfterFeedback(String taskId, String employeeUid) async {
     final task = FirestoreService.getTask(taskId);
     if (task == null) return;
-    final updated = task.copyWith(
-      status: TaskStatus.inProgress,
-      updatedAt: DateTime.now(),
-    );
-    await FirestoreService.saveTask(updated);
+    if (ProjectPlanning.isBlocked(task, _allTasks)) {
+      throw StateError('لا يمكن استئناف المهمة قبل اكتمال مهامها السابقة');
+    }
+    final now = DateTime.now();
+    await FirestoreService.updateTaskFields(taskId, {
+      'status': TaskStatus.inProgress.name,
+      'updatedAt': now.toIso8601String(),
+    });
     await _logHistory(
       taskId,
       HistoryAction.statusChange,
@@ -528,6 +589,9 @@ class TaskProvider extends ChangeNotifier {
   }) async {
     final task = FirestoreService.getTask(taskId);
     if (task == null) return;
+    if (dueDate.isBefore(task.startDate)) {
+      throw ArgumentError('تاريخ الاستحقاق يجب أن يكون بعد تاريخ البداية');
+    }
     final updated = task.copyWith(
       priority: priority,
       dueDate: dueDate,
@@ -543,6 +607,99 @@ class TaskProvider extends ChangeNotifier {
           '(الأولوية: ${priority.name}، الاستحقاق: '
           '${dueDate.year}/${dueDate.month.toString().padLeft(2, '0')}/'
           '${dueDate.day.toString().padLeft(2, '0')})',
+    );
+  }
+
+  /// Employee progress is a genuine persisted planning value. It never skips
+  /// the manager review step: 100% means the work is ready to submit, while
+  /// `approved` remains the only completed state used by reports.
+  Future<void> updateProgress({
+    required String taskId,
+    required String employeeUid,
+    required int progressPercent,
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null || task.assignedTo != employeeUid) return;
+    final value = progressPercent.clamp(0, 100).toInt();
+    if (value > 0 && ProjectPlanning.isBlocked(task, _allTasks)) {
+      throw StateError('هذه المهمة مرتبطة بمهام سابقة لم تكتمل بعد');
+    }
+    final shouldStart = value > 0 && task.status == TaskStatus.assigned;
+    final now = DateTime.now();
+    await FirestoreService.updateTaskFields(taskId, {
+      'progressPercent': value,
+      if (shouldStart) 'status': TaskStatus.inProgress.name,
+      'updatedAt': now.toIso8601String(),
+    });
+    await _logHistory(
+      taskId,
+      HistoryAction.statusChange,
+      employeeUid,
+      note: 'تحديث نسبة الإنجاز إلى $value%',
+    );
+  }
+
+  /// Manager-only editing for the schedule, hierarchy and finish-to-start
+  /// dependencies. Cycle checks happen before the Firestore write.
+  Future<void> updatePlanning({
+    required String taskId,
+    required String managerUid,
+    required DateTime startDate,
+    required DateTime dueDate,
+    required double plannedHours,
+    String? parentTaskId,
+    List<String> predecessorTaskIds = const [],
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return;
+    if (dueDate.isBefore(startDate)) {
+      throw ArgumentError('تاريخ الاستحقاق يجب أن يكون بعد تاريخ البداية');
+    }
+    if (plannedHours <= 0) {
+      throw ArgumentError('الساعات المخططة يجب أن تكون أكبر من صفر');
+    }
+    if (parentTaskId == taskId) {
+      throw ArgumentError('لا يمكن أن تكون المهمة رئيسية لنفسها');
+    }
+    final validTaskIds = _allTasks.map((item) => item.taskId).toSet();
+    if (parentTaskId != null && !validTaskIds.contains(parentTaskId)) {
+      throw ArgumentError('المهمة الرئيسية المحددة لم تعد موجودة');
+    }
+    if (predecessorTaskIds.any((id) => !validTaskIds.contains(id))) {
+      throw ArgumentError('إحدى المهام السابقة المحددة لم تعد موجودة');
+    }
+    if (parentTaskId != null &&
+        ProjectPlanning.wouldCreateHierarchyCycle(
+          taskId: taskId,
+          candidateParentId: parentTaskId,
+          allTasks: _allTasks,
+        )) {
+      throw ArgumentError('المهمة الرئيسية المحددة تنشئ تسلسلاً دائريًا');
+    }
+    for (final predecessorId in predecessorTaskIds) {
+      if (ProjectPlanning.wouldCreateCycle(
+        taskId: taskId,
+        candidatePredecessorId: predecessorId,
+        allTasks: _allTasks,
+      )) {
+        throw ArgumentError('التبعية المحددة تنشئ مسارًا دائريًا');
+      }
+    }
+    final updated = task.copyWith(
+      startDate: startDate,
+      dueDate: dueDate,
+      plannedHours: plannedHours,
+      parentTaskId: parentTaskId,
+      clearParentTask: parentTaskId == null,
+      predecessorTaskIds: predecessorTaskIds.toSet().toList(),
+      updatedAt: DateTime.now(),
+    );
+    await FirestoreService.saveTask(updated);
+    await _logHistory(
+      taskId,
+      HistoryAction.statusChange,
+      managerUid,
+      note: 'تحديث الخطة الزمنية والتبعيات للمهمة',
     );
   }
 
@@ -562,6 +719,23 @@ class TaskProvider extends ChangeNotifier {
         HistoryAction.statusChange,
         actorUid,
         note: 'تم حذف المهمة',
+      );
+    }
+    // Preserve graph integrity: remove the deleted task from every successor
+    // and detach its direct children before deleting the document itself.
+    for (final related in _allTasks.where(
+      (task) =>
+          task.parentTaskId == taskId ||
+          task.predecessorTaskIds.contains(taskId),
+    )) {
+      await FirestoreService.saveTask(
+        related.copyWith(
+          clearParentTask: related.parentTaskId == taskId,
+          predecessorTaskIds: related.predecessorTaskIds
+              .where((id) => id != taskId)
+              .toList(),
+          updatedAt: DateTime.now(),
+        ),
       );
     }
     await FirestoreService.deleteTask(taskId);
@@ -821,14 +995,14 @@ class TaskProvider extends ChangeNotifier {
     if (requestedBy == requestedTo) {
       throw ArgumentError('لا يمكن إسناد المهمة لنفس الموظف');
     }
-    final updated = task.copyWith(
-      reassignRequestedTo: requestedTo,
-      reassignRequestedBy: requestedBy,
-      reassignRequestedAt: DateTime.now(),
-      reassignRequestedStatus: 'pending',
-      updatedAt: DateTime.now(),
-    );
-    await FirestoreService.saveTask(updated);
+    final now = DateTime.now();
+    await FirestoreService.updateTaskFields(taskId, {
+      'reassignRequestedTo': requestedTo,
+      'reassignRequestedBy': requestedBy,
+      'reassignRequestedAt': now.toIso8601String(),
+      'reassignRequestedStatus': 'pending',
+      'updatedAt': now.toIso8601String(),
+    });
     await _logHistory(
       taskId,
       HistoryAction.reassignRequested,
@@ -892,15 +1066,18 @@ class TaskProvider extends ChangeNotifier {
         task.reassignRequestedTo != newEmployeeUid) {
       return;
     }
-    final updated = task.copyWith(
-      assignedTo: newEmployeeUid,
-      clearReassignRequest: true,
+    final now = DateTime.now();
+    await FirestoreService.updateTaskFields(taskId, {
+      'assignedTo': newEmployeeUid,
+      'reassignRequestedTo': null,
+      'reassignRequestedBy': null,
+      'reassignRequestedAt': null,
+      'reassignRequestedStatus': null,
       // A new assignee should see this as a fresh/unread item, mirroring
       // the "new task" notification badge semantics used elsewhere.
-      viewedByEmployee: false,
-      updatedAt: DateTime.now(),
-    );
-    await FirestoreService.saveTask(updated);
+      'viewedByEmployee': false,
+      'updatedAt': now.toIso8601String(),
+    });
     await _logHistory(
       taskId,
       HistoryAction.reassignConfirmed,

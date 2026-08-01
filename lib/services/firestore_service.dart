@@ -696,6 +696,27 @@ class FirestoreService {
     await _db.collection('tasks').doc(task.taskId).set(task.toMap());
   }
 
+  /// Field-level task update used by employee actions. Keeping these writes
+  /// partial prevents an old task document from being silently migrated with
+  /// manager-only planning fields during an unrelated employee status change.
+  static Future<void> updateTaskFields(
+    String taskId,
+    Map<String, dynamic> fields,
+  ) async {
+    await _db.collection('tasks').doc(taskId).update(fields);
+  }
+
+  /// Manager-configured weekly capacity used by the workload planner.
+  /// Kept as a field-level update so no unrelated profile field is rewritten.
+  static Future<void> updateEmployeeWeeklyCapacity(
+    String employeeUid,
+    double weeklyCapacityHours,
+  ) async {
+    await _db.collection('users').doc(employeeUid).update({
+      'weeklyCapacityHours': weeklyCapacityHours,
+    });
+  }
+
   static Future<void> deleteTask(String taskId) async {
     await _db.collection('tasks').doc(taskId).delete();
   }

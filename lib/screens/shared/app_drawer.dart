@@ -15,6 +15,7 @@ import '../manager/manager_calendar_screen.dart';
 import '../manager/manager_polls_tab.dart';
 import '../manager/manager_my_tasks_screen.dart';
 import '../manager/manager_ideas_screen.dart';
+import '../manager/project_plan_screen.dart';
 
 /// Shared side-menu ("Drawer") giving BOTH manager and employee access to
 /// the secondary feature set that does not fit into the bottom
@@ -151,6 +152,16 @@ class _AppDrawerState extends State<AppDrawer> {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     children: [
                       const _SectionLabel('التنقل الرئيسي'),
+                      if (isManager || isDesigner)
+                        _DrawerNavTile(
+                          icon: Icons.view_timeline_outlined,
+                          label: 'خطة العمل',
+                          isActive: activeKey == 'project_plan',
+                          onTap: () => push(
+                            'project_plan',
+                            ProjectPlanScreen(readOnly: isDesigner),
+                          ),
+                        ),
                       if (showCalendar)
                         _DrawerNavTile(
                           icon: Icons.calendar_month_outlined,

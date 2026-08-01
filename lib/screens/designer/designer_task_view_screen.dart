@@ -10,6 +10,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/recurrence_utils.dart';
 import '../../widgets/status_chip.dart';
+import '../../widgets/task_plan_summary.dart';
 import '../shared/chat_thread_screen.dart';
 
 /// Read-only task detail view for the `designer` observer role (see
@@ -141,6 +142,8 @@ class DesignerTaskViewScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            TaskPlanSummary(task: current),
             const SizedBox(height: 16),
             const Text(
               'سجل المهمة الكامل',

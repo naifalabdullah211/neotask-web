@@ -53,6 +53,11 @@ class AppUser {
   final bool soundTasksEnabled;
   final bool remindersEnabled;
 
+  /// Weekly work capacity used by the project workload planner. Managers
+  /// can tailor it to part-time and shift-based employees; older accounts
+  /// safely default to a standard 40-hour week.
+  final double weeklyCapacityHours;
+
   AppUser({
     required this.uid,
     required this.name,
@@ -67,6 +72,7 @@ class AppUser {
     this.soundMessagesEnabled = true,
     this.soundTasksEnabled = true,
     this.remindersEnabled = true,
+    this.weeklyCapacityHours = 40,
   });
 
   AppUser copyWith({
@@ -81,6 +87,7 @@ class AppUser {
     bool? soundMessagesEnabled,
     bool? soundTasksEnabled,
     bool? remindersEnabled,
+    double? weeklyCapacityHours,
   }) {
     return AppUser(
       uid: uid,
@@ -96,6 +103,7 @@ class AppUser {
       soundMessagesEnabled: soundMessagesEnabled ?? this.soundMessagesEnabled,
       soundTasksEnabled: soundTasksEnabled ?? this.soundTasksEnabled,
       remindersEnabled: remindersEnabled ?? this.remindersEnabled,
+      weeklyCapacityHours: weeklyCapacityHours ?? this.weeklyCapacityHours,
     );
   }
 
@@ -114,6 +122,7 @@ class AppUser {
       'soundMessagesEnabled': soundMessagesEnabled,
       'soundTasksEnabled': soundTasksEnabled,
       'remindersEnabled': remindersEnabled,
+      'weeklyCapacityHours': weeklyCapacityHours,
     };
   }
 
@@ -146,6 +155,8 @@ class AppUser {
       soundMessagesEnabled: map['soundMessagesEnabled'] as bool? ?? true,
       soundTasksEnabled: map['soundTasksEnabled'] as bool? ?? true,
       remindersEnabled: map['remindersEnabled'] as bool? ?? true,
+      weeklyCapacityHours:
+          (map['weeklyCapacityHours'] as num?)?.toDouble() ?? 40,
     );
   }
 }

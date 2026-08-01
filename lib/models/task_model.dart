@@ -189,6 +189,21 @@ class AppTask {
   final String assignedTo; // employee uid
   final String assignedBy; // manager uid
   final DateTime dueDate;
+
+  /// Planned start of the work. Older task documents did not have this
+  /// field, so [fromMap] falls back to their creation date.
+  final DateTime startDate;
+
+  /// Manager-entered effort estimate used by the workload view.
+  final double plannedHours;
+
+  /// Employee-reported completion, independent from the review state. A task
+  /// may be at 100% and still be `submitted` until the manager approves it.
+  final int progressPercent;
+
+  /// Optional hierarchy and finish-to-start dependencies.
+  final String? parentTaskId;
+  final List<String> predecessorTaskIds;
   final TaskPriority priority;
   final TaskStatus status;
   final String category;
@@ -280,6 +295,11 @@ class AppTask {
     required this.assignedTo,
     required this.assignedBy,
     required this.dueDate,
+    DateTime? startDate,
+    this.plannedHours = 1,
+    this.progressPercent = 0,
+    this.parentTaskId,
+    this.predecessorTaskIds = const [],
     required this.priority,
     required this.status,
     required this.category,
@@ -305,13 +325,18 @@ class AppTask {
     this.overdueNotifiedAt,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : startDate = startDate ?? createdAt;
 
   AppTask copyWith({
     String? title,
     String? description,
     String? assignedTo,
     DateTime? dueDate,
+    DateTime? startDate,
+    double? plannedHours,
+    int? progressPercent,
+    String? parentTaskId,
+    List<String>? predecessorTaskIds,
     TaskPriority? priority,
     TaskStatus? status,
     String? category,
@@ -345,6 +370,7 @@ class AppTask {
     // reassignRequest* fields must be wiped in one write). This flag
     // overrides the 4 fields above to null regardless of what was passed.
     bool clearReassignRequest = false,
+    bool clearParentTask = false,
     DateTime? remindedAt,
     DateTime? overdueNotifiedAt,
     DateTime? updatedAt,
@@ -356,6 +382,13 @@ class AppTask {
       assignedTo: assignedTo ?? this.assignedTo,
       assignedBy: assignedBy,
       dueDate: dueDate ?? this.dueDate,
+      startDate: startDate ?? this.startDate,
+      plannedHours: plannedHours ?? this.plannedHours,
+      progressPercent: progressPercent ?? this.progressPercent,
+      parentTaskId: clearParentTask
+          ? null
+          : (parentTaskId ?? this.parentTaskId),
+      predecessorTaskIds: predecessorTaskIds ?? this.predecessorTaskIds,
       priority: priority ?? this.priority,
       status: status ?? this.status,
       category: category ?? this.category,
@@ -401,6 +434,11 @@ class AppTask {
       'assignedTo': assignedTo,
       'assignedBy': assignedBy,
       'dueDate': dueDate.toIso8601String(),
+      'startDate': startDate.toIso8601String(),
+      'plannedHours': plannedHours,
+      'progressPercent': progressPercent,
+      'parentTaskId': parentTaskId,
+      'predecessorTaskIds': predecessorTaskIds,
       'priority': priority.name,
       'status': status.name,
       'category': category,
@@ -439,6 +477,23 @@ class AppTask {
       dueDate: map['dueDate'] != null
           ? DateTime.parse(map['dueDate'] as String)
           : DateTime.now(),
+      startDate: map['startDate'] != null
+          ? DateTime.parse(map['startDate'] as String)
+          : map['createdAt'] != null
+          ? DateTime.parse(map['createdAt'] as String)
+          : map['dueDate'] != null
+          ? DateTime.parse(map['dueDate'] as String)
+          : DateTime.now(),
+      plannedHours: (map['plannedHours'] as num?)?.toDouble() ?? 1,
+      progressPercent:
+          ((map['progressPercent'] as num?)?.toInt() ??
+                  (map['status'] == TaskStatus.approved.name ? 100 : 0))
+              .clamp(0, 100)
+              .toInt(),
+      parentTaskId: map['parentTaskId'] as String?,
+      predecessorTaskIds: map['predecessorTaskIds'] != null
+          ? List<String>.from(map['predecessorTaskIds'] as List)
+          : const [],
       priority: TaskPriority.values.firstWhere(
         (e) => e.name == map['priority'],
         orElse: () => TaskPriority.medium,

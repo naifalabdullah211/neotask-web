@@ -40,6 +40,7 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _categoryCtrl = TextEditingController(text: 'عام');
+  final _plannedHoursCtrl = TextEditingController(text: '8');
 
   AppUser? _selectedEmployee;
   // Manager personal tasks (المهام الشخصية للمدير) — NEW.
@@ -47,6 +48,9 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
   // `assignedTo` is forced to the manager's own uid on save (see _save()).
   late bool _isPersonal;
   late DateTime _dueDate;
+  late DateTime _startDate;
+  String? _parentTaskId;
+  final Set<String> _predecessorTaskIds = {};
   TaskPriority _priority = TaskPriority.medium;
   RecurrenceType _recurrenceType = RecurrenceType.none;
   int _dayOfMonth = 1;
@@ -61,6 +65,8 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
     _isPersonal = widget.initialIsPersonal;
     _dueDate =
         widget.initialDueDate ?? DateTime.now().add(const Duration(days: 1));
+    final today = DateTime.now();
+    _startDate = DateTime(today.year, today.month, today.day);
   }
 
   @override
@@ -68,6 +74,7 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
     _titleCtrl.dispose();
     _descCtrl.dispose();
     _categoryCtrl.dispose();
+    _plannedHoursCtrl.dispose();
     super.dispose();
   }
 
@@ -79,6 +86,78 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
       lastDate: DateTime.now().add(const Duration(days: 3650)),
     );
     if (picked != null) setState(() => _dueDate = picked);
+  }
+
+  Future<void> _pickStartDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 3650)),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+    if (picked != null) {
+      setState(() {
+        _startDate = picked;
+        if (_dueDate.isBefore(_startDate)) _dueDate = _startDate;
+      });
+    }
+  }
+
+  Future<void> _selectPredecessors(List<AppTask> tasks) async {
+    final draft = <String>{..._predecessorTaskIds};
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('المهام السابقة المطلوبة'),
+          content: SizedBox(
+            width: 520,
+            child: tasks.isEmpty
+                ? const Text('لا توجد مهام سابقة يمكن ربطها')
+                : ListView(
+                    shrinkWrap: true,
+                    children: tasks
+                        .map(
+                          (task) => CheckboxListTile(
+                            value: draft.contains(task.taskId),
+                            title: Text(task.title),
+                            subtitle: Text(
+                              intl.DateFormat(
+                                'yyyy/MM/dd',
+                              ).format(task.dueDate),
+                            ),
+                            onChanged: (selected) => setDialogState(() {
+                              if (selected ?? false) {
+                                draft.add(task.taskId);
+                              } else {
+                                draft.remove(task.taskId);
+                              }
+                            }),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() {
+                  _predecessorTaskIds
+                    ..clear()
+                    ..addAll(draft);
+                });
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('اعتماد'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickRecurrenceEndDate() async {
@@ -109,6 +188,10 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
         assignedTo: _isPersonal ? managerUid : _selectedEmployee!.uid,
         assignedBy: managerUid,
         dueDate: _dueDate,
+        startDate: _startDate,
+        plannedHours: double.parse(_plannedHoursCtrl.text.trim()),
+        parentTaskId: _parentTaskId,
+        predecessorTaskIds: _predecessorTaskIds.toList(),
         priority: _priority,
         category: _categoryCtrl.text.trim().isEmpty
             ? 'عام'
@@ -134,6 +217,16 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('تم إنشاء المهمة بنجاح')));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error.toString().replaceFirst('Invalid argument(s): ', ''),
+            ),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -144,6 +237,13 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
     final employees = FirestoreService.getAllEmployees()
         .where((u) => u.accountStatus == AccountStatus.active)
         .toList();
+    final planningTasks =
+        context
+            .watch<TaskProvider>()
+            .teamTasks
+            .where((task) => task.status != TaskStatus.approved)
+            .toList()
+          ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -171,6 +271,120 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
               TextFormField(
                 controller: _categoryCtrl,
                 decoration: const InputDecoration(labelText: 'التصنيف'),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'الخطة الزمنية',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'تحدد مدة المهمة وترابطها وعبء العمل على الموظف',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('تاريخ البداية'),
+                            subtitle: Text(
+                              intl.DateFormat('yyyy/MM/dd').format(_startDate),
+                            ),
+                            trailing: const Icon(Icons.play_circle_outline),
+                            onTap: _pickStartDate,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('تاريخ الاستحقاق'),
+                            subtitle: Text(
+                              intl.DateFormat('yyyy/MM/dd').format(_dueDate),
+                            ),
+                            trailing: const Icon(Icons.flag_outlined),
+                            onTap: _pickDueDate,
+                          ),
+                        ),
+                      ],
+                    ),
+                    TextFormField(
+                      controller: _plannedHoursCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'الساعات المخططة',
+                        suffixText: 'ساعة',
+                      ),
+                      validator: (value) {
+                        final hours = double.tryParse(value ?? '');
+                        return hours == null || hours <= 0
+                            ? 'أدخل عدد ساعات صحيحًا'
+                            : null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String?>(
+                      initialValue: _parentTaskId,
+                      decoration: const InputDecoration(
+                        labelText: 'المهمة الرئيسية (اختياري)',
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('بدون مهمة رئيسية'),
+                        ),
+                        ...planningTasks.map(
+                          (task) => DropdownMenuItem<String?>(
+                            value: task.taskId,
+                            child: Text(
+                              task.title,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _parentTaskId = value),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => _selectPredecessors(planningTasks),
+                      icon: const Icon(Icons.account_tree_outlined),
+                      label: Text(
+                        _predecessorTaskIds.isEmpty
+                            ? 'ربط بمهام سابقة'
+                            : 'المهام السابقة: ${_predecessorTaskIds.length}',
+                      ),
+                    ),
+                    if (_predecessorTaskIds.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'لن يستطيع الموظف بدء هذه المهمة قبل اعتماد جميع المهام السابقة',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               // ---------------------------------------------------------
@@ -219,14 +433,6 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
                     onChanged: (v) => setState(() => _selectedEmployee = v),
                   ),
               const SizedBox(height: 14),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('تاريخ الاستحقاق'),
-                subtitle: Text(intl.DateFormat('yyyy/MM/dd').format(_dueDate)),
-                trailing: const Icon(Icons.calendar_today_outlined),
-                onTap: _pickDueDate,
-              ),
-              const Divider(),
               const SizedBox(height: 6),
               const Text(
                 'الأولوية',
