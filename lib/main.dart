@@ -19,6 +19,7 @@ import 'providers/notification_provider.dart';
 import 'providers/digest_provider.dart';
 import 'providers/interface_style_provider.dart';
 import 'screens/shared/splash_router.dart';
+import 'utils/app_ready.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +41,7 @@ Future<void> main() async {
 
   if (startupError != null) {
     runApp(_StartupErrorApp(error: startupError, stackTrace: startupStack));
+    WidgetsBinding.instance.addPostFrameCallback((_) => notifyAppReady());
     return;
   }
 
@@ -133,88 +135,9 @@ class NeoTaskApp extends StatelessWidget {
               GlobalCupertinoLocalizations.delegate,
             ],
             builder: (context, child) {
-              final signedIn =
-                  context.watch<AuthProvider>().currentUser != null;
               return Directionality(
                 textDirection: TextDirection.rtl,
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: child ?? const SizedBox.shrink()),
-                    if (signedIn &&
-                        !(context.watch<AuthProvider>().isManager &&
-                            interfaceStyle.isModern))
-                      Positioned(
-                        top: MediaQuery.paddingOf(context).top + 10,
-                        left: 12,
-                        child: Material(
-                          color: Colors.transparent,
-                          child: Tooltip(
-                            message: interfaceStyle.isModern
-                                ? 'العودة للواجهة الكلاسيكية'
-                                : 'تفعيل الواجهة الجديدة',
-                            child: InkWell(
-                              onTap: interfaceStyle.toggle,
-                              borderRadius: BorderRadius.circular(999),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 13,
-                                  vertical: 9,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: interfaceStyle.isModern
-                                      ? const Color(0xFF1B3A6B)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(
-                                    color: interfaceStyle.isModern
-                                        ? const Color(0xFF33D6A6)
-                                        : const Color(0xFFD6DEE9),
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.12,
-                                      ),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      interfaceStyle.isModern
-                                          ? Icons.auto_awesome_rounded
-                                          : Icons.dashboard_customize_outlined,
-                                      size: 18,
-                                      color: interfaceStyle.isModern
-                                          ? const Color(0xFF33D6A6)
-                                          : const Color(0xFF1B3A6B),
-                                    ),
-                                    const SizedBox(width: 7),
-                                    Text(
-                                      interfaceStyle.isModern
-                                          ? 'الواجهة الجديدة'
-                                          : 'الواجهة الكلاسيكية',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: interfaceStyle.isModern
-                                            ? Colors.white
-                                            : const Color(0xFF1B3A6B),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                child: child ?? const SizedBox.shrink(),
               );
             },
             home: const SplashRouter(),

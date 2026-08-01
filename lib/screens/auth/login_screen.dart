@@ -4,20 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../shared/splash_router.dart';
 
-/// Rafd-style login screen: full-bleed institutional-building photo
-/// background with a dark scrim, a floating pale "ice-blue" login card,
-/// and (on wide/web screens) a right-hand tagline block — mirroring the
-/// user-provided reference design ("رفد").
-///
-/// LAYOUT NOTE (explicit user requirement): the card is placed on the
-/// **left** side of the screen, specifically because the source photo
-/// (`assets/images/login_bg.jpg`) has a parked car visible in its
-/// lower-left region — placing the card there hides it. This is the
-/// deliberate reason the card is left-aligned here rather than
-/// right-aligned as in the Rafd reference. A defensive dark gradient is
-/// ALSO applied over the same left region (see [_LoginBackground]) so the
-/// car stays hidden even at viewport sizes/aspect ratios where the card
-/// alone might not fully cover it.
+/// One responsive NeoTask sign-in experience for desktop, tablet and phone.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -79,16 +66,6 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  /// Language toggle is visual-only for now (matches the reference
-  /// design's shape/format request) — the app has no wired i18n switcher
-  /// yet (see `main.dart`'s hardcoded `Locale('ar')`). Tapping it
-  /// acknowledges the tap rather than doing nothing silently.
-  void _showLanguageComingSoon() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('تبديل اللغة قريبًا')));
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -113,7 +90,6 @@ class _LoginScreenState extends State<LoginScreen>
                           setState(() => _obscure = !_obscure),
                       onSubmit: _submit,
                       isLoading: auth.isLoading,
-                      onLangTap: _showLanguageComingSoon,
                     );
                     if (constraints.maxWidth >= 900) {
                       return _WideLayout(args: formArgs);
@@ -141,7 +117,6 @@ class _LoginFormArgs {
     required this.onToggleObscure,
     required this.onSubmit,
     required this.isLoading,
-    required this.onLangTap,
   });
 
   final GlobalKey<FormState> formKey;
@@ -151,72 +126,14 @@ class _LoginFormArgs {
   final VoidCallback onToggleObscure;
   final VoidCallback onSubmit;
   final bool isLoading;
-  final VoidCallback onLangTap;
 }
 
-/// Full-bleed background photo + scrim. The extra left-anchored dark
-/// gradient (on top of the base uniform scrim) is the "safety net" that
-/// keeps the source photo's parked car hidden regardless of screen
-/// width/aspect ratio — see the class doc comment on [LoginScreen].
 class _LoginBackground extends StatelessWidget {
   const _LoginBackground();
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.asset(
-          'assets/images/login_bg.jpg',
-          fit: BoxFit.cover,
-          // Slight rightward bias: on narrow/portrait screens this keeps
-          // the crop window centered on the building's entrance rather
-          // than drifting toward the left (car) side of the source photo.
-          alignment: const Alignment(0.3, 0.0),
-        ),
-        // Base uniform scrim — legibility for white tagline text anywhere
-        // on the photo.
-        Container(color: AppColors.navy.withValues(alpha: 0.32)),
-        // Left-anchored defensive gradient — strong/near-opaque from the
-        // left edge, fading out by ~60% of the width. This is what
-        // guarantees the car stays hidden even where the floating card
-        // itself doesn't reach (e.g. above/below the card, or on very
-        // wide screens where little of the photo is cropped).
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                AppColors.navy.withValues(alpha: 0.88),
-                AppColors.navy.withValues(alpha: 0.88),
-                AppColors.navy.withValues(alpha: 0.0),
-              ],
-              stops: const [0.0, 0.42, 0.62],
-            ),
-          ),
-        ),
-        // Bottom vignette — grounds footer text placed near the bottom
-        // of the screen (matches the previous PremiumMeshBackground's
-        // treatment).
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Container(
-            height: 200,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.0),
-                  Colors.black.withValues(alpha: 0.32),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
+    return const ColoredBox(color: Color(0xFFF6F8FB));
   }
 }
 
@@ -230,24 +147,37 @@ class _WideLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 56, vertical: 32),
-      child: Row(
-        textDirection: TextDirection.ltr,
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 420,
-            child: SingleChildScrollView(child: _LoginCard(args: args)),
+    return Row(
+      textDirection: TextDirection.ltr,
+      children: [
+        Expanded(
+          flex: 56,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: _LoginCard(args: args),
+              ),
+            ),
           ),
-          const SizedBox(width: 48),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: const _TaglineBlock(),
+        ),
+        Expanded(
+          flex: 44,
+          child: Container(
+            height: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 56),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: [Color(0xFF0F2948), Color(0xFF214C69)],
+              ),
+            ),
+            child: const Center(child: _TaglineBlock()),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -262,38 +192,57 @@ class _NarrowLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: Column(
-            children: [
-              const Text(
-                'معك خطوة بخطوة لإنجاز مهامك',
-                textAlign: TextAlign.center,
-                style: AppTextStyles.headlineLg,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Align(
+          alignment: Alignment.topCenter,
+          child: Container(
+            height: 220,
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: [Color(0xFF0F2948), Color(0xFF214C69)],
               ),
-              const SizedBox(height: 32),
-              _LoginCard(args: args),
-              const SizedBox(height: 24),
-              const Text(
-                'الموظفون الجدد يسجّلون عبر رابط الدعوة المُرسل من المدير',
-                textAlign: TextAlign.center,
-                style: AppTextStyles.captionSm,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Nay211 © 2026',
-                textAlign: TextAlign.center,
-                style: AppTextStyles.captionSm.copyWith(
-                  color: Colors.white.withValues(alpha: 0.5),
-                ),
-              ),
-            ],
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 54),
+            child: const Center(child: _TaglineBlock(compact: true)),
           ),
         ),
-      ),
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 184, 18, 30),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                children: [
+                  _LoginCard(args: args),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'الموظفون الجدد يسجّلون عبر رابط الدعوة المُرسل من المدير',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Nay211 © 2026',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -302,32 +251,36 @@ class _NarrowLayout extends StatelessWidget {
 /// mirroring the reference design's tagline block (which sat opposite
 /// the card).
 class _TaglineBlock extends StatelessWidget {
-  const _TaglineBlock();
+  const _TaglineBlock({this.compact = false});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: compact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
-          'معك خطوة بخطوة لإنجاز مهامك',
-          textAlign: TextAlign.right,
+        Text(
+          'مساحة عمل واحدة.\nإنجاز أوضح.',
+          textAlign: compact ? TextAlign.center : TextAlign.right,
           style: TextStyle(
             color: Colors.white,
-            fontSize: 34,
+            fontSize: compact ? 25 : 38,
             fontWeight: FontWeight.w800,
             height: 1.35,
             letterSpacing: -0.4,
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: compact ? 8 : 16),
         Text(
-          'منصة صنعت من أجلك لتجعل مهامك أسهل',
-          textAlign: TextAlign.right,
+          'نظّم مهامك، تابع فريقك، وأنجز أعمالك اليومية بسهولة من أي جهاز.',
+          textAlign: compact ? TextAlign.center : TextAlign.right,
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.82),
-            fontSize: 15,
+            fontSize: compact ? 12 : 15,
             fontWeight: FontWeight.w400,
             height: 1.6,
           ),
@@ -347,9 +300,9 @@ class _LoginCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+      padding: const EdgeInsets.fromLTRB(28, 28, 28, 30),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.xl),
         boxShadow: [
           BoxShadow(
@@ -363,11 +316,6 @@ class _LoginCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Align(
-            alignment: Alignment.topLeft,
-            child: _LanguageTogglePill(onTap: args.onLangTap),
-          ),
-          const SizedBox(height: 4),
           const _BrandBlock(),
           const SizedBox(height: 24),
           Form(
@@ -413,67 +361,19 @@ class _LoginCard extends StatelessWidget {
                   isLoading: args.isLoading,
                   onPressed: args.onSubmit,
                 ),
+                const SizedBox(height: 14),
+                const Text(
+                  'بياناتك آمنة ومشفرة بالكامل',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Visual-only Arabic/English pill switcher, top-left of the card —
-/// matches the reference design's shape. Wrapped in [Alignment.topLeft]
-/// via the parent's `Align` (direction-agnostic — always visually
-/// top-left of the card regardless of the app's global RTL
-/// [Directionality]).
-class _LanguageTogglePill extends StatelessWidget {
-  const _LanguageTogglePill({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.deepBlue,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: const Text(
-                'العربية',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 10),
-              child: Text(
-                'English',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -490,20 +390,24 @@ class _BrandBlock extends StatelessWidget {
     return Column(
       children: [
         Image.asset(
-          'assets/images/neotask_logo.png',
-          width: 60,
-          height: 60,
+          'assets/images/neotask_logo_full.png',
+          width: 190,
+          height: 76,
           fit: BoxFit.contain,
         ),
-        const SizedBox(height: 10),
-        Text(
-          'تنظيم  .  تنفيذ  .  تتبع',
+        const SizedBox(height: 12),
+        const Text(
+          'مرحبًا بعودتك',
           style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
+            color: AppColors.textPrimary,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
           ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'سجّل الدخول للوصول إلى مساحة عملك',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
         ),
       ],
     );

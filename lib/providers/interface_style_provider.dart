@@ -13,17 +13,15 @@ class InterfaceStyleProvider extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_prefKey);
-    _style = saved == InterfaceStyle.classic.name
-        ? InterfaceStyle.classic
-        : InterfaceStyle.modern;
+    _style = InterfaceStyle.modern;
+    await prefs.setString(_prefKey, InterfaceStyle.modern.name);
     notifyListeners();
   }
 
   Future<void> toggle() async {
-    _style = isModern ? InterfaceStyle.classic : InterfaceStyle.modern;
+    _style = InterfaceStyle.modern;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefKey, _style.name);
+    await prefs.setString(_prefKey, InterfaceStyle.modern.name);
     notifyListeners();
   }
 
@@ -73,14 +71,24 @@ class InterfaceStyleProvider extends ChangeNotifier {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.white,
         indicatorColor: mint.withValues(alpha: 0.22),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
-          color: states.contains(WidgetState.selected) ? navy : const Color(0xFF64748B),
-          fontWeight: states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
-          fontSize: 12,
-        )),
-        iconTheme: WidgetStateProperty.resolveWith((states) => IconThemeData(
-          color: states.contains(WidgetState.selected) ? navy : const Color(0xFF64748B),
-        )),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            color: states.contains(WidgetState.selected)
+                ? navy
+                : const Color(0xFF64748B),
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w800
+                : FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? navy
+                : const Color(0xFF64748B),
+          ),
+        ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
@@ -100,7 +108,9 @@ class InterfaceStyleProvider extends ChangeNotifier {
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
@@ -112,7 +122,10 @@ class InterfaceStyleProvider extends ChangeNotifier {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFFDCE3ED)),

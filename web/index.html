@@ -13,6 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="NeoTask">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
   <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="preload" as="image" href="assets/assets/images/neotask_logo_full.png">
 
   <title>NeoTask</title>
   <link rel="manifest" href="manifest.json">
@@ -29,34 +30,128 @@
     #boot-status {
       position: fixed;
       inset: 0;
+      color: #1B3A6B;
+      background: #f6f8fb;
+      z-index: 9999;
+    }
+    .boot-shell {
+      min-height: 100%;
+      display: grid;
+      grid-template-columns: minmax(420px, 56%) minmax(360px, 44%);
+      direction: ltr;
+    }
+    .boot-form-side {
+      display: grid;
+      place-items: center;
+      padding: 40px;
+      direction: rtl;
+    }
+    .boot-card {
+      width: min(100%, 430px);
+      box-sizing: border-box;
+      padding: 34px;
+      border-radius: 28px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(17, 37, 68, .12);
+    }
+    .boot-card img {
+      display: block;
+      width: 190px;
+      height: 76px;
+      object-fit: contain;
+      margin: 0 auto 26px;
+    }
+    .boot-title {
+      margin: 0 0 7px;
+      color: #112946;
+      font-size: 25px;
+      font-weight: 800;
+      text-align: center;
+    }
+    .boot-subtitle {
+      margin: 0 0 25px;
+      color: #718096;
+      font-size: 14px;
+      text-align: center;
+    }
+    .boot-label {
+      display: block;
+      margin: 0 3px 7px;
+      color: #506176;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .boot-field {
+      height: 50px;
+      margin-bottom: 16px;
+      border: 1px solid #dce3ea;
+      border-radius: 13px;
+      background: #f9fbfc;
+    }
+    .boot-action {
+      height: 50px;
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-direction: column;
-      gap: 14px;
-      color: #1B3A6B;
-      background: #f5f7fa;
-      z-index: 9999;
+      gap: 10px;
+      margin-top: 7px;
+      border-radius: 13px;
+      color: #fff;
+      background: linear-gradient(135deg, #15355c, #315c79);
+      font-size: 14px;
+      font-weight: 800;
     }
-    #boot-status img {
-      width: 92px;
-      height: 92px;
-      object-fit: contain;
+    .boot-secure {
+      margin: 16px 0 0;
+      color: #7a8796;
+      font-size: 11px;
+      text-align: center;
+    }
+    .boot-brand-side {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      padding: 64px;
+      color: #fff;
+      background: linear-gradient(145deg, #0f2948 0%, #163a61 68%, #214c69 100%);
+      direction: rtl;
+    }
+    .boot-brand-side::before {
+      content: "";
+      position: absolute;
+      width: 360px;
+      height: 360px;
+      left: -170px;
+      bottom: -170px;
+      border-radius: 50%;
+      background: rgba(111, 215, 190, .16);
+    }
+    .boot-brand-copy { position: relative; max-width: 440px; }
+    .boot-brand-copy h1 {
+      margin: 0 0 14px;
+      font-size: clamp(29px, 3vw, 46px);
+      line-height: 1.35;
+    }
+    .boot-brand-copy p {
+      margin: 0;
+      color: rgba(255,255,255,.74);
+      font-size: 16px;
+      line-height: 1.8;
     }
     #boot-status .spinner {
-      width: 30px;
-      height: 30px;
-      border: 3px solid rgba(27, 58, 107, 0.18);
-      border-top-color: #1B3A6B;
+      width: 17px;
+      height: 17px;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #fff;
       border-radius: 50%;
       animation: spin 0.9s linear infinite;
     }
-    #boot-message {
-      font-size: 15px;
-      font-weight: 600;
-    }
+    #boot-message { font: inherit; }
     #boot-retry {
       display: none;
+      width: 100%;
+      margin-top: 12px;
       border: 0;
       border-radius: 12px;
       padding: 11px 22px;
@@ -66,21 +161,89 @@
       font-weight: 700;
       cursor: pointer;
     }
+    @media (max-width: 899px) {
+      #boot-status { overflow: auto; }
+      .boot-shell {
+        min-height: 100%;
+        grid-template-columns: 1fr;
+        grid-template-rows: 210px auto;
+      }
+      .boot-brand-side {
+        grid-row: 1;
+        justify-content: center;
+        padding: 30px 24px 54px;
+        text-align: center;
+      }
+      .boot-brand-copy h1 { font-size: 25px; }
+      .boot-brand-copy p { font-size: 13px; }
+      .boot-form-side {
+        grid-row: 2;
+        place-items: start center;
+        padding: 0 18px 30px;
+      }
+      .boot-card {
+        margin-top: -34px;
+        padding: 27px 22px;
+        border-radius: 23px;
+      }
+      .boot-card img { width: 170px; height: 66px; margin-bottom: 18px; }
+      .boot-title { font-size: 22px; }
+    }
+    @media (max-height: 650px) and (max-width: 899px) {
+      .boot-shell { grid-template-rows: 150px auto; }
+      .boot-brand-side { padding-top: 22px; }
+      .boot-brand-copy p { display: none; }
+      .boot-card { padding-block: 20px; }
+      .boot-card img { height: 52px; margin-bottom: 10px; }
+      .boot-subtitle { margin-bottom: 15px; }
+      .boot-field { height: 44px; margin-bottom: 10px; }
+      .boot-action { height: 44px; }
+      .boot-secure { margin-top: 10px; }
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <div id="boot-status" role="status" aria-live="polite">
-    <img src="assets/assets/images/neotask_logo.png" alt="NeoTask">
-    <div class="spinner"></div>
-    <div id="boot-message">جارٍ تشغيل NeoTask</div>
-    <button id="boot-retry" type="button">إعادة المحاولة</button>
+  <div id="boot-status" role="status" aria-live="polite" aria-busy="true">
+    <div class="boot-shell">
+      <main class="boot-form-side">
+        <section class="boot-card">
+          <img src="assets/assets/images/neotask_logo_full.png?v=20260801-5" alt="NeoTask">
+          <h2 class="boot-title">مرحبًا بعودتك</h2>
+          <p class="boot-subtitle">سجّل الدخول للوصول إلى مساحة عملك</p>
+          <span class="boot-label">الرقم الوظيفي</span>
+          <div class="boot-field"></div>
+          <span class="boot-label">الرقم السري</span>
+          <div class="boot-field"></div>
+          <div class="boot-action"><span class="spinner"></span><span id="boot-message">جارٍ تجهيز تسجيل الدخول</span></div>
+          <p class="boot-secure">بياناتك آمنة ومشفرة بالكامل</p>
+          <button id="boot-retry" type="button">إعادة المحاولة</button>
+        </section>
+      </main>
+      <aside class="boot-brand-side">
+        <div class="boot-brand-copy">
+          <h1>مساحة عمل واحدة.<br>إنجاز أوضح.</h1>
+          <p>نظّم مهامك، تابع فريقك، وأنجز أعمالك اليومية بسهولة من أي جهاز.</p>
+        </div>
+      </aside>
+    </div>
   </div>
 
   <script>
-    window.addEventListener('flutter-first-frame', function () {
+    function removeBootStatus() {
       const status = document.getElementById('boot-status');
       if (status) status.remove();
+    }
+
+    // Flutter's first frame can be only a background layer on slower WebKit
+    // renderers. Keep the HTML cover until SplashRouter confirms that the
+    // actual destination screen has completed a frame.
+    window.addEventListener('neotask-app-ready', removeBootStatus);
+
+    window.addEventListener('flutter-first-frame', function () {
+      // Fail-safe for startup-error screens or an unexpected route that cannot
+      // send the explicit ready event. This must not be the normal hide path.
+      setTimeout(removeBootStatus, 15000);
     });
 
     window.addEventListener('error', function (event) {
@@ -108,9 +271,9 @@
         if (spinner) spinner.style.display = 'none';
         if (retry) retry.style.display = 'block';
       }
-    }, 8000);
+    }, 15000);
 
-    const NEO_TASK_BUILD_ID = '20260801-3';
+    const NEO_TASK_BUILD_ID = '20260801-5';
 
     // Retire Flutter's legacy offline-first worker. Unregistering a worker
     // does not release the page it currently controls until the next
@@ -118,42 +281,42 @@
     // index.html with stale runtime files and leave iOS on a white canvas.
     // When a legacy worker still controls this page, migrate once and reload
     // with a build id. Firebase/Auth/Firestore browser storage is untouched.
-    async function clearLegacyFlutterCache() {
-      let controlledByLegacyWorker = false;
+    async function retireLegacyFlutterWorker() {
+      if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+        return false;
+      }
 
-      const cleanup = async function () {
-        if ('serviceWorker' in navigator) {
-          controlledByLegacyWorker = Boolean(navigator.serviceWorker.controller);
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(registrations
-            .filter((registration) => registration.scope.startsWith(location.origin))
-            .map((registration) => registration.unregister()));
-        }
-        if ('caches' in window) {
-          const names = await caches.keys();
-          const flutterCaches = new Set([
-            'flutter-app-cache',
-            'flutter-temp-cache',
-            'flutter-app-manifest'
-          ]);
-          await Promise.all(names
-            .filter((name) => flutterCaches.has(name))
-            .map((name) => caches.delete(name)));
-        }
-      };
+      let alreadyMigrated = false;
+      try {
+        alreadyMigrated =
+          localStorage.getItem('neotask-sw-migration') === NEO_TASK_BUILD_ID;
+      } catch (_) {}
+      if (alreadyMigrated) return false;
 
-      await Promise.race([
-        cleanup(),
-        new Promise((resolve) => setTimeout(resolve, 1500))
-      ]);
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations
+        .filter((registration) => registration.scope.startsWith(location.origin))
+        .map((registration) => registration.unregister()));
 
-      return controlledByLegacyWorker;
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names
+          .filter((name) => name.startsWith('flutter-'))
+          .map((name) => caches.delete(name)));
+      }
+
+      try {
+        localStorage.setItem('neotask-sw-migration', NEO_TASK_BUILD_ID);
+      } catch (_) {}
+      return true;
     }
 
     async function startFlutter() {
       let mustReload = false;
       try {
-        mustReload = await clearLegacyFlutterCache();
+        // Normal refreshes skip this completely. It only runs once while an
+        // old Flutter worker still controls the page.
+        mustReload = await retireLegacyFlutterWorker();
       } catch (error) {
         // Cache cleanup must never become a new startup blocker. Loading the
         // network build is still safer than leaving the user on the spinner.
@@ -161,7 +324,7 @@
       }
 
       const currentUrl = new URL(window.location.href);
-      if (mustReload && currentUrl.searchParams.get('_build') !== NEO_TASK_BUILD_ID) {
+      if (mustReload) {
         const message = document.getElementById('boot-message');
         if (message) message.textContent = 'جارٍ تحديث NeoTask';
         currentUrl.searchParams.set('_build', NEO_TASK_BUILD_ID);

@@ -1,7 +1,7 @@
 {{flutter_js}}
 {{flutter_build_config}}
 
-const neoTaskBuildId = '20260801-3';
+const neoTaskBuildId = '20260801-5';
 const jsBuild = _flutter.buildConfig.builds.find(
   (build) => typeof build.mainJsPath === 'string',
 );
@@ -12,16 +12,13 @@ if (jsBuild) {
   jsBuild.mainJsPath = `${jsBuild.mainJsPath}?v=${neoTaskBuildId}`;
 }
 
-const engineConfig = {
-  // The full CanvasKit variant is the compatibility path for WebKit/iOS.
-  canvasKitVariant: 'full',
-};
-
 _flutter.loader.load({
-  config: engineConfig,
   onEntrypointLoaded: async function (engineInitializer) {
     try {
-      const appRunner = await engineInitializer.initializeEngine(engineConfig);
+      // Let Flutter select the smallest compatible renderer for the current
+      // browser instead of forcing the heavier full CanvasKit download on
+      // every iPad/iPhone refresh.
+      const appRunner = await engineInitializer.initializeEngine();
       await appRunner.runApp();
     } catch (error) {
       const message = document.getElementById('boot-message');

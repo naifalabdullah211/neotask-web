@@ -1,12 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/app_ready.dart';
 import '../auth/login_screen.dart';
 import '../auth/pending_approval_screen.dart';
 import '../auth/register_via_invite_screen.dart';
-import '../auth/manager_setup_screen.dart';
 import '../manager/manager_home_screen.dart';
 import '../employee/employee_home_screen.dart';
 import '../designer/designer_home_screen.dart';
@@ -19,101 +21,53 @@ class SplashRouter extends StatefulWidget {
 }
 
 class _SplashRouterState extends State<SplashRouter> {
-  bool _checked = false;
-  bool _preferLoginFallback = false;
   String? _inviteToken;
-  String? _startupMessage;
+  bool _inviteReady = true;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
+    final token = Uri.base.queryParameters['invite'];
+    _inviteToken = (token != null && token.isNotEmpty) ? token : null;
+    _inviteReady = _inviteToken == null;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      notifyAppReady();
+      unawaited(_restoreSession());
+      if (_inviteToken != null) unawaited(_prepareInvite());
+    });
   }
 
-  Future<void> _bootstrap() async {
-    final uri = Uri.base;
-    final token = uri.queryParameters['invite'];
+  Future<void> _restoreSession() async {
     final auth = context.read<AuthProvider>();
-    var publicDataReady = false;
-
-    // Start public Firestore data and Firebase Auth restoration together.
-    // Neither operation is allowed to delay the first usable screen for more
-    // than four seconds. The futures deliberately continue in the background:
-    // when connectivity recovers, AuthProvider notifies the router and the
-    // manager is routed into the authenticated app automatically.
-    final publicInit = FirestoreService.initPublic().then((_) {
-      publicDataReady = true;
-      if (mounted && _checked) {
-        setState(() => _preferLoginFallback = false);
-      }
-    });
-    final sessionRestore = auth.restoreSession().then((_) {
-      if (mounted && _checked) {
-        setState(() => _startupMessage = null);
-      }
-    });
-
     try {
-      await Future.wait([
-        publicInit,
-        sessionRestore,
-      ]).timeout(const Duration(seconds: 4));
+      await auth.restoreSession();
     } catch (_) {
-      // This is an established production app. If the public manager sentinel
-      // could not be read yet, default to LoginScreen instead of accidentally
-      // exposing first-run manager setup. A later successful public read
-      // rebuilds this router and restores the exact manager/setup decision.
-      _preferLoginFallback = !publicDataReady;
-      _startupMessage = 'تعذّر استعادة الجلسة سريعًا، يمكنك تسجيل الدخول الآن';
+      // The login screen remains usable if Safari cannot restore the session.
     }
+  }
 
-    if (!mounted) return;
-    setState(() {
-      _inviteToken = (token != null && token.isNotEmpty) ? token : null;
-      _checked = true;
-    });
+  Future<void> _prepareInvite() async {
+    try {
+      await FirestoreService.initPublic();
+    } finally {
+      if (mounted) setState(() => _inviteReady = true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_checked) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const _NeoTaskLogo(),
-              const SizedBox(height: 24),
-              const CircularProgressIndicator(),
-              const SizedBox(height: 14),
-              const Text(
-                'جار تشغيل NeoTask',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'يتم التحقق من الجلسة',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         Widget destination;
 
         if (_inviteToken != null && !auth.isLoggedIn) {
-          destination = RegisterViaInviteScreen(token: _inviteToken!);
+          destination = _inviteReady
+              ? RegisterViaInviteScreen(token: _inviteToken!)
+              : const _InviteBootstrapView();
         } else if (!auth.isLoggedIn) {
-          destination = (auth.managerExists || _preferLoginFallback)
-              ? const LoginScreen()
-              : const ManagerSetupScreen();
+          destination = const LoginScreen();
         } else {
           final user = auth.currentUser!;
           if (user.accountStatus == AccountStatus.pendingApproval) {
@@ -127,73 +81,28 @@ class _SplashRouterState extends State<SplashRouter> {
           }
         }
 
-        if (_startupMessage == null) return destination;
-
-        return Stack(
-          children: [
-            Positioned.fill(child: destination),
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 20,
-              child: SafeArea(
-                child: Material(
-                  color: const Color(0xFF1B3A6B),
-                  borderRadius: BorderRadius.circular(14),
-                  elevation: 6,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.info_outline, color: Colors.white),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _startupMessage!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
+        return destination;
       },
     );
   }
 }
 
-class _NeoTaskLogo extends StatelessWidget {
-  const _NeoTaskLogo();
+class _InviteBootstrapView extends StatelessWidget {
+  const _InviteBootstrapView();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 220,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+    return const Scaffold(
+      backgroundColor: Color(0xFF071D3B),
+      body: Center(
+        child: SizedBox(
+          width: 34,
+          height: 34,
+          child: CircularProgressIndicator(
+            color: Color(0xFF33D6A6),
+            strokeWidth: 3,
           ),
-        ],
-      ),
-      child: Image.asset(
-        'assets/images/neotask_logo_full.png',
-        fit: BoxFit.contain,
+        ),
       ),
     );
   }
