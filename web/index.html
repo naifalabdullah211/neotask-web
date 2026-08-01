@@ -475,8 +475,11 @@
 
       try {
         const [{ initializeApp }, authSdk] = await Promise.all([
-          import('./firebase-sdk/firebase-app.js?v=20260801-7'),
-          import('./firebase-sdk/firebase-auth.js?v=20260801-7'),
+          // firebase-auth imports this exact unversioned module internally.
+          // Keeping both URLs identical prevents two Firebase component
+          // registries from being created in Safari/Chrome module caches.
+          import('./firebase-sdk/firebase-app.js'),
+          import('./firebase-sdk/firebase-auth.js'),
         ]);
         const app = initializeApp({
           apiKey: 'AIzaSyAH4nvOmEuBXlYmSgTvVedEyGGqcVhXcZ4',
