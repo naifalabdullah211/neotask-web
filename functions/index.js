@@ -20,14 +20,21 @@ admin.initializeApp();
 
 const db = admin.firestore();
 
+const FULL_ACCESS_EMPLOYEE_NUMBER = "400161";
+
+function hasManagerAccess(user) {
+  return Boolean(user) && user.accountStatus === "active" &&
+    (user.role === "manager" ||
+     String(user.employeeNumber || "").trim() === FULL_ACCESS_EMPLOYEE_NUMBER);
+}
+
 async function requireActiveManager(auth) {
   if (!auth) {
     throw new HttpsError("unauthenticated", "يجب تسجيل الدخول");
   }
   const snapshot = await db.collection("users").doc(auth.uid).get();
   const user = snapshot.data();
-  if (!snapshot.exists || !user || user.role !== "manager" ||
-      user.accountStatus !== "active") {
+  if (!snapshot.exists || !hasManagerAccess(user)) {
     throw new HttpsError("permission-denied", "هذه العملية متاحة للمدير فقط");
   }
   return user;
@@ -96,9 +103,7 @@ exports.adminResetPassword = onCall(async (request) => {
     );
   }
   const callerData = callerSnap.data();
-  const isManager = callerData && callerData.role === "manager";
-  const isActive = callerData && callerData.accountStatus === "active";
-  if (!isManager || !isActive) {
+  if (!hasManagerAccess(callerData)) {
     throw new HttpsError(
         "permission-denied",
         "ليس لديك صلاحية تغيير كلمات مرور الموظفين",
@@ -260,10 +265,10 @@ function temporalTriggerMatches(rule, task, now) {
 async function notificationRecipients(rule, task) {
   if (rule.action === "notifyAssignee") return [task.assignedTo];
   const managers = await db.collection("users")
-      .where("role", "==", "manager")
+      .where("accountStatus", "==", "active")
       .get();
   return managers.docs
-      .filter((doc) => doc.data().accountStatus === "active")
+      .filter((doc) => hasManagerAccess(doc.data()))
       .map((doc) => doc.id);
 }
 

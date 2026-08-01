@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/poll_model.dart';
 import '../../models/poll_vote_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/poll_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
@@ -115,10 +116,7 @@ class _ManagerPollDetailScreenState extends State<ManagerPollDetailScreen> {
 
     setState(() => _cancelling = true);
     try {
-      final managerUid = context
-          .read<PollProvider>()
-          .getPoll(poll.pollId)!
-          .createdBy;
+      final managerUid = context.read<AuthProvider>().currentUser!.uid;
       await context.read<PollProvider>().cancelPoll(poll.pollId, managerUid);
       if (mounted) {
         ScaffoldMessenger.of(
