@@ -407,7 +407,9 @@
     }
 
     async function startInstantLogin() {
-      const inviteToken = new URL(window.location.href).searchParams.get('invite');
+      const currentUrl = new URL(window.location.href);
+      const inviteToken = currentUrl.searchParams.get('invite');
+      const forceLogin = currentUrl.pathname.replace(/\/+$/, '') === '/login';
       if (inviteToken) {
         window.__neotaskAllowFirstFrameFallback = true;
         setBootLoading(true, 'جارٍ فتح الدعوة');
@@ -502,6 +504,14 @@
         // Flutter's one-time ManagerSetupScreen. Any network/permission
         // failure fails closed and leaves the normal login screen visible.
         try {
+          // /login is the explicit sign-in route for an existing account.
+          // It intentionally skips the first-run manager sentinel without
+          // changing or creating any manager data.
+          if (forceLogin) {
+            employeeInput.focus();
+            return;
+          }
+
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 5000);
           const lockUrl = 'https://firestore.googleapis.com/v1/projects/' +
