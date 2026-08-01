@@ -119,9 +119,7 @@ class NeoTaskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PollProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => DigestProvider()),
-        ChangeNotifierProvider(
-          create: (_) => InterfaceStyleProvider()..load(),
-        ),
+        ChangeNotifierProvider(create: (_) => InterfaceStyleProvider()..load()),
       ],
       child: Consumer<InterfaceStyleProvider>(
         builder: (context, interfaceStyle, _) {
@@ -137,13 +135,16 @@ class NeoTaskApp extends StatelessWidget {
               GlobalCupertinoLocalizations.delegate,
             ],
             builder: (context, child) {
-              final signedIn = context.watch<AuthProvider>().currentUser != null;
+              final signedIn =
+                  context.watch<AuthProvider>().currentUser != null;
               return Directionality(
                 textDirection: TextDirection.rtl,
                 child: Stack(
                   children: [
                     Positioned.fill(child: child ?? const SizedBox.shrink()),
-                    if (signedIn)
+                    if (signedIn &&
+                        !(context.watch<AuthProvider>().isManager &&
+                            interfaceStyle.isModern))
                       Positioned(
                         top: MediaQuery.paddingOf(context).top + 10,
                         left: 12,
@@ -174,7 +175,9 @@ class NeoTaskApp extends StatelessWidget {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.12),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.12,
+                                      ),
                                       blurRadius: 12,
                                       offset: const Offset(0, 4),
                                     ),

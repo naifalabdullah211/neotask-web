@@ -41,4 +41,6 @@ flutter:
   assets:
     - assets/images/neotask_logo.png
     - assets/images/neotask_logo_full.png
+    - assets/images/neotask_logo_header.png
+    - assets/images/manager_profile.png
     - assets/images/login_bg.jpg
