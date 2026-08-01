@@ -13,7 +13,9 @@ enum _ReportRange { day, week, month, employee }
 /// Manager reports tab. PDF export is strictly ON-DEMAND (a button the
 /// manager presses) — never generated automatically, per requirement.
 class ManagerReportsTab extends StatefulWidget {
-  const ManagerReportsTab({super.key});
+  const ManagerReportsTab({super.key, this.readOnly = false});
+
+  final bool readOnly;
 
   @override
   State<ManagerReportsTab> createState() => _ManagerReportsTabState();
@@ -237,24 +239,44 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _exporting ? null : () => _export(provider),
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
-                      label: Text(
-                        _exporting ? 'جارٍ التصدير...' : 'تصدير كملف PDF',
+                  if (widget.readOnly)
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.visibility_outlined,
+                          size: 18,
+                          color: AppColors.textSecondary,
+                        ),
+                        SizedBox(width: 7),
+                        Text(
+                          'عرض التقرير فقط',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    )
+                  else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _exporting
+                            ? null
+                            : () => _export(provider),
+                        icon: const Icon(Icons.picture_as_pdf_outlined),
+                        label: Text(
+                          _exporting ? 'جارٍ التصدير...' : 'تصدير كملف PDF',
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'التصدير يتم فقط عند الضغط على هذا الزر (غير تلقائي).',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
+                    const SizedBox(height: 6),
+                    const Text(
+                      'التصدير يتم فقط عند الضغط على هذا الزر (غير تلقائي).',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

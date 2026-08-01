@@ -19,13 +19,16 @@ import '../../utils/task_stats.dart';
 import '../../widgets/daily_digest_card.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_kanban_board.dart';
+import '../designer/designer_task_view_screen.dart';
 import 'quick_add_task_sheet.dart';
 import 'task_review_detail_screen.dart';
 
 enum _LuxuryRange { day, week, month }
 
 class LuxuryManagerDashboard extends StatefulWidget {
-  const LuxuryManagerDashboard({super.key});
+  const LuxuryManagerDashboard({super.key, this.readOnly = false});
+
+  final bool readOnly;
 
   @override
   State<LuxuryManagerDashboard> createState() => _LuxuryManagerDashboardState();
@@ -117,7 +120,9 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
         ? 0
         : ((stats.completed / stats.total) * 100).round();
 
-    _scheduleDigest(manager.uid);
+    if (!widget.readOnly) {
+      _scheduleDigest(manager.uid);
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -131,6 +136,7 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
                   managerName: manager.name,
                   completion: completion,
                   desktop: desktop,
+                  readOnly: widget.readOnly,
                 ),
                 Transform.translate(
                   offset: Offset(0, desktop ? -38 : -28),
@@ -153,6 +159,7 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
                       onRangeChanged: (value) => setState(() => _range = value),
                       onShiftRange: _shiftRange,
                       onViewChanged: (value) => setState(() => _kanban = value),
+                      readOnly: widget.readOnly,
                     ),
                   ),
                 ),
@@ -170,11 +177,13 @@ class _Hero extends StatelessWidget {
     required this.managerName,
     required this.completion,
     required this.desktop,
+    required this.readOnly,
   });
 
   final String managerName;
   final int completion;
   final bool desktop;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -244,7 +253,32 @@ class _Hero extends StatelessWidget {
       ],
     );
 
-    final addButton = SizedBox(
+    final action = readOnly
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _LuxuryColors.gold.withValues(alpha: 0.72),
+              ),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.visibility_outlined, color: _LuxuryColors.gold),
+                SizedBox(width: 9),
+                Text(
+                  'وضع المتابعة · عرض فقط',
+                  style: TextStyle(
+                    color: _LuxuryColors.gold,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : SizedBox(
       width: desktop ? 240 : double.infinity,
       height: 60,
       child: OutlinedButton.icon(
@@ -284,11 +318,11 @@ class _Hero extends StatelessWidget {
       child: desktop
           ? Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [welcome, addButton],
+              children: [welcome, action],
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [welcome, const SizedBox(height: 22), addButton],
+              children: [welcome, const SizedBox(height: 22), action],
             ),
     );
   }
@@ -310,6 +344,7 @@ class _DashboardSurface extends StatelessWidget {
     required this.onRangeChanged,
     required this.onShiftRange,
     required this.onViewChanged,
+    required this.readOnly,
   });
 
   final bool desktop;
@@ -326,6 +361,7 @@ class _DashboardSurface extends StatelessWidget {
   final ValueChanged<_LuxuryRange> onRangeChanged;
   final ValueChanged<int> onShiftRange;
   final ValueChanged<bool> onViewChanged;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -394,6 +430,7 @@ class _DashboardSurface extends StatelessWidget {
                   onRangeChanged: onRangeChanged,
                   onShiftRange: onShiftRange,
                   onViewChanged: onViewChanged,
+                  readOnly: readOnly,
                 ),
               ),
             ],
@@ -410,6 +447,7 @@ class _DashboardSurface extends StatelessWidget {
                 onRangeChanged: onRangeChanged,
                 onShiftRange: onShiftRange,
                 onViewChanged: onViewChanged,
+                readOnly: readOnly,
               ),
               const SizedBox(height: 14),
               _TeamPulse(employees: employees, tasks: tasks),
@@ -532,6 +570,7 @@ class _ExecutionPanel extends StatelessWidget {
     required this.onRangeChanged,
     required this.onShiftRange,
     required this.onViewChanged,
+    required this.readOnly,
   });
 
   final List<AppTask> tasks;
@@ -543,6 +582,7 @@ class _ExecutionPanel extends StatelessWidget {
   final ValueChanged<_LuxuryRange> onRangeChanged;
   final ValueChanged<int> onShiftRange;
   final ValueChanged<bool> onViewChanged;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -583,25 +623,34 @@ class _ExecutionPanel extends StatelessWidget {
               height: desktop ? 520 : 650,
               child: TaskKanbanBoard(
                 tasks: tasks,
-                canDrag: true,
-                onTapTask: (task) => _openTask(context, task),
-                onStatusChanged: (task, status) {
-                  context.read<TaskProvider>().updateStatus(
-                    task.taskId,
-                    status,
-                    managerUid,
-                  );
-                },
+                canDrag: !readOnly,
+                onTapTask: (task) => _openTask(
+                  context,
+                  task,
+                  readOnly: readOnly,
+                ),
+                onStatusChanged: readOnly
+                    ? null
+                    : (task, status) {
+                        context.read<TaskProvider>().updateStatus(
+                          task.taskId,
+                          status,
+                          managerUid,
+                        );
+                      },
               ),
             )
           else if (tasks.isEmpty)
-            _EmptyTasks(onAdd: () => QuickAddTaskSheet.show(context))
+            _EmptyTasks(
+              onAdd: readOnly ? null : () => QuickAddTaskSheet.show(context),
+            )
           else if (desktop)
-            _DesktopTaskTable(tasks: tasks)
+            _DesktopTaskTable(tasks: tasks, readOnly: readOnly)
           else
             Column(
               children: [
-                for (final task in tasks.take(8)) _MobileTaskCard(task: task),
+                for (final task in tasks.take(8))
+                  _MobileTaskCard(task: task, readOnly: readOnly),
               ],
             ),
         ],
@@ -680,9 +729,10 @@ class _DashboardControls extends StatelessWidget {
 }
 
 class _DesktopTaskTable extends StatelessWidget {
-  const _DesktopTaskTable({required this.tasks});
+  const _DesktopTaskTable({required this.tasks, required this.readOnly});
 
   final List<AppTask> tasks;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -705,17 +755,22 @@ class _DesktopTaskTable extends StatelessWidget {
         ),
         const Divider(height: 1),
         for (var i = 0; i < tasks.take(8).length; i++)
-          _DesktopTaskRow(index: i + 1, task: tasks[i]),
+          _DesktopTaskRow(index: i + 1, task: tasks[i], readOnly: readOnly),
       ],
     );
   }
 }
 
 class _DesktopTaskRow extends StatelessWidget {
-  const _DesktopTaskRow({required this.index, required this.task});
+  const _DesktopTaskRow({
+    required this.index,
+    required this.task,
+    required this.readOnly,
+  });
 
   final int index;
   final AppTask task;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -723,7 +778,7 @@ class _DesktopTaskRow extends StatelessWidget {
     final employeeName = employee?.name ?? 'غير محدد';
     final overdue = task.isOverdue;
     return InkWell(
-      onTap: () => _openTask(context, task),
+      onTap: () => _openTask(context, task, readOnly: readOnly),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 17),
         decoration: const BoxDecoration(
@@ -859,16 +914,17 @@ class _DesktopTaskRow extends StatelessWidget {
 }
 
 class _MobileTaskCard extends StatelessWidget {
-  const _MobileTaskCard({required this.task});
+  const _MobileTaskCard({required this.task, required this.readOnly});
 
   final AppTask task;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
     final employee = FirestoreService.getUser(task.assignedTo);
     final employeeName = employee?.name ?? 'غير محدد';
     return InkWell(
-      onTap: () => _openTask(context, task),
+      onTap: () => _openTask(context, task, readOnly: readOnly),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 13),
         child: Row(
@@ -1206,7 +1262,7 @@ class _Panel extends StatelessWidget {
 class _EmptyTasks extends StatelessWidget {
   const _EmptyTasks({required this.onAdd});
 
-  final VoidCallback onAdd;
+  final VoidCallback? onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -1223,22 +1279,34 @@ class _EmptyTasks extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 12),
-          TextButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: const Text('إضافة مهمة'),
-          ),
+          if (onAdd != null) ...[
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add),
+              label: const Text('إضافة مهمة'),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-void _openTask(BuildContext context, AppTask task) {
+void _openTask(
+  BuildContext context,
+  AppTask task, {
+  bool readOnly = false,
+}) {
   Navigator.of(
     context,
-  ).push(MaterialPageRoute(builder: (_) => TaskReviewDetailScreen(task: task)));
+  ).push(
+    MaterialPageRoute(
+      builder: (_) => readOnly
+          ? DesignerTaskViewScreen(task: task)
+          : TaskReviewDetailScreen(task: task),
+    ),
+  );
 }
 
 const _tableHeader = TextStyle(

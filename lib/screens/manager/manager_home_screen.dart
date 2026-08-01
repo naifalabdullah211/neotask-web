@@ -71,7 +71,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       backgroundColor: const Color(0xFFF5F7FA),
       body: Column(
         children: [
-          _LuxuryTopNav(
+          LuxuryTopNav(
             desktop: desktop,
             selectedIndex: _index,
             manager: manager,
@@ -284,13 +284,14 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   }
 }
 
-class _LuxuryTopNav extends StatelessWidget {
-  const _LuxuryTopNav({
+class LuxuryTopNav extends StatelessWidget {
+  const LuxuryTopNav({
     required this.desktop,
     required this.selectedIndex,
     required this.manager,
     required this.onTabSelected,
     required this.onOpenMenu,
+    this.roleLabel = 'مدير القسم',
   });
 
   final bool desktop;
@@ -298,6 +299,7 @@ class _LuxuryTopNav extends StatelessWidget {
   final AppUser manager;
   final ValueChanged<int> onTabSelected;
   final VoidCallback onOpenMenu;
+  final String roleLabel;
 
   static const _labels = [
     'الرئيسية',
@@ -449,7 +451,7 @@ class _LuxuryTopNav extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'مدير القسم',
+                        roleLabel,
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.70),
                           fontSize: 12,

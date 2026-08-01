@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
 import '../../widgets/favorite_star_button.dart';
+import '../designer/designer_task_view_screen.dart';
 import 'task_review_detail_screen.dart';
 
 /// Manager review queue — shows tasks submitted by employees needing a
@@ -17,7 +18,9 @@ import 'task_review_detail_screen.dart';
 /// .snapshots() for near-instant updates the moment an employee submits,
 /// synced live across devices.
 class ManagerReviewTab extends StatelessWidget {
-  const ManagerReviewTab({super.key});
+  const ManagerReviewTab({super.key, this.readOnly = false});
+
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +68,9 @@ class ManagerReviewTab extends StatelessWidget {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
             ),
-            ...reassignRequests.map((t) => _ReassignRequestCard(task: t)),
+            ...reassignRequests.map(
+              (t) => _ReassignRequestCard(task: t, readOnly: readOnly),
+            ),
             const SizedBox(height: 16),
           ],
           if (submitted.isNotEmpty)
@@ -76,7 +81,9 @@ class ManagerReviewTab extends StatelessWidget {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
             ),
-          ...submitted.map((t) => _SubmittedTaskCard(task: t)),
+          ...submitted.map(
+            (t) => _SubmittedTaskCard(task: t, readOnly: readOnly),
+          ),
         ],
       ),
     );
@@ -84,8 +91,9 @@ class ManagerReviewTab extends StatelessWidget {
 }
 
 class _SubmittedTaskCard extends StatelessWidget {
-  const _SubmittedTaskCard({required this.task});
+  const _SubmittedTaskCard({required this.task, required this.readOnly});
   final AppTask task;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +111,12 @@ class _SubmittedTaskCard extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
-            FavoriteStarButton(userUid: managerUid, taskId: t.taskId, size: 20),
+            if (!readOnly)
+              FavoriteStarButton(
+                userUid: managerUid,
+                taskId: t.taskId,
+                size: 20,
+              ),
           ],
         ),
         subtitle: Column(
@@ -148,7 +161,11 @@ class _SubmittedTaskCard extends StatelessWidget {
           ],
         ),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => TaskReviewDetailScreen(task: t)),
+          MaterialPageRoute(
+            builder: (_) => readOnly
+                ? DesignerTaskViewScreen(task: t)
+                : TaskReviewDetailScreen(task: t),
+          ),
         ),
       ),
     );
@@ -159,8 +176,9 @@ class _SubmittedTaskCard extends StatelessWidget {
 /// decision. Rejection requires NO note (per answer ٤) — a single tap is
 /// sufficient, with a lightweight confirm dialog to prevent accidental taps.
 class _ReassignRequestCard extends StatefulWidget {
-  const _ReassignRequestCard({required this.task});
+  const _ReassignRequestCard({required this.task, required this.readOnly});
   final AppTask task;
+  final bool readOnly;
 
   @override
   State<_ReassignRequestCard> createState() => _ReassignRequestCardState();
@@ -277,32 +295,45 @@ class _ReassignRequestCardState extends State<_ReassignRequestCard> {
                 ),
               ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.statusRejected,
-                      side: const BorderSide(color: AppColors.statusRejected),
-                    ),
-                    onPressed: _busy ? null : () => _decide(false),
-                    icon: const Icon(Icons.close, size: 18),
-                    label: const Text('رفض'),
+            if (widget.readOnly)
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => DesignerTaskViewScreen(task: t),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.statusApproved,
+                icon: const Icon(Icons.visibility_outlined),
+                label: const Text('عرض الطلب'),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.statusRejected,
+                        side: const BorderSide(
+                          color: AppColors.statusRejected,
+                        ),
+                      ),
+                      onPressed: _busy ? null : () => _decide(false),
+                      icon: const Icon(Icons.close, size: 18),
+                      label: const Text('رفض'),
                     ),
-                    onPressed: _busy ? null : () => _decide(true),
-                    icon: const Icon(Icons.check, size: 18),
-                    label: const Text('موافقة'),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.statusApproved,
+                      ),
+                      onPressed: _busy ? null : () => _decide(true),
+                      icon: const Icon(Icons.check, size: 18),
+                      label: const Text('موافقة'),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

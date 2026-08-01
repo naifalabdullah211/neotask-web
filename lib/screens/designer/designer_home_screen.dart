@@ -1,32 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/neo_bottom_nav_bar.dart';
-import '../shared/splash_router.dart';
-import '../shared/app_drawer.dart';
-import 'designer_dashboard_tab.dart';
-import 'designer_employees_tab.dart';
-import 'designer_chat_tab.dart';
 
-/// Home shell for the `designer` read-only observer role (see
-/// UserRole.designer doc comment in user_model.dart for the full
-/// 1-a/2-a/3-no design rationale this entire screen implements).
-///
-/// Deliberately mirrors ManagerHomeScreen's shell structure (AppDrawer +
-/// AppBar + IndexedStack + bottom NavigationBar) so the designer sees a
-/// layout consistent with the rest of the app, but:
-///   - NO floating action button anywhere (no "مهمة جديدة" — 3-no).
-///   - NO search entry point in the AppBar (SearchScreen's
-///     `_TaskResultTile` is not yet role-aware and would route into
-///     TaskDetailScreen, which has write-looking buttons not gated by
-///     assignee ownership — omitting the entry point here avoids that
-///     gap entirely until it is fixed).
-///   - Bottom nav has exactly 3 read-only tabs: dashboard, employees,
-///     conversations. Review/Reports tabs are intentionally NOT included
-///     (Reports' PDF export is a local-file action, not yet decided
-///     whether to expose; Review tab only exists to expose
-///     approve/reject actions, which must never be shown to a designer).
+import '../../providers/auth_provider.dart';
+import '../../providers/task_provider.dart';
+import '../../widgets/neo_bottom_nav_bar.dart';
+import '../manager/luxury_manager_dashboard.dart';
+import '../manager/manager_home_screen.dart';
+import '../manager/manager_reports_tab.dart';
+import '../manager/manager_review_tab.dart';
+import '../shared/app_drawer.dart';
+import 'designer_chat_tab.dart';
+import 'designer_employees_tab.dart';
+
+/// The observer sees the complete premium NeoTask workspace used by the
+/// manager, while every action surface is replaced with a read-only view.
 class DesignerHomeScreen extends StatefulWidget {
   const DesignerHomeScreen({super.key});
 
@@ -36,75 +23,77 @@ class DesignerHomeScreen extends StatefulWidget {
 
 class _DesignerHomeScreenState extends State<DesignerHomeScreen> {
   int _index = 0;
-
-  static const _titles = ['لوحة التحكم', 'الموظفون', 'المحادثات'];
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final designerUid = auth.currentUser!.uid;
+    final observer = context.watch<AuthProvider>().currentUser!;
+    final pendingReviewCount = context
+        .watch<TaskProvider>()
+        .submittedForReview
+        .length;
+    final desktop = MediaQuery.sizeOf(context).width >= 960;
 
     final pages = [
-      const DesignerDashboardTab(),
+      const LuxuryManagerDashboard(readOnly: true),
+      const ManagerReviewTab(readOnly: true),
       const DesignerEmployeesTab(),
-      DesignerChatTab(designerUid: designerUid),
+      const ManagerReportsTab(readOnly: true),
+      DesignerChatTab(designerUid: observer.uid),
     ];
 
     return Scaffold(
+      key: _scaffoldKey,
       drawer: const AppDrawer(),
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/images/neotask_brand_mark.png',
-              height: 28,
-              fit: BoxFit.contain,
+      backgroundColor: const Color(0xFFF5F7FA),
+      body: Column(
+        children: [
+          LuxuryTopNav(
+            desktop: desktop,
+            selectedIndex: _index,
+            manager: observer,
+            roleLabel: 'متابعة · عرض فقط',
+            onTabSelected: (index) => setState(() => _index = index),
+            onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          Expanded(child: IndexedStack(index: _index, children: pages)),
+        ],
+      ),
+      bottomNavigationBar: desktop
+          ? null
+          : NeoBottomNavBar(
+              selectedIndex: _index,
+              onDestinationSelected: (index) =>
+                  setState(() => _index = index),
+              items: [
+                const NeoNavItem(
+                  icon: Icons.home_outlined,
+                  selectedIcon: Icons.home,
+                  label: 'الرئيسية',
+                ),
+                NeoNavItem(
+                  icon: Icons.fact_check_outlined,
+                  selectedIcon: Icons.fact_check,
+                  label: 'المراجعة',
+                  badgeCount: pendingReviewCount,
+                ),
+                const NeoNavItem(
+                  icon: Icons.groups_outlined,
+                  selectedIcon: Icons.groups,
+                  label: 'الموظفون',
+                ),
+                const NeoNavItem(
+                  icon: Icons.bar_chart_outlined,
+                  selectedIcon: Icons.bar_chart,
+                  label: 'التقارير',
+                ),
+                const NeoNavItem(
+                  icon: Icons.chat_bubble_outline,
+                  selectedIcon: Icons.chat_bubble,
+                  label: 'المحادثات',
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            Text(_titles[_index]),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'تسجيل الخروج',
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await context.read<AuthProvider>().logout();
-              if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const SplashRouter()),
-                  (route) => false,
-                );
-              }
-            },
-          ),
-        ],
-      ),
-      // No floatingActionButton — 3-no: absolute zero write access.
-      body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NeoBottomNavBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        items: const [
-          NeoNavItem(
-            icon: Icons.dashboard_outlined,
-            selectedIcon: Icons.dashboard,
-            label: 'الرئيسية',
-          ),
-          NeoNavItem(
-            icon: Icons.groups_outlined,
-            selectedIcon: Icons.groups,
-            label: 'الموظفون',
-          ),
-          NeoNavItem(
-            icon: Icons.chat_bubble_outline,
-            selectedIcon: Icons.chat_bubble,
-            label: 'المحادثات',
-          ),
-        ],
-      ),
-      backgroundColor: AppColors.background,
     );
   }
 }
