@@ -896,8 +896,9 @@ class _TimelineDateHeader extends StatelessWidget {
         children: [
           for (var week = 0; week < weeks; week++)
             Positioned(
-              right: week * 7 * dayWidth,
-              width: math.min(7, totalDays - week * 7) * dayWidth,
+              right: (week * 7 * dayWidth).toDouble(),
+              width:
+                  math.min(7, totalDays - week * 7).toDouble() * dayWidth,
               top: 0,
               bottom: 0,
               child: Column(
@@ -945,7 +946,7 @@ class _TimelineDateHeader extends StatelessWidget {
   }
 
   Widget _buildMonthHeader() {
-    final segments = <({DateTime start, int days, int offsetDays})>[];
+    final segments = <_MonthHeaderSegment>[];
     var cursor = minDate;
     var offsetDays = 0;
     final end = minDate.add(Duration(days: totalDays));
@@ -955,7 +956,13 @@ class _TimelineDateHeader extends StatelessWidget {
           : DateTime(cursor.year, cursor.month + 1);
       final segmentEnd = nextMonth.isBefore(end) ? nextMonth : end;
       final days = segmentEnd.difference(cursor).inDays;
-      segments.add((start: cursor, days: days, offsetDays: offsetDays));
+      segments.add(
+        _MonthHeaderSegment(
+          start: cursor,
+          days: days,
+          offsetDays: offsetDays,
+        ),
+      );
       offsetDays += days;
       cursor = segmentEnd;
     }
@@ -970,8 +977,8 @@ class _TimelineDateHeader extends StatelessWidget {
         children: [
           for (final segment in segments)
             Positioned(
-              right: segment.offsetDays * dayWidth,
-              width: segment.days * dayWidth,
+              right: (segment.offsetDays * dayWidth).toDouble(),
+              width: (segment.days * dayWidth).toDouble(),
               top: 0,
               bottom: 0,
               child: Container(
@@ -995,6 +1002,18 @@ class _TimelineDateHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MonthHeaderSegment {
+  const _MonthHeaderSegment({
+    required this.start,
+    required this.days,
+    required this.offsetDays,
+  });
+
+  final DateTime start;
+  final int days;
+  final int offsetDays;
 }
 
 class _TimelineTaskBar extends StatelessWidget {
