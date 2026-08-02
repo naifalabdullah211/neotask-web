@@ -15,6 +15,7 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/favorite_star_button.dart';
 import '../../widgets/task_plan_summary.dart';
 import '../../widgets/linked_knowledge_card.dart';
+import '../../widgets/neo_selection_field.dart';
 import '../shared/chat_thread_screen.dart';
 
 /// Full task detail + three-way review decision screen for the manager.
@@ -142,30 +143,28 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'الأولوية',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    SegmentedButton<TaskPriority>(
-                      segments: const [
-                        ButtonSegment(
+                    NeoSelectionField<TaskPriority>(
+                      label: 'الأولوية',
+                      value: selectedPriority,
+                      options: const [
+                        NeoSelectionOption(
                           value: TaskPriority.low,
-                          label: Text('منخفضة'),
+                          label: 'منخفضة',
+                          color: AppColors.statusApproved,
                         ),
-                        ButtonSegment(
+                        NeoSelectionOption(
                           value: TaskPriority.medium,
-                          label: Text('متوسطة'),
+                          label: 'متوسطة',
+                          color: AppColors.gold,
                         ),
-                        ButtonSegment(
+                        NeoSelectionOption(
                           value: TaskPriority.high,
-                          label: Text('عالية'),
+                          label: 'عالية',
+                          color: AppColors.statusRejected,
                         ),
                       ],
-                      selected: {selectedPriority},
-                      onSelectionChanged: (selection) => setDialogState(
-                        () => selectedPriority = selection.first,
-                      ),
+                      onChanged: (value) =>
+                          setDialogState(() => selectedPriority = value),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -321,20 +320,19 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<TaskStatus>(
-                initialValue: selected,
-                decoration: const InputDecoration(isDense: true),
-                items: TaskStatus.values
+              NeoSelectionField<TaskStatus>(
+                label: 'الحالة الجديدة',
+                value: selected,
+                options: TaskStatus.values
                     .map(
-                      (s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(statusLabelAr(s.name)),
+                      (status) => NeoSelectionOption(
+                        value: status,
+                        label: statusLabelAr(status.name),
+                        color: statusColor(status.name),
                       ),
                     )
                     .toList(),
-                onChanged: (v) {
-                  if (v != null) setDialogState(() => selected = v);
-                },
+                onChanged: (value) => setDialogState(() => selected = value),
               ),
             ],
           ),
@@ -410,39 +408,42 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(
+              NeoSelectionField<bool>(
+                label: 'نطاق الإسناد',
+                value: assignToWholeTeam,
+                options: const [
+                  NeoSelectionOption(
                     value: false,
-                    icon: Icon(Icons.person_outline),
-                    label: Text('موظف محدد'),
+                    icon: Icons.person_outline,
+                    label: 'موظف محدد',
                   ),
-                  ButtonSegment(
+                  NeoSelectionOption(
                     value: true,
-                    icon: Icon(Icons.groups_outlined),
-                    label: Text('الفريق كاملًا'),
+                    icon: Icons.groups_outlined,
+                    label: 'الفريق كاملًا',
                   ),
                 ],
-                selected: {assignToWholeTeam},
-                onSelectionChanged: (selection) =>
-                    setDialogState(() => assignToWholeTeam = selection.first),
+                onChanged: (value) =>
+                    setDialogState(() => assignToWholeTeam = value),
               ),
               const SizedBox(height: 12),
               if (!assignToWholeTeam)
-                DropdownButtonFormField<AppUser>(
-                  initialValue: selected,
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    labelText: 'الموظف المسؤول',
-                  ),
-                  items: candidates
+                NeoSelectionField<AppUser>(
+                  label: 'الموظف المسؤول',
+                  value: selected,
+                  searchable: true,
+                  options: candidates
                       .map(
-                        (u) => DropdownMenuItem(value: u, child: Text(u.name)),
+                        (user) => NeoSelectionOption(
+                          value: user,
+                          label: user.name,
+                          subtitle: 'الرقم الوظيفي ${user.employeeNumber}',
+                          icon: Icons.badge_outlined,
+                          searchTerms: [user.employeeNumber],
+                        ),
                       )
                       .toList(),
-                  onChanged: (v) {
-                    if (v != null) setDialogState(() => selected = v);
-                  },
+                  onChanged: (value) => setDialogState(() => selected = value),
                 )
               else
                 Text(

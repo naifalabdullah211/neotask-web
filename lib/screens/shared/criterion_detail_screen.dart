@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/criterion_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 import '../../widgets/status_chip.dart';
 import 'criterion_chat_body.dart';
 import 'edit_criterion_dialog.dart';
@@ -341,25 +342,23 @@ class _EmployeeStatusRowState extends State<_EmployeeStatusRow> {
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
-          DropdownButton<CriterionStatus>(
-            value: status,
-            underline: const SizedBox.shrink(),
-            items: CriterionStatus.values
-                .map(
-                  (s) => DropdownMenuItem(
-                    value: s,
-                    child: Text(
-                      criterionStatusLabelAr(s),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: statusColor(s.name),
-                        fontWeight: FontWeight.w600,
-                      ),
+          SizedBox(
+            width: 170,
+            child: NeoSelectionField<CriterionStatus>(
+              label: 'الحالة',
+              value: status,
+              enabled: canEdit,
+              options: CriterionStatus.values
+                  .map(
+                    (item) => NeoSelectionOption(
+                      value: item,
+                      label: criterionStatusLabelAr(item),
+                      color: statusColor(item.name),
                     ),
-                  ),
-                )
-                .toList(),
-            onChanged: canEdit ? (s) => s != null ? _setStatus(s) : null : null,
+                  )
+                  .toList(),
+              onChanged: canEdit ? _setStatus : null,
+            ),
           ),
         ],
       ),

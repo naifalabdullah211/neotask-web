@@ -12,6 +12,7 @@ import '../../services/firestore_service.dart';
 import '../../services/workflow_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/import_table_parser.dart';
+import '../../widgets/neo_selection_field.dart';
 
 enum _ImportType { employees, tasks }
 
@@ -42,30 +43,66 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(20)),
-            child: const Row(children: [
-              Icon(Icons.upload_file_outlined, color: AppColors.gold, size: 40),
-              SizedBox(width: 16),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('استيراد حقيقي مع فحص قبل الحفظ', style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800)),
-                SizedBox(height: 6),
-                Text('لن يُحفظ أي صف خاطئ أو مكرر، وسترى نتيجة كل صف أولًا', style: TextStyle(color: Colors.white70)),
-              ])),
-            ]),
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.upload_file_outlined,
+                  color: AppColors.gold,
+                  size: 40,
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'استيراد حقيقي مع فحص قبل الحفظ',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'لن يُحفظ أي صف خاطئ أو مكرر، وسترى نتيجة كل صف أولًا',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 18),
-          SegmentedButton<_ImportType>(
-            segments: const [
-              ButtonSegment(value: _ImportType.employees, icon: Icon(Icons.groups_outlined), label: Text('الموظفون')),
-              ButtonSegment(value: _ImportType.tasks, icon: Icon(Icons.task_alt_outlined), label: Text('المهام')),
+          NeoSelectionField<_ImportType>(
+            label: 'نوع البيانات',
+            value: _type,
+            enabled: !widget.readOnly,
+            options: const [
+              NeoSelectionOption(
+                value: _ImportType.employees,
+                label: 'الموظفون',
+                icon: Icons.groups_outlined,
+              ),
+              NeoSelectionOption(
+                value: _ImportType.tasks,
+                label: 'المهام',
+                icon: Icons.task_alt_outlined,
+              ),
             ],
-            selected: {_type},
-            onSelectionChanged: widget.readOnly ? null : (value) => setState(() {
-              _type = value.first;
-              _fileName = null;
-              _table = null;
-              _preview = const [];
-            }),
+            onChanged: widget.readOnly
+                ? null
+                : (value) => setState(() {
+                    _type = value;
+                    _fileName = null;
+                    _table = null;
+                    _preview = const [];
+                  }),
           ),
           const SizedBox(height: 12),
           _TemplateCard(type: _type),
@@ -74,22 +111,61 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
             OutlinedButton.icon(
               onPressed: _busy ? null : _pickFile,
               icon: const Icon(Icons.attach_file),
-              label: Text(_fileName == null ? 'اختيار ملف CSV أو XLSX' : 'الملف: $_fileName'),
+              label: Text(
+                _fileName == null
+                    ? 'اختيار ملف CSV أو XLSX'
+                    : 'الملف: $_fileName',
+              ),
             ),
           if (_table != null) ...[
             const SizedBox(height: 18),
-            Row(children: [
-              Expanded(child: Text('معاينة الصفوف', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800))),
-              Chip(label: Text('$validCount صالح'), avatar: const Icon(Icons.check_circle, color: AppColors.mintAccent, size: 18)),
-              const SizedBox(width: 6),
-              Chip(label: Text('$errorCount خطأ'), avatar: const Icon(Icons.error, color: AppColors.statusRejected, size: 18)),
-            ]),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'معاينة الصفوف',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Chip(
+                  label: Text('$validCount صالح'),
+                  avatar: const Icon(
+                    Icons.check_circle,
+                    color: AppColors.mintAccent,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Chip(
+                  label: Text('$errorCount خطأ'),
+                  avatar: const Icon(
+                    Icons.error,
+                    color: AppColors.statusRejected,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
-            ..._preview.asMap().entries.map((entry) => _PreviewRowCard(index: entry.key, row: entry.value, type: _type)),
+            ..._preview.asMap().entries.map(
+              (entry) => _PreviewRowCard(
+                index: entry.key,
+                row: entry.value,
+                type: _type,
+              ),
+            ),
             const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: _busy || validCount == 0 ? null : _importValidRows,
-              icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.cloud_upload_outlined),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.cloud_upload_outlined),
               label: Text('استيراد $validCount صف صالح'),
             ),
           ],
@@ -113,8 +189,13 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
       return;
     }
     try {
-      final table = ImportTableParser.parse(fileName: file.name, bytes: Uint8List.fromList(bytes));
-      final preview = _type == _ImportType.employees ? _validateEmployees(table) : _validateTasks(table);
+      final table = ImportTableParser.parse(
+        fileName: file.name,
+        bytes: Uint8List.fromList(bytes),
+      );
+      final preview = _type == _ImportType.employees
+          ? _validateEmployees(table)
+          : _validateTasks(table);
       setState(() {
         _fileName = file.name;
         _table = table;
@@ -130,15 +211,21 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
   List<_ValidatedRow> _validateEmployees(ImportedTable table) {
     const required = {'name', 'employeeNumber', 'password'};
     final missing = required.difference(table.headers.toSet());
-    if (missing.isNotEmpty) throw FormatException('الأعمدة المطلوبة: الاسم، الرقم الوظيفي، كلمة المرور');
-    final existing = FirestoreService.getAllEmployees().map((user) => _compact(user.employeeNumber)).toSet();
+    if (missing.isNotEmpty)
+      throw FormatException(
+        'الأعمدة المطلوبة: الاسم، الرقم الوظيفي، كلمة المرور',
+      );
+    final existing = FirestoreService.getAllEmployees()
+        .map((user) => _compact(user.employeeNumber))
+        .toSet();
     final seen = <String>{};
     return table.rows.map((row) {
       final errors = <String>[];
       final number = _compact(row['employeeNumber'] ?? '');
       if ((row['name'] ?? '').trim().isEmpty) errors.add('الاسم مفقود');
       if (number.isEmpty) errors.add('الرقم الوظيفي مفقود');
-      if ((row['password'] ?? '').length < 6) errors.add('كلمة المرور أقل من 6 أحرف');
+      if ((row['password'] ?? '').length < 6)
+        errors.add('كلمة المرور أقل من 6 أحرف');
       if (existing.contains(number)) errors.add('الرقم الوظيفي موجود مسبقًا');
       if (!seen.add(number)) errors.add('الرقم الوظيفي مكرر داخل الملف');
       return _ValidatedRow(data: row, errors: errors);
@@ -147,8 +234,16 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
 
   List<_ValidatedRow> _validateTasks(ImportedTable table) {
     const required = {'title', 'employeeNumber', 'dueDate'};
-    if (!required.every(table.headers.contains)) throw FormatException('الأعمدة المطلوبة: عنوان المهمة، الرقم الوظيفي، تاريخ الاستحقاق');
-    final employees = {for (final user in FirestoreService.getAllEmployees().where((u) => u.accountStatus == AccountStatus.active)) _compact(user.employeeNumber): user};
+    if (!required.every(table.headers.contains))
+      throw FormatException(
+        'الأعمدة المطلوبة: عنوان المهمة، الرقم الوظيفي، تاريخ الاستحقاق',
+      );
+    final employees = {
+      for (final user in FirestoreService.getAllEmployees().where(
+        (u) => u.accountStatus == AccountStatus.active,
+      ))
+        _compact(user.employeeNumber): user,
+    };
     String duplicateKey(String title, String employeeUid, DateTime due) =>
         '${title.trim().toLowerCase()}|$employeeUid|${due.year}-${due.month}-${due.day}';
     final existing = FirestoreService.getAllTasks()
@@ -167,11 +262,17 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
           ? DateTime(current.year, current.month, current.day)
           : _parseDate(row['startDate']!);
       if (start == null) errors.add('تاريخ البداية غير صالح');
-      if (start != null && due != null && due.isBefore(start)) errors.add('الاستحقاق يسبق البداية');
-      final hours = (row['plannedHours'] ?? '').trim().isEmpty ? 1 : double.tryParse(row['plannedHours']!);
+      if (start != null && due != null && due.isBefore(start))
+        errors.add('الاستحقاق يسبق البداية');
+      final hours = (row['plannedHours'] ?? '').trim().isEmpty
+          ? 1
+          : double.tryParse(row['plannedHours']!);
       if (hours == null || hours <= 0) errors.add('الساعات غير صالحة');
-      if (_parsePriority(row['priority'] ?? '') == null) errors.add('الأولوية غير صالحة');
-      if (employee != null && due != null && (row['title'] ?? '').trim().isNotEmpty) {
+      if (_parsePriority(row['priority'] ?? '') == null)
+        errors.add('الأولوية غير صالحة');
+      if (employee != null &&
+          due != null &&
+          (row['title'] ?? '').trim().isNotEmpty) {
         final key = duplicateKey(row['title']!, employee.uid, due);
         if (existing.contains(key)) errors.add('المهمة موجودة مسبقًا');
         if (!seen.add(key)) errors.add('المهمة مكررة داخل الملف');
@@ -185,22 +286,35 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
     final valid = _preview.where((row) => row.errors.isEmpty).toList();
     try {
       if (_type == _ImportType.employees) {
-        final result = await WorkflowService.importEmployees(valid.map((row) => {
-          'name': row.data['name']!.trim(),
-          'employeeNumber': row.data['employeeNumber']!.trim(),
-          'password': row.data['password']!,
-        }).toList());
+        final result = await WorkflowService.importEmployees(
+          valid
+              .map(
+                (row) => {
+                  'name': row.data['name']!.trim(),
+                  'employeeNumber': row.data['employeeNumber']!.trim(),
+                  'password': row.data['password']!,
+                },
+              )
+              .toList(),
+        );
         final created = result['createdCount'] ?? 0;
         final failed = result['failedCount'] ?? 0;
-        _show('تم إنشاء $created حساب موظف${failed == 0 ? '' : '، وتعذر $failed'}');
+        _show(
+          'تم إنشاء $created حساب موظف${failed == 0 ? '' : '، وتعذر $failed'}',
+        );
       } else {
         final managerUid = context.read<AuthProvider>().currentUser!.uid;
-        final employees = {for (final user in FirestoreService.getAllEmployees()) _compact(user.employeeNumber): user};
+        final employees = {
+          for (final user in FirestoreService.getAllEmployees())
+            _compact(user.employeeNumber): user,
+        };
         final now = DateTime.now();
         final tasks = valid.map((row) {
           final due = _parseDate(row.data['dueDate']!)!;
           final rawStart = row.data['startDate'] ?? '';
-          final start = rawStart.trim().isEmpty ? DateTime(now.year, now.month, now.day) : _parseDate(rawStart)!;
+          final start = rawStart.trim().isEmpty
+              ? DateTime(now.year, now.month, now.day)
+              : _parseDate(rawStart)!;
           return AppTask(
             taskId: const Uuid().v4(),
             title: row.data['title']!.trim(),
@@ -212,28 +326,40 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
             plannedHours: double.tryParse(row.data['plannedHours'] ?? '') ?? 1,
             priority: _parsePriority(row.data['priority'] ?? '')!,
             status: TaskStatus.assigned,
-            category: (row.data['category'] ?? '').trim().isEmpty ? 'عام' : row.data['category']!.trim(),
+            category: (row.data['category'] ?? '').trim().isEmpty
+                ? 'عام'
+                : row.data['category']!.trim(),
             createdAt: now,
             updatedAt: now,
           );
         }).toList();
-        await WorkflowService.importTasks(tasks: tasks, managerUid: managerUid, sourceFileName: _fileName!);
+        await WorkflowService.importTasks(
+          tasks: tasks,
+          managerUid: managerUid,
+          sourceFileName: _fileName!,
+        );
         _show('تم إنشاء ${tasks.length} مهمة بنجاح');
       }
-      if (mounted) setState(() {
-        _fileName = null;
-        _table = null;
-        _preview = const [];
-      });
+      if (mounted)
+        setState(() {
+          _fileName = null;
+          _table = null;
+          _preview = const [];
+        });
     } catch (error) {
-      _show('تعذر الاستيراد: ${error.toString().replaceFirst('Exception: ', '')}');
+      _show(
+        'تعذر الاستيراد: ${error.toString().replaceFirst('Exception: ', '')}',
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   void _show(String message) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    if (mounted)
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -245,31 +371,71 @@ class _TemplateCard extends StatelessWidget {
     final columns = type == _ImportType.employees
         ? 'الاسم | الرقم الوظيفي | كلمة المرور'
         : 'عنوان المهمة | الرقم الوظيفي | تاريخ الاستحقاق | الوصف | تاريخ البداية | الساعات | الأولوية | التصنيف';
-    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('عناوين الصف الأول', style: TextStyle(fontWeight: FontWeight.w800)),
-      const SizedBox(height: 7),
-      SelectableText(columns, textDirection: TextDirection.rtl, style: const TextStyle(color: AppColors.textSecondary)),
-      const SizedBox(height: 6),
-      const Text('تُقبل العناوين العربية أو الإنجليزية، والتاريخ بصيغة YYYY-MM-DD', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-    ])));
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'عناوين الصف الأول',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 7),
+            SelectableText(
+              columns,
+              textDirection: TextDirection.rtl,
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'تُقبل العناوين العربية أو الإنجليزية، والتاريخ بصيغة YYYY-MM-DD',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
 class _PreviewRowCard extends StatelessWidget {
-  const _PreviewRowCard({required this.index, required this.row, required this.type});
+  const _PreviewRowCard({
+    required this.index,
+    required this.row,
+    required this.type,
+  });
   final int index;
   final _ValidatedRow row;
   final _ImportType type;
   @override
   Widget build(BuildContext context) {
     final ok = row.errors.isEmpty;
-    final title = type == _ImportType.employees ? row.data['name'] : row.data['title'];
-    final displayTitle = title == null || title.isEmpty ? 'صف بلا عنوان' : title;
+    final title = type == _ImportType.employees
+        ? row.data['name']
+        : row.data['title'];
+    final displayTitle = title == null || title.isEmpty
+        ? 'صف بلا عنوان'
+        : title;
     return Card(
       child: ListTile(
-        leading: CircleAvatar(backgroundColor: (ok ? AppColors.mintAccent : AppColors.statusRejected).withValues(alpha: .15), child: Icon(ok ? Icons.check : Icons.close, color: ok ? AppColors.navy : AppColors.statusRejected)),
+        leading: CircleAvatar(
+          backgroundColor:
+              (ok ? AppColors.mintAccent : AppColors.statusRejected).withValues(
+                alpha: .15,
+              ),
+          child: Icon(
+            ok ? Icons.check : Icons.close,
+            color: ok ? AppColors.navy : AppColors.statusRejected,
+          ),
+        ),
         title: Text('${index + 2}. $displayTitle'),
-        subtitle: Text(ok ? 'صالح للاستيراد' : row.errors.join(' · '), style: TextStyle(color: ok ? AppColors.textSecondary : AppColors.statusRejected)),
+        subtitle: Text(
+          ok ? 'صالح للاستيراد' : row.errors.join(' · '),
+          style: TextStyle(
+            color: ok ? AppColors.textSecondary : AppColors.statusRejected,
+          ),
+        ),
         trailing: Text(row.data['employeeNumber'] ?? ''),
       ),
     );
@@ -282,13 +448,20 @@ class _ValidatedRow {
   final List<String> errors;
 }
 
-String _compact(String value) => value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+String _compact(String value) =>
+    value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
 TaskPriority? _parsePriority(String value) {
   final normalized = value.trim().toLowerCase();
-  if (normalized.isEmpty || normalized == 'medium' || normalized == 'متوسطة' || normalized == 'متوسطه') return TaskPriority.medium;
-  if (normalized == 'low' || normalized == 'منخفضة' || normalized == 'منخفضه') return TaskPriority.low;
-  if (normalized == 'high' || normalized == 'عالية' || normalized == 'عاليه') return TaskPriority.high;
+  if (normalized.isEmpty ||
+      normalized == 'medium' ||
+      normalized == 'متوسطة' ||
+      normalized == 'متوسطه')
+    return TaskPriority.medium;
+  if (normalized == 'low' || normalized == 'منخفضة' || normalized == 'منخفضه')
+    return TaskPriority.low;
+  if (normalized == 'high' || normalized == 'عالية' || normalized == 'عاليه')
+    return TaskPriority.high;
   return null;
 }
 

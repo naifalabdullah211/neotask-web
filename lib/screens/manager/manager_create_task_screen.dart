@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 
 /// Task creation screen for the manager — exposes ALL recurrence options
 /// per explicit requirement: none / daily / weekly / monthly-fixed-date
@@ -349,23 +350,24 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String?>(
-                      initialValue: _parentTaskId,
-                      decoration: const InputDecoration(
-                        labelText: 'المهمة الرئيسية (اختياري)',
-                      ),
-                      items: [
-                        const DropdownMenuItem<String?>(
+                    NeoSelectionField<String?>(
+                      label: 'المهمة الرئيسية (اختياري)',
+                      value: _parentTaskId,
+                      searchable: planningTasks.length > 7,
+                      options: [
+                        const NeoSelectionOption<String?>(
                           value: null,
-                          child: Text('بدون مهمة رئيسية'),
+                          label: 'بدون مهمة رئيسية',
+                          icon: Icons.remove_circle_outline_rounded,
                         ),
                         ...planningTasks.map(
-                          (task) => DropdownMenuItem<String?>(
+                          (task) => NeoSelectionOption<String?>(
                             value: task.taskId,
-                            child: Text(
-                              task.title,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            label: task.title,
+                            subtitle: intl.DateFormat(
+                              'yyyy/MM/dd',
+                            ).format(task.dueDate),
+                            icon: Icons.account_tree_outlined,
                           ),
                         ),
                       ],
@@ -401,19 +403,27 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
               // "لفريق" keeps the existing employee-assignment behavior
               // unchanged; "شخصية" hides the employee dropdown below and
               // forces assignedTo = the manager's own uid on save.
-              const Text(
-                'نوع المهمة',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: false, label: Text('لفريق')),
-                  ButtonSegment(value: true, label: Text('شخصية')),
+              NeoSelectionField<bool>(
+                label: 'نوع المهمة',
+                value: _isPersonal,
+                options: const [
+                  NeoSelectionOption(
+                    value: false,
+                    label: 'لفريق',
+                    subtitle: 'إسناد المهمة إلى أحد الموظفين',
+                    icon: Icons.groups_2_outlined,
+                  ),
+                  NeoSelectionOption(
+                    value: true,
+                    label: 'شخصية',
+                    subtitle: 'مهمة خاصة بالمدير',
+                    icon: Icons.person_outline_rounded,
+                  ),
                 ],
-                selected: {_isPersonal},
-                onSelectionChanged: (s) =>
-                    setState(() => _isPersonal = s.first),
+                onChanged: (value) => setState(() {
+                  _isPersonal = value;
+                  if (value) _selectedEmployee = null;
+                }),
               ),
               const SizedBox(height: 14),
               if (!_isPersonal)
@@ -426,156 +436,150 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
                     ),
                   )
                 else
-                  DropdownButtonFormField<AppUser>(
-                    initialValue: _selectedEmployee,
-                    decoration: const InputDecoration(
-                      labelText: 'إسناد إلى موظف',
-                    ),
-                    items: employees
+                  NeoSelectionField<AppUser>(
+                    label: 'إسناد إلى موظف',
+                    value: _selectedEmployee,
+                    searchable: true,
+                    requiredSelection: true,
+                    options: employees
                         .map(
-                          (u) => DropdownMenuItem(
-                            value: u,
-                            child: Text('${u.name} (${u.employeeNumber})'),
+                          (user) => NeoSelectionOption(
+                            value: user,
+                            label: user.name,
+                            subtitle: 'الرقم الوظيفي ${user.employeeNumber}',
+                            icon: Icons.badge_outlined,
+                            searchTerms: [user.employeeNumber],
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => setState(() => _selectedEmployee = v),
+                    onChanged: (value) =>
+                        setState(() => _selectedEmployee = value),
                   ),
               const SizedBox(height: 14),
-              const SizedBox(height: 6),
-              const Text(
-                'الأولوية',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              SegmentedButton<TaskPriority>(
-                segments: const [
-                  ButtonSegment(value: TaskPriority.low, label: Text('منخفضة')),
-                  ButtonSegment(
-                    value: TaskPriority.medium,
-                    label: Text('متوسطة'),
+              NeoSelectionField<TaskPriority>(
+                label: 'الأولوية',
+                value: _priority,
+                options: const [
+                  NeoSelectionOption(
+                    value: TaskPriority.low,
+                    label: 'منخفضة',
+                    color: AppColors.statusApproved,
                   ),
-                  ButtonSegment(value: TaskPriority.high, label: Text('عالية')),
+                  NeoSelectionOption(
+                    value: TaskPriority.medium,
+                    label: 'متوسطة',
+                    color: AppColors.gold,
+                  ),
+                  NeoSelectionOption(
+                    value: TaskPriority.high,
+                    label: 'عالية',
+                    color: AppColors.statusRejected,
+                  ),
                 ],
-                selected: {_priority},
-                onSelectionChanged: (s) => setState(() => _priority = s.first),
+                onChanged: (value) => setState(() => _priority = value),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'التكرار',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<RecurrenceType>(
-                initialValue: _recurrenceType,
-                decoration: const InputDecoration(labelText: 'نوع التكرار'),
-                items: const [
-                  DropdownMenuItem(
+              NeoSelectionField<RecurrenceType>(
+                label: 'التكرار',
+                value: _recurrenceType,
+                options: const [
+                  NeoSelectionOption(
                     value: RecurrenceType.none,
-                    child: Text('بدون تكرار'),
+                    label: 'بدون تكرار',
+                    icon: Icons.event_busy_outlined,
                   ),
-                  DropdownMenuItem(
+                  NeoSelectionOption(
                     value: RecurrenceType.daily,
-                    child: Text('يوميًا'),
+                    label: 'يوميًا',
+                    icon: Icons.today_outlined,
                   ),
-                  DropdownMenuItem(
+                  NeoSelectionOption(
                     value: RecurrenceType.weekly,
-                    child: Text('أسبوعيًا'),
+                    label: 'أسبوعيًا',
+                    icon: Icons.view_week_outlined,
                   ),
-                  DropdownMenuItem(
+                  NeoSelectionOption(
                     value: RecurrenceType.monthlyFixedDate,
-                    child: Text('شهريًا - يوم ثابت من الشهر'),
+                    label: 'شهريًا - يوم ثابت من الشهر',
+                    icon: Icons.calendar_month_outlined,
                   ),
-                  DropdownMenuItem(
+                  NeoSelectionOption(
                     value: RecurrenceType.monthlyWeekdayPattern,
-                    child: Text('شهريًا - نمط يوم أسبوعي (مثال: آخر خميس)'),
+                    label: 'شهريًا - نمط يوم أسبوعي',
+                    subtitle: 'مثال: آخر خميس من كل شهر',
+                    icon: Icons.date_range_outlined,
                   ),
                 ],
-                onChanged: (v) =>
-                    setState(() => _recurrenceType = v ?? RecurrenceType.none),
+                onChanged: (value) => setState(() => _recurrenceType = value),
               ),
               if (_recurrenceType == RecurrenceType.monthlyFixedDate) ...[
                 const SizedBox(height: 14),
-                DropdownButtonFormField<int>(
-                  initialValue: _dayOfMonth,
-                  decoration: const InputDecoration(
-                    labelText: 'يوم الشهر (1-31)',
+                NeoSelectionField<int>(
+                  label: 'يوم الشهر (1-31)',
+                  value: _dayOfMonth,
+                  searchable: true,
+                  options: List.generate(
+                    31,
+                    (index) => NeoSelectionOption(
+                      value: index + 1,
+                      label: 'يوم ${index + 1}',
+                    ),
                   ),
-                  items: List.generate(31, (i) => i + 1)
-                      .map(
-                        (d) =>
-                            DropdownMenuItem(value: d, child: Text('يوم $d')),
-                      )
-                      .toList(),
-                  onChanged: (v) => setState(() => _dayOfMonth = v ?? 1),
+                  onChanged: (value) => setState(() => _dayOfMonth = value),
                 ),
               ],
               if (_recurrenceType == RecurrenceType.monthlyWeekdayPattern) ...[
                 const SizedBox(height: 14),
-                DropdownButtonFormField<WeekOrdinal>(
-                  initialValue: _weekOrdinal,
-                  decoration: const InputDecoration(labelText: 'الأسبوع'),
-                  items: const [
-                    DropdownMenuItem(
+                NeoSelectionField<WeekOrdinal>(
+                  label: 'الأسبوع',
+                  value: _weekOrdinal,
+                  options: const [
+                    NeoSelectionOption(
                       value: WeekOrdinal.first,
-                      child: Text('الأول'),
+                      label: 'الأول',
                     ),
-                    DropdownMenuItem(
+                    NeoSelectionOption(
                       value: WeekOrdinal.second,
-                      child: Text('الثاني'),
+                      label: 'الثاني',
                     ),
-                    DropdownMenuItem(
+                    NeoSelectionOption(
                       value: WeekOrdinal.third,
-                      child: Text('الثالث'),
+                      label: 'الثالث',
                     ),
-                    DropdownMenuItem(
+                    NeoSelectionOption(
                       value: WeekOrdinal.fourth,
-                      child: Text('الرابع'),
+                      label: 'الرابع',
                     ),
-                    DropdownMenuItem(
+                    NeoSelectionOption(
                       value: WeekOrdinal.last,
-                      child: Text('الأخير'),
+                      label: 'الأخير',
                     ),
                   ],
-                  onChanged: (v) =>
-                      setState(() => _weekOrdinal = v ?? WeekOrdinal.first),
+                  onChanged: (value) => setState(() => _weekOrdinal = value),
                 ),
                 const SizedBox(height: 14),
-                DropdownButtonFormField<Weekday>(
-                  initialValue: _weekday,
-                  decoration: const InputDecoration(labelText: 'اليوم'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: Weekday.monday,
-                      child: Text('الاثنين'),
-                    ),
-                    DropdownMenuItem(
+                NeoSelectionField<Weekday>(
+                  label: 'اليوم',
+                  value: _weekday,
+                  options: const [
+                    NeoSelectionOption(value: Weekday.monday, label: 'الاثنين'),
+                    NeoSelectionOption(
                       value: Weekday.tuesday,
-                      child: Text('الثلاثاء'),
+                      label: 'الثلاثاء',
                     ),
-                    DropdownMenuItem(
+                    NeoSelectionOption(
                       value: Weekday.wednesday,
-                      child: Text('الأربعاء'),
+                      label: 'الأربعاء',
                     ),
-                    DropdownMenuItem(
+                    NeoSelectionOption(
                       value: Weekday.thursday,
-                      child: Text('الخميس'),
+                      label: 'الخميس',
                     ),
-                    DropdownMenuItem(
-                      value: Weekday.friday,
-                      child: Text('الجمعة'),
-                    ),
-                    DropdownMenuItem(
-                      value: Weekday.saturday,
-                      child: Text('السبت'),
-                    ),
-                    DropdownMenuItem(
-                      value: Weekday.sunday,
-                      child: Text('الأحد'),
-                    ),
+                    NeoSelectionOption(value: Weekday.friday, label: 'الجمعة'),
+                    NeoSelectionOption(value: Weekday.saturday, label: 'السبت'),
+                    NeoSelectionOption(value: Weekday.sunday, label: 'الأحد'),
                   ],
-                  onChanged: (v) =>
-                      setState(() => _weekday = v ?? Weekday.monday),
+                  onChanged: (value) => setState(() => _weekday = value),
                 ),
               ],
               if (_recurrenceType != RecurrenceType.none) ...[

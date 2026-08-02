@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/poll_provider.dart';
 import '../../services/cloudinary_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 
 /// Manager-only screen for creating a new "تصويت" (Poll) — UPGRADED
 /// (Phase E) from the original binary Yes/No form into the full
@@ -655,28 +656,24 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
               const SizedBox(height: 20),
 
               // ---- draft vs publish ----
-              const Text(
-                'حالة الحفظ',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Card(
-                child: Column(
-                  children: [
-                    RadioListTile<bool>(
-                      value: false,
-                      groupValue: _saveAsDraft,
-                      onChanged: (v) => setState(() => _saveAsDraft = v!),
-                      title: const Text('نشر الآن (يصبح نشطًا فورًا)'),
-                    ),
-                    RadioListTile<bool>(
-                      value: true,
-                      groupValue: _saveAsDraft,
-                      onChanged: (v) => setState(() => _saveAsDraft = v!),
-                      title: const Text('حفظ كمسودة (غير مرئي للموظفين)'),
-                    ),
-                  ],
-                ),
+              NeoSelectionField<bool>(
+                label: 'حالة الحفظ',
+                value: _saveAsDraft,
+                options: const [
+                  NeoSelectionOption(
+                    value: false,
+                    label: 'نشر الآن',
+                    subtitle: 'يصبح التصويت نشطًا فورًا',
+                    icon: Icons.publish_outlined,
+                  ),
+                  NeoSelectionOption(
+                    value: true,
+                    label: 'حفظ كمسودة',
+                    subtitle: 'غير مرئي للموظفين',
+                    icon: Icons.edit_note_outlined,
+                  ),
+                ],
+                onChanged: (value) => setState(() => _saveAsDraft = value),
               ),
               const SizedBox(height: 24),
               ElevatedButton(

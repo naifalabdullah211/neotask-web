@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 
 /// Quick "add task" bottom sheet opened from the circular FAB on the
 /// manager home screen. Deliberately a REDUCED field set compared to
@@ -160,19 +161,27 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
                     ),
                     const SizedBox(height: 14),
                     // Manager personal tasks (المهام الشخصية للمدير) — NEW.
-                    const Text(
-                      'نوع المهمة',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('لفريق')),
-                        ButtonSegment(value: true, label: Text('شخصية')),
+                    NeoSelectionField<bool>(
+                      label: 'نوع المهمة',
+                      value: _isPersonal,
+                      options: const [
+                        NeoSelectionOption(
+                          value: false,
+                          label: 'لفريق',
+                          subtitle: 'إسناد المهمة إلى أحد الموظفين',
+                          icon: Icons.groups_2_outlined,
+                        ),
+                        NeoSelectionOption(
+                          value: true,
+                          label: 'شخصية',
+                          subtitle: 'مهمة خاصة بالمدير',
+                          icon: Icons.person_outline_rounded,
+                        ),
                       ],
-                      selected: {_isPersonal},
-                      onSelectionChanged: (s) =>
-                          setState(() => _isPersonal = s.first),
+                      onChanged: (value) => setState(() {
+                        _isPersonal = value;
+                        if (value) _selectedEmployee = null;
+                      }),
                     ),
                     const SizedBox(height: 14),
                     if (!_isPersonal)
@@ -186,23 +195,25 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
                           ),
                         )
                       else
-                        DropdownButtonFormField<AppUser>(
-                          initialValue: _selectedEmployee,
-                          decoration: const InputDecoration(
-                            labelText: 'إسناد إلى موظف',
-                          ),
-                          items: employees
+                        NeoSelectionField<AppUser>(
+                          label: 'إسناد إلى موظف',
+                          value: _selectedEmployee,
+                          searchable: true,
+                          requiredSelection: true,
+                          options: employees
                               .map(
-                                (u) => DropdownMenuItem(
-                                  value: u,
-                                  child: Text(
-                                    '${u.name} (${u.employeeNumber})',
-                                  ),
+                                (user) => NeoSelectionOption(
+                                  value: user,
+                                  label: user.name,
+                                  subtitle:
+                                      'الرقم الوظيفي ${user.employeeNumber}',
+                                  icon: Icons.badge_outlined,
+                                  searchTerms: [user.employeeNumber],
                                 ),
                               )
                               .toList(),
-                          onChanged: (v) =>
-                              setState(() => _selectedEmployee = v),
+                          onChanged: (value) =>
+                              setState(() => _selectedEmployee = value),
                         ),
                     const SizedBox(height: 14),
                     TextFormField(
@@ -210,29 +221,27 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
                       decoration: const InputDecoration(labelText: 'التصنيف'),
                     ),
                     const SizedBox(height: 18),
-                    const Text(
-                      'الأولوية',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    SegmentedButton<TaskPriority>(
-                      segments: const [
-                        ButtonSegment(
+                    NeoSelectionField<TaskPriority>(
+                      label: 'الأولوية',
+                      value: _priority,
+                      options: const [
+                        NeoSelectionOption(
                           value: TaskPriority.low,
-                          label: Text('منخفضة'),
+                          label: 'منخفضة',
+                          color: AppColors.statusApproved,
                         ),
-                        ButtonSegment(
+                        NeoSelectionOption(
                           value: TaskPriority.medium,
-                          label: Text('متوسطة'),
+                          label: 'متوسطة',
+                          color: AppColors.gold,
                         ),
-                        ButtonSegment(
+                        NeoSelectionOption(
                           value: TaskPriority.high,
-                          label: Text('عالية'),
+                          label: 'عالية',
+                          color: AppColors.statusRejected,
                         ),
                       ],
-                      selected: {_priority},
-                      onSelectionChanged: (s) =>
-                          setState(() => _priority = s.first),
+                      onChanged: (value) => setState(() => _priority = value),
                     ),
                     const SizedBox(height: 14),
                     ListTile(

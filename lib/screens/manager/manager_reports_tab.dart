@@ -7,6 +7,7 @@ import '../../services/firestore_service.dart';
 import '../../services/pdf_report_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/date_nav_arrow_button.dart';
+import '../../widgets/neo_selection_field.dart';
 
 enum _ReportRange { day, week, month, employee }
 
@@ -171,47 +172,53 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _ReportRangeButton(
+          NeoSelectionField<_ReportRange>(
+            label: 'نوع التقرير',
+            value: _range,
+            options: const [
+              NeoSelectionOption(
+                value: _ReportRange.day,
+                label: 'تقرير يومي',
                 icon: Icons.today_outlined,
-                label: 'يومي',
-                selected: _range == _ReportRange.day,
-                onTap: () => setState(() => _range = _ReportRange.day),
               ),
-              _ReportRangeButton(
+              NeoSelectionOption(
+                value: _ReportRange.week,
+                label: 'تقرير أسبوعي',
                 icon: Icons.date_range_outlined,
-                label: 'أسبوعي',
-                selected: _range == _ReportRange.week,
-                onTap: () => setState(() => _range = _ReportRange.week),
               ),
-              _ReportRangeButton(
+              NeoSelectionOption(
+                value: _ReportRange.month,
+                label: 'تقرير شهري',
                 icon: Icons.calendar_month_outlined,
-                label: 'شهري',
-                selected: _range == _ReportRange.month,
-                onTap: () => setState(() => _range = _ReportRange.month),
               ),
-              _ReportRangeButton(
-                icon: Icons.person_search_outlined,
+              NeoSelectionOption(
+                value: _ReportRange.employee,
                 label: 'موظف محدد',
-                selected: _range == _ReportRange.employee,
-                onTap: () => setState(() => _range = _ReportRange.employee),
+                icon: Icons.person_search_outlined,
               ),
             ],
+            onChanged: (value) => setState(() => _range = value),
           ),
           const SizedBox(height: 14),
           if (_range == _ReportRange.employee)
-            DropdownButtonFormField<String>(
-              initialValue: _selectedEmployeeUid,
-              decoration: const InputDecoration(labelText: 'اختر الموظف'),
-              items: employees
+            NeoSelectionField<String>(
+              label: 'اختر الموظف',
+              value: _selectedEmployeeUid,
+              searchable: true,
+              requiredSelection: true,
+              options: employees
                   .map(
-                    (e) => DropdownMenuItem(value: e.uid, child: Text(e.name)),
+                    (employee) => NeoSelectionOption(
+                      value: employee.uid,
+                      label: employee.name,
+                      subtitle: 'الرقم الوظيفي ${employee.employeeNumber}',
+                      icon: Icons.badge_outlined,
+                      searchTerms: [employee.employeeNumber],
+                    ),
                   )
                   .toList(),
-              onChanged: (v) => setState(() => _selectedEmployeeUid = v),
+              onChanged: (value) =>
+                  setState(() => _selectedEmployeeUid = value),
             )
           else
             Row(
@@ -263,9 +270,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _exporting
-                            ? null
-                            : () => _export(provider),
+                        onPressed: _exporting ? null : () => _export(provider),
                         icon: const Icon(Icons.picture_as_pdf_outlined),
                         label: Text(
                           _exporting ? 'جارٍ التصدير...' : 'تصدير كملف PDF',
@@ -286,62 +291,6 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ReportRangeButton extends StatelessWidget {
-  const _ReportRangeButton({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final foreground = selected ? AppColors.navy : AppColors.deepBlue;
-    return Material(
-      color: selected ? AppColors.mintAccent : Colors.white,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        hoverColor: AppColors.mintAccent.withValues(alpha: 0.18),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          height: 42,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(
-              color: selected ? AppColors.mintAccent : AppColors.divider,
-              width: selected ? 1.5 : 1,
-            ),
-            boxShadow: selected ? AppElevation.lowShadow : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 19, color: foreground),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 13.5,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

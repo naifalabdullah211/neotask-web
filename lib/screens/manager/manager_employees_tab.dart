@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 import '../../utils/invitation_link.dart';
 import '../../utils/task_stats.dart';
 import '../../widgets/user_avatar.dart';
@@ -452,15 +453,22 @@ class _ActiveEmployeeTile extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<AppUser>(
-                  initialValue: reassignTarget,
-                  decoration: const InputDecoration(isDense: true),
-                  items: otherActiveEmployees
+                NeoSelectionField<AppUser>(
+                  label: 'الموظف البديل',
+                  value: reassignTarget,
+                  searchable: true,
+                  options: otherActiveEmployees
                       .map(
-                        (u) => DropdownMenuItem(value: u, child: Text(u.name)),
+                        (user) => NeoSelectionOption(
+                          value: user,
+                          label: user.name,
+                          subtitle: 'الرقم الوظيفي ${user.employeeNumber}',
+                          icon: Icons.badge_outlined,
+                          searchTerms: [user.employeeNumber],
+                        ),
                       )
                       .toList(),
-                  onChanged: (v) => setState(() => reassignTarget = v),
+                  onChanged: (value) => setState(() => reassignTarget = value),
                 ),
               ],
             ],

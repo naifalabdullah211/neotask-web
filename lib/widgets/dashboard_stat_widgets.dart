@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../theme/app_theme.dart';
+import 'neo_selection_field.dart';
 
 /// SHARED, single-implementation versions of the manager dashboard's stat
 /// card / completion chart / time-range segmented control / empty state,
@@ -283,9 +284,8 @@ class CompletionChartCard extends StatelessWidget {
   }
 }
 
-/// Unified pill-shaped navy segmented control for يومي/أسبوعي/شهري —
-/// shared by the main dashboard and the employee stats detail page's own
-/// time filter.
+/// Unified day/week/month picker shared by the dashboard and employee stats.
+/// The legacy class name is retained so callers keep their existing API.
 class TimeRangeSegmented extends StatelessWidget {
   const TimeRangeSegmented({
     super.key,
@@ -296,86 +296,29 @@ class TimeRangeSegmented extends StatelessWidget {
   final TimeRangeMode mode;
   final ValueChanged<TimeRangeMode> onChanged;
 
-  static const _options = [
-    (TimeRangeMode.day, 'يومي'),
-    (TimeRangeMode.week, 'أسبوعي'),
-    (TimeRangeMode.month, 'شهري'),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: AppColors.navy,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Row(
-        children: [
-          for (final (value, label) in _options)
-            Expanded(
-              child: _TimeRangeSegmentButton(
-                label: label,
-                selected: mode == value,
-                onTap: () => onChanged(value),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TimeRangeSegmentButton extends StatelessWidget {
-  const _TimeRangeSegmentButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: AppMotion.medium,
-      curve: AppMotion.standard,
-      decoration: BoxDecoration(
-        color: selected ? Colors.white : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.18),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: InkWell(
-          onTap: selected ? null : onTap,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            child: Center(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? AppColors.navy : Colors.white70,
-                ),
-              ),
-            ),
-          ),
+    return NeoSelectionField<TimeRangeMode>(
+      label: 'الفترة الزمنية',
+      value: mode,
+      options: const [
+        NeoSelectionOption(
+          value: TimeRangeMode.day,
+          label: 'يومي',
+          icon: Icons.today_outlined,
         ),
-      ),
+        NeoSelectionOption(
+          value: TimeRangeMode.week,
+          label: 'أسبوعي',
+          icon: Icons.view_week_outlined,
+        ),
+        NeoSelectionOption(
+          value: TimeRangeMode.month,
+          label: 'شهري',
+          icon: Icons.calendar_month_outlined,
+        ),
+      ],
+      onChanged: onChanged,
     );
   }
 }

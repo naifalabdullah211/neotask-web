@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
 import '../../widgets/mini_week_stats_summary.dart';
+import '../../widgets/neo_selection_field.dart';
 import '../../widgets/date_nav_arrow_button.dart';
 import '../../widgets/favorite_star_button.dart';
 import '../../widgets/task_kanban_board.dart';
@@ -225,20 +226,27 @@ class _EmployeeTasksTabState extends State<EmployeeTasksTab> {
           if (_viewMode == _EmpViewMode.list) ...[
             Padding(
               padding: const EdgeInsets.all(16),
-              child: SegmentedButton<_EmpRangeMode>(
-                segments: const [
-                  ButtonSegment(value: _EmpRangeMode.day, label: Text('يومي')),
-                  ButtonSegment(
-                    value: _EmpRangeMode.week,
-                    label: Text('أسبوعي'),
+              child: NeoSelectionField<_EmpRangeMode>(
+                label: 'الفترة الزمنية',
+                value: _mode,
+                options: const [
+                  NeoSelectionOption(
+                    value: _EmpRangeMode.day,
+                    label: 'يومي',
+                    icon: Icons.today_outlined,
                   ),
-                  ButtonSegment(
+                  NeoSelectionOption(
+                    value: _EmpRangeMode.week,
+                    label: 'أسبوعي',
+                    icon: Icons.view_week_outlined,
+                  ),
+                  NeoSelectionOption(
                     value: _EmpRangeMode.month,
-                    label: Text('شهري'),
+                    label: 'شهري',
+                    icon: Icons.calendar_month_outlined,
                   ),
                 ],
-                selected: {_mode},
-                onSelectionChanged: (s) => setState(() => _mode = s.first),
+                onChanged: (value) => setState(() => _mode = value),
               ),
             ),
             Padding(

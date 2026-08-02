@@ -10,6 +10,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 import '../../utils/project_planning.dart';
 import '../../widgets/neo_app_bar_tabs.dart';
 import '../designer/designer_task_view_screen.dart';
@@ -969,13 +970,15 @@ class _PlanningEditorState extends State<_PlanningEditor> {
                 ),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String?>(
-                initialValue: _parentTaskId,
-                decoration: const InputDecoration(labelText: 'المهمة الرئيسية'),
-                items: [
-                  const DropdownMenuItem<String?>(
+              NeoSelectionField<String?>(
+                label: 'المهمة الرئيسية',
+                value: _parentTaskId,
+                searchable: candidates.length > 7,
+                options: [
+                  const NeoSelectionOption<String?>(
                     value: null,
-                    child: Text('بدون مهمة رئيسية'),
+                    label: 'بدون مهمة رئيسية',
+                    icon: Icons.remove_circle_outline_rounded,
                   ),
                   ...candidates
                       .where(
@@ -986,12 +989,10 @@ class _PlanningEditorState extends State<_PlanningEditor> {
                         ),
                       )
                       .map(
-                        (item) => DropdownMenuItem<String?>(
+                        (item) => NeoSelectionOption<String?>(
                           value: item.taskId,
-                          child: Text(
-                            item.title,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          label: item.title,
+                          icon: Icons.account_tree_outlined,
                         ),
                       ),
                 ],

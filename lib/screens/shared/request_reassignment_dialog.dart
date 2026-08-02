@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 
 /// Employee-facing dialog: propose handing [task] over to another active
 /// employee, subject to the manager's approval (per the manager's design
@@ -57,13 +58,22 @@ Future<void> showRequestReassignmentDialog(
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<AppUser>(
-              initialValue: selected,
-              decoration: const InputDecoration(isDense: true),
-              items: candidates
-                  .map((u) => DropdownMenuItem(value: u, child: Text(u.name)))
+            NeoSelectionField<AppUser>(
+              label: 'الموظف الجديد',
+              value: selected,
+              searchable: true,
+              options: candidates
+                  .map(
+                    (user) => NeoSelectionOption(
+                      value: user,
+                      label: user.name,
+                      subtitle: 'الرقم الوظيفي ${user.employeeNumber}',
+                      icon: Icons.badge_outlined,
+                      searchTerms: [user.employeeNumber],
+                    ),
+                  )
                   .toList(),
-              onChanged: (v) => setState(() => selected = v),
+              onChanged: (value) => setState(() => selected = value),
             ),
           ],
         ),

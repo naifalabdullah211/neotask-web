@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
 import 'designer_task_view_screen.dart';
@@ -87,28 +88,6 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
     'ديسمبر',
   ];
 
-  String _modeLabel(_RangeMode m) {
-    switch (m) {
-      case _RangeMode.day:
-        return 'يومي';
-      case _RangeMode.week:
-        return 'أسبوعي';
-      case _RangeMode.month:
-        return 'شهري';
-    }
-  }
-
-  IconData get _modeIcon {
-    switch (_mode) {
-      case _RangeMode.day:
-        return Icons.today_outlined;
-      case _RangeMode.week:
-        return Icons.view_week_outlined;
-      case _RangeMode.month:
-        return Icons.calendar_month_outlined;
-    }
-  }
-
   /// Arabic period noun used to build tooltip labels ('اليوم التالي',
   /// 'الأسبوع السابق', ...) matching the currently-selected range mode.
   String get _periodLabel {
@@ -151,57 +130,35 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<_RangeMode>(
+                SizedBox(
+                  width: 150,
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      inputDecorationTheme: Theme.of(context)
+                          .inputDecorationTheme
+                          .copyWith(filled: true, fillColor: Colors.white),
+                    ),
+                    child: NeoSelectionField<_RangeMode>(
+                      label: 'الفترة',
                       value: _mode,
-                      dropdownColor: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down,
-                        color: Colors.white,
-                      ),
-                      selectedItemBuilder: (context) => _RangeMode.values
-                          .map(
-                            (m) => Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(_modeIcon, size: 16, color: Colors.white),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _modeLabel(m),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                          .toList(),
-                      items: _RangeMode.values
-                          .map(
-                            (m) => DropdownMenuItem(
-                              value: m,
-                              child: Text(
-                                _modeLabel(m),
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) setState(() => _mode = v);
-                      },
+                      options: const [
+                        NeoSelectionOption(
+                          value: _RangeMode.day,
+                          label: 'يومي',
+                          icon: Icons.today_outlined,
+                        ),
+                        NeoSelectionOption(
+                          value: _RangeMode.week,
+                          label: 'أسبوعي',
+                          icon: Icons.view_week_outlined,
+                        ),
+                        NeoSelectionOption(
+                          value: _RangeMode.month,
+                          label: 'شهري',
+                          icon: Icons.calendar_month_outlined,
+                        ),
+                      ],
+                      onChanged: (value) => setState(() => _mode = value),
                     ),
                   ),
                 ),

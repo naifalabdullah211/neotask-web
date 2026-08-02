@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
 import '../../widgets/date_nav_arrow_button.dart';
+import '../../widgets/neo_selection_field.dart';
 import 'manager_create_task_screen.dart';
 import 'task_review_detail_screen.dart';
 import '../designer/designer_task_view_screen.dart';
@@ -339,20 +340,27 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: SegmentedButton<_MgrRangeMode>(
-                segments: const [
-                  ButtonSegment(value: _MgrRangeMode.day, label: Text('يومي')),
-                  ButtonSegment(
-                    value: _MgrRangeMode.week,
-                    label: Text('أسبوعي'),
+              child: NeoSelectionField<_MgrRangeMode>(
+                label: 'عرض التقويم',
+                value: _mode,
+                options: const [
+                  NeoSelectionOption(
+                    value: _MgrRangeMode.day,
+                    label: 'يومي',
+                    icon: Icons.today_outlined,
                   ),
-                  ButtonSegment(
+                  NeoSelectionOption(
+                    value: _MgrRangeMode.week,
+                    label: 'أسبوعي',
+                    icon: Icons.view_week_outlined,
+                  ),
+                  NeoSelectionOption(
                     value: _MgrRangeMode.month,
-                    label: Text('شهري'),
+                    label: 'شهري',
+                    icon: Icons.calendar_month_outlined,
                   ),
                 ],
-                selected: {_mode},
-                onSelectionChanged: (s) => setState(() => _mode = s.first),
+                onChanged: (value) => setState(() => _mode = value),
               ),
             ),
             Padding(

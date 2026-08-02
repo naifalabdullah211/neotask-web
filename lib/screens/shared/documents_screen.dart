@@ -6,6 +6,7 @@ import '../../models/document_model.dart';
 import '../../providers/document_provider.dart';
 import '../../services/cloudinary_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 import 'knowledge_document_detail_screen.dart';
 
 /// NeoTask knowledge centre: pages, SOPs, policies, files, approvals and
@@ -64,7 +65,14 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                 color: AppColors.gold,
                 borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
-              child: Text('${provider.documents.length} وثيقة', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              child: Text(
+                '${provider.documents.length} وثيقة',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
             ),
           ),
         ],
@@ -87,7 +95,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               height: 46,
               child: ListView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 children: [
                   ChoiceChip(
                     label: const Text('كل الحالات'),
@@ -95,14 +106,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     onSelected: (_) => setState(() => _status = null),
                   ),
                   const SizedBox(width: 6),
-                  ...DocumentWorkflowStatus.values.expand((status) => [
-                    ChoiceChip(
-                      label: Text(documentStatusLabelAr(status)),
-                      selected: _status == status,
-                      onSelected: (_) => setState(() => _status = status),
-                    ),
-                    const SizedBox(width: 6),
-                  ]),
+                  ...DocumentWorkflowStatus.values.expand(
+                    (status) => [
+                      ChoiceChip(
+                        label: Text(documentStatusLabelAr(status)),
+                        selected: _status == status,
+                        onSelected: (_) => setState(() => _status = status),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -110,11 +123,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               height: 42,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 3,
+                ),
                 itemCount: provider.categories.length + 1,
                 separatorBuilder: (_, __) => const SizedBox(width: 6),
                 itemBuilder: (context, index) {
-                  final category = index == 0 ? 'الكل' : provider.categories[index - 1];
+                  final category = index == 0
+                      ? 'الكل'
+                      : provider.categories[index - 1];
                   return FilterChip(
                     label: Text(category),
                     selected: category == _category,
@@ -138,27 +156,33 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                           return ListView.separated(
                             padding: const EdgeInsets.all(16),
                             itemCount: documents.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
                             itemBuilder: (context, index) => _DocumentCard(
                               document: documents[index],
                               onOpen: () => _open(documents[index]),
-                              onDelete: _canDelete(documents[index]) ? () => _delete(documents[index]) : null,
+                              onDelete: _canDelete(documents[index])
+                                  ? () => _delete(documents[index])
+                                  : null,
                             ),
                           );
                         }
                         return GridView.builder(
                           padding: const EdgeInsets.all(16),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: columns,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 2.2,
-                          ),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: columns,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 2.2,
+                              ),
                           itemCount: documents.length,
                           itemBuilder: (context, index) => _DocumentCard(
                             document: documents[index],
                             onOpen: () => _open(documents[index]),
-                            onDelete: _canDelete(documents[index]) ? () => _delete(documents[index]) : null,
+                            onDelete: _canDelete(documents[index])
+                                ? () => _delete(documents[index])
+                                : null,
                           ),
                         );
                       },
@@ -179,7 +203,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   bool _canDelete(DocumentItem document) =>
       !widget.readOnly &&
-      (widget.isManager || document.ownerUid == widget.currentUserUid || document.uploadedBy == widget.currentUserUid);
+      (widget.isManager ||
+          document.ownerUid == widget.currentUserUid ||
+          document.uploadedBy == widget.currentUserUid);
 
   void _open(DocumentItem document) {
     Navigator.of(context).push(
@@ -200,21 +226,34 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Wrap(children: [
-          const ListTile(title: Text('إضافة إلى مركز المعرفة', style: AppTextStyles.screenTitle)),
-          ListTile(
-            leading: const CircleAvatar(backgroundColor: Color(0xFFEAF0F5), child: Icon(Icons.article_outlined, color: AppColors.deepBlue)),
-            title: const Text('إنشاء صفحة معرفة'),
-            subtitle: const Text('سياسة أو إجراء أو دليل مكتوب داخل NeoTask'),
-            onTap: () => Navigator.pop(context, 'page'),
-          ),
-          ListTile(
-            leading: const CircleAvatar(backgroundColor: Color(0xFFFFF4D9), child: Icon(Icons.upload_file_outlined, color: AppColors.gold)),
-            title: const Text('رفع ملف'),
-            subtitle: const Text('PDF أو Word أو Excel أو صورة'),
-            onTap: () => Navigator.pop(context, 'file'),
-          ),
-        ]),
+        child: Wrap(
+          children: [
+            const ListTile(
+              title: Text(
+                'إضافة إلى مركز المعرفة',
+                style: AppTextStyles.screenTitle,
+              ),
+            ),
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFEAF0F5),
+                child: Icon(Icons.article_outlined, color: AppColors.deepBlue),
+              ),
+              title: const Text('إنشاء صفحة معرفة'),
+              subtitle: const Text('سياسة أو إجراء أو دليل مكتوب داخل NeoTask'),
+              onTap: () => Navigator.pop(context, 'page'),
+            ),
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFFFF4D9),
+                child: Icon(Icons.upload_file_outlined, color: AppColors.gold),
+              ),
+              title: const Text('رفع ملف'),
+              subtitle: const Text('PDF أو Word أو Excel أو صورة'),
+              onTap: () => Navigator.pop(context, 'file'),
+            ),
+          ],
+        ),
       ),
     );
     if (choice == 'page') await _createPage();
@@ -222,7 +261,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   Future<void> _createPage() async {
-    final data = await _showKnowledgeEditor(defaultKind: DocumentKind.knowledgePage);
+    final data = await _showKnowledgeEditor(
+      defaultKind: DocumentKind.knowledgePage,
+    );
     if (data == null || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -263,7 +304,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     if (data == null || !mounted) return;
     setState(() => _busy = true);
     try {
-      final url = await CloudinaryService.uploadBytes(bytes: bytes, filename: file.name);
+      final url = await CloudinaryService.uploadBytes(
+        bytes: bytes,
+        filename: file.name,
+      );
       if (!mounted) return;
       final document = await context.read<DocumentProvider>().addDocument(
         title: data.title,
@@ -296,7 +340,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     final title = TextEditingController(text: defaultTitle);
     final description = TextEditingController();
     final content = TextEditingController();
-    final category = TextEditingController(text: _category == 'الكل' ? 'عام' : _category);
+    final category = TextEditingController(
+      text: _category == 'الكل' ? 'عام' : _category,
+    );
     final department = TextEditingController(text: 'عام');
     final tags = TextEditingController();
     var kind = defaultKind;
@@ -308,44 +354,108 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           content: SizedBox(
             width: 560,
             child: SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                DropdownButtonFormField<DocumentKind>(
-                  initialValue: kind,
-                  decoration: const InputDecoration(labelText: 'النوع'),
-                  items: DocumentKind.values.map((item) => DropdownMenuItem(value: item, child: Text(documentKindLabelAr(item)))).toList(),
-                  onChanged: (value) => setState(() => kind = value ?? kind),
-                ),
-                const SizedBox(height: 10),
-                TextField(controller: title, decoration: const InputDecoration(labelText: 'العنوان *')),
-                const SizedBox(height: 10),
-                TextField(controller: description, maxLines: 2, decoration: const InputDecoration(labelText: 'ملخص قصير')),
-                const SizedBox(height: 10),
-                TextField(controller: content, minLines: contentOptional ? 2 : 5, maxLines: 10, decoration: InputDecoration(labelText: contentOptional ? 'ملاحظات أو محتوى إضافي' : 'المحتوى *')),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(child: TextField(controller: category, decoration: const InputDecoration(labelText: 'التصنيف'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: TextField(controller: department, decoration: const InputDecoration(labelText: 'القسم'))),
-                ]),
-                const SizedBox(height: 10),
-                TextField(controller: tags, decoration: const InputDecoration(labelText: 'الوسوم مفصولة بفاصلة', hintText: 'جودة، JCI، صيدلية')),
-              ]),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NeoSelectionField<DocumentKind>(
+                    label: 'النوع',
+                    value: kind,
+                    options: DocumentKind.values
+                        .map(
+                          (item) => NeoSelectionOption(
+                            value: item,
+                            label: documentKindLabelAr(item),
+                            icon: Icons.menu_book_outlined,
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => kind = value),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: title,
+                    decoration: const InputDecoration(labelText: 'العنوان *'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: description,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'ملخص قصير'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: content,
+                    minLines: contentOptional ? 2 : 5,
+                    maxLines: 10,
+                    decoration: InputDecoration(
+                      labelText: contentOptional
+                          ? 'ملاحظات أو محتوى إضافي'
+                          : 'المحتوى *',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: category,
+                          decoration: const InputDecoration(
+                            labelText: 'التصنيف',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: department,
+                          decoration: const InputDecoration(labelText: 'القسم'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: tags,
+                    decoration: const InputDecoration(
+                      labelText: 'الوسوم مفصولة بفاصلة',
+                      hintText: 'جودة، JCI، صيدلية',
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
             FilledButton(
               onPressed: () {
-                if (title.text.trim().isEmpty || (!contentOptional && content.text.trim().isEmpty)) return;
-                Navigator.pop(context, _KnowledgeDraft(
-                  title: title.text.trim(),
-                  description: description.text.trim(),
-                  content: content.text.trim(),
-                  category: category.text.trim().isEmpty ? 'عام' : category.text.trim(),
-                  department: department.text.trim().isEmpty ? 'عام' : department.text.trim(),
-                  tags: tags.text.split(RegExp(r'[,،]')).map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toSet().toList(),
-                  kind: kind,
-                ));
+                if (title.text.trim().isEmpty ||
+                    (!contentOptional && content.text.trim().isEmpty))
+                  return;
+                Navigator.pop(
+                  context,
+                  _KnowledgeDraft(
+                    title: title.text.trim(),
+                    description: description.text.trim(),
+                    content: content.text.trim(),
+                    category: category.text.trim().isEmpty
+                        ? 'عام'
+                        : category.text.trim(),
+                    department: department.text.trim().isEmpty
+                        ? 'عام'
+                        : department.text.trim(),
+                    tags: tags.text
+                        .split(RegExp(r'[,،]'))
+                        .map((tag) => tag.trim())
+                        .where((tag) => tag.isNotEmpty)
+                        .toSet()
+                        .toList(),
+                    kind: kind,
+                  ),
+                );
               },
               child: const Text('حفظ'),
             ),
@@ -360,10 +470,21 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('حذف نهائي'),
-        content: Text('سيُحذف «${document.title}» مع سجل إصداراته وتعليقاته. هل أنت متأكد؟'),
+        content: Text(
+          'سيُحذف «${document.title}» مع سجل إصداراته وتعليقاته. هل أنت متأكد؟',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
-          FilledButton(style: FilledButton.styleFrom(backgroundColor: AppColors.statusRejected), onPressed: () => Navigator.pop(context, true), child: const Text('حذف')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.statusRejected,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('حذف'),
+          ),
         ],
       ),
     );
@@ -378,40 +499,89 @@ class _KnowledgeHero extends StatelessWidget {
   final List<DocumentItem> documents;
   @override
   Widget build(BuildContext context) {
-    final approved = documents.where((item) => item.status == DocumentWorkflowStatus.approved).length;
-    final review = documents.where((item) => item.status == DocumentWorkflowStatus.inReview).length;
-    final due = documents.where((item) => item.reviewDueDate != null && item.reviewDueDate!.isBefore(DateTime.now().add(const Duration(days: 30)))).length;
+    final approved = documents
+        .where((item) => item.status == DocumentWorkflowStatus.approved)
+        .length;
+    final review = documents
+        .where((item) => item.status == DocumentWorkflowStatus.inReview)
+        .length;
+    final due = documents
+        .where(
+          (item) =>
+              item.reviewDueDate != null &&
+              item.reviewDueDate!.isBefore(
+                DateTime.now().add(const Duration(days: 30)),
+              ),
+        )
+        .length;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(AppRadius.lg)),
-      child: Wrap(spacing: 24, runSpacing: 10, children: [
-        _HeroStat(value: '$approved', label: 'معتمدة', icon: Icons.verified_outlined),
-        _HeroStat(value: '$review', label: 'للمراجعة', icon: Icons.rate_review_outlined),
-        _HeroStat(value: '$due', label: 'مراجعة قريبة', icon: Icons.event_repeat_outlined),
-      ]),
+      decoration: BoxDecoration(
+        gradient: AppColors.primaryGradient,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Wrap(
+        spacing: 24,
+        runSpacing: 10,
+        children: [
+          _HeroStat(
+            value: '$approved',
+            label: 'معتمدة',
+            icon: Icons.verified_outlined,
+          ),
+          _HeroStat(
+            value: '$review',
+            label: 'للمراجعة',
+            icon: Icons.rate_review_outlined,
+          ),
+          _HeroStat(
+            value: '$due',
+            label: 'مراجعة قريبة',
+            icon: Icons.event_repeat_outlined,
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _HeroStat extends StatelessWidget {
-  const _HeroStat({required this.value, required this.label, required this.icon});
+  const _HeroStat({
+    required this.value,
+    required this.label,
+    required this.icon,
+  });
   final String value;
   final String label;
   final IconData icon;
   @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-    Icon(icon, color: AppColors.goldLight),
-    const SizedBox(width: 8),
-    Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
-    const SizedBox(width: 5),
-    Text(label, style: AppTextStyles.bodySm),
-  ]);
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, color: AppColors.goldLight),
+      const SizedBox(width: 8),
+      Text(
+        value,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      const SizedBox(width: 5),
+      Text(label, style: AppTextStyles.bodySm),
+    ],
+  );
 }
 
 class _DocumentCard extends StatelessWidget {
-  const _DocumentCard({required this.document, required this.onOpen, this.onDelete});
+  const _DocumentCard({
+    required this.document,
+    required this.onOpen,
+    this.onDelete,
+  });
   final DocumentItem document;
   final VoidCallback onOpen;
   final VoidCallback? onDelete;
@@ -429,32 +599,74 @@ class _DocumentCard extends StatelessWidget {
         onTap: onOpen,
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child: Row(children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(color: const Color(0xFFF1F5F8), borderRadius: BorderRadius.circular(12)),
-              child: Icon(document.kind == DocumentKind.file ? Icons.description_outlined : Icons.menu_book_outlined, color: AppColors.deepBlue),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-              Row(children: [
-                Expanded(child: Text(document.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.cardTitle)),
-                Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
-              ]),
-              const SizedBox(height: 5),
-              Text('${documentStatusLabelAr(document.status)} · ${document.department} · v${document.version}', style: AppTextStyles.bodySecondary),
-              const SizedBox(height: 4),
-              Text('آخر تحديث ${intl.DateFormat('yyyy/MM/dd').format(document.updatedAt)} · ${document.updatedByName}', maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.bodySecondary),
-            ])),
-            if (onDelete != null)
-              PopupMenuButton<String>(
-                onSelected: (_) => onDelete!(),
-                itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('حذف'))],
-              )
-            else
-              const Icon(Icons.chevron_left, color: AppColors.textSecondary),
-          ]),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  document.kind == DocumentKind.file
+                      ? Icons.description_outlined
+                      : Icons.menu_book_outlined,
+                  color: AppColors.deepBlue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            document.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.cardTitle,
+                          ),
+                        ),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${documentStatusLabelAr(document.status)} · ${document.department} · v${document.version}',
+                      style: AppTextStyles.bodySecondary,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'آخر تحديث ${intl.DateFormat('yyyy/MM/dd').format(document.updatedAt)} · ${document.updatedByName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodySecondary,
+                    ),
+                  ],
+                ),
+              ),
+              if (onDelete != null)
+                PopupMenuButton<String>(
+                  onSelected: (_) => onDelete!(),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'delete', child: Text('حذف')),
+                  ],
+                )
+              else
+                const Icon(Icons.chevron_left, color: AppColors.textSecondary),
+            ],
+          ),
         ),
       ),
     );
@@ -465,18 +677,36 @@ class _EmptyKnowledge extends StatelessWidget {
   const _EmptyKnowledge();
   @override
   Widget build(BuildContext context) => const Center(
-    child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.auto_stories_outlined, size: 54, color: AppColors.textSecondary),
-      SizedBox(height: 12),
-      Text('لا توجد نتائج في مركز المعرفة', style: AppTextStyles.screenTitle),
-      SizedBox(height: 5),
-      Text('أنشئ سياسة أو إجراء أو ارفع ملفًا', style: AppTextStyles.bodySecondary),
-    ]),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.auto_stories_outlined,
+          size: 54,
+          color: AppColors.textSecondary,
+        ),
+        SizedBox(height: 12),
+        Text('لا توجد نتائج في مركز المعرفة', style: AppTextStyles.screenTitle),
+        SizedBox(height: 5),
+        Text(
+          'أنشئ سياسة أو إجراء أو ارفع ملفًا',
+          style: AppTextStyles.bodySecondary,
+        ),
+      ],
+    ),
   );
 }
 
 class _KnowledgeDraft {
-  const _KnowledgeDraft({required this.title, required this.description, required this.content, required this.category, required this.department, required this.tags, required this.kind});
+  const _KnowledgeDraft({
+    required this.title,
+    required this.description,
+    required this.content,
+    required this.category,
+    required this.department,
+    required this.tags,
+    required this.kind,
+  });
   final String title;
   final String description;
   final String content;
