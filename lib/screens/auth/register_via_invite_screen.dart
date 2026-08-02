@@ -30,16 +30,20 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = context.read<AuthProvider>();
-      final invite = auth.validateInviteToken(widget.token);
-      setState(() {
-        _tokenValid = invite != null;
-        _checked = true;
-        if (invite?.expectedEmployeeName != null) {
-          _nameCtrl.text = invite!.expectedEmployeeName!;
-        }
-      });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _validateToken());
+  }
+
+  Future<void> _validateToken() async {
+    final invite = await context.read<AuthProvider>().validateInviteTokenFresh(
+      widget.token,
+    );
+    if (!mounted) return;
+    setState(() {
+      _tokenValid = invite != null;
+      _checked = true;
+      if (invite?.expectedEmployeeName != null) {
+        _nameCtrl.text = invite!.expectedEmployeeName!;
+      }
     });
   }
 
@@ -76,9 +80,8 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
           backgroundColor: AppColors.statusRejected,
         ),
       );
-      setState(
-        () => _tokenValid = auth.validateInviteToken(widget.token) != null,
-      );
+      final invite = await auth.validateInviteTokenFresh(widget.token);
+      if (mounted) setState(() => _tokenValid = invite != null);
     }
   }
 

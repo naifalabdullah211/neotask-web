@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/invitation_link.dart';
 import '../../utils/task_stats.dart';
 import '../../widgets/user_avatar.dart';
 import 'employee_stats_detail_screen.dart';
@@ -708,7 +709,9 @@ class _PendingEmployeeCard extends StatelessWidget {
                   radius: 20,
                   borderColor: AppColors.statusPending,
                   borderWidth: 1,
-                  backgroundColor: AppColors.statusPending.withValues(alpha: 0.1),
+                  backgroundColor: AppColors.statusPending.withValues(
+                    alpha: 0.1,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -739,15 +742,15 @@ class _PendingEmployeeCard extends StatelessWidget {
                     onPressed: readOnly
                         ? null
                         : () async {
-                      final managerUid = context
-                          .read<AuthProvider>()
-                          .currentUser!
-                          .uid;
-                      await context.read<AuthProvider>().rejectEmployee(
-                        user.uid,
-                        managerUid,
-                      );
-                    },
+                            final managerUid = context
+                                .read<AuthProvider>()
+                                .currentUser!
+                                .uid;
+                            await context.read<AuthProvider>().rejectEmployee(
+                              user.uid,
+                              managerUid,
+                            );
+                          },
                     icon: const Icon(Icons.close, size: 18),
                     label: const Text('رفض'),
                   ),
@@ -761,15 +764,15 @@ class _PendingEmployeeCard extends StatelessWidget {
                     onPressed: readOnly
                         ? null
                         : () async {
-                      final managerUid = context
-                          .read<AuthProvider>()
-                          .currentUser!
-                          .uid;
-                      await context.read<AuthProvider>().approveEmployee(
-                        user.uid,
-                        managerUid,
-                      );
-                    },
+                            final managerUid = context
+                                .read<AuthProvider>()
+                                .currentUser!
+                                .uid;
+                            await context.read<AuthProvider>().approveEmployee(
+                              user.uid,
+                              managerUid,
+                            );
+                          },
                     icon: const Icon(Icons.check, size: 18),
                     label: const Text('موافقة'),
                   ),
@@ -804,9 +807,10 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
   }
 
   String _inviteUrl(String token) {
-    final base = Uri.base;
-    final origin = '${base.scheme}://${base.authority}${base.path}';
-    return '$origin?invite=$token';
+    // Invitation links must never inherit the manager's current route
+    // (notably `/login`). Keep registration anchored at the public root so
+    // the employee always enters SplashRouter's invite flow.
+    return buildInvitationUrl(Uri.base, token);
   }
 
   Future<void> _generate() async {

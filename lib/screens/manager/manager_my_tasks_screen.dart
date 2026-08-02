@@ -7,15 +7,15 @@ import '../../providers/task_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart';
 import 'manager_create_task_screen.dart';
+import 'task_review_detail_screen.dart';
 
 /// Manager personal tasks (المهام الشخصية للمدير) — NEW screen.
 ///
-/// Deliberately NOT built on [TaskListTile]/[TaskReviewDetailScreen]: those
-/// widgets carry employee-review semantics (three-way review decision,
-/// mandatory rejection/edit-request notes, chat-with-employee) that make no
-/// sense for a task the manager assigned to themselves — there is no
-/// second party to review or chat with. This screen instead uses a plain
-/// checkbox-style tile: ticking it off calls
+/// The compact checkbox remains the quick completion control, while tapping
+/// the card opens [TaskReviewDetailScreen]. That shared detail screen hides
+/// employee-only review/chat controls for a personal task but keeps manager
+/// editing, comments, status control and transfer to an employee/team.
+/// Ticking the checkbox calls
 /// [TaskProvider.markPersonalTaskDone] (reusing the existing
 /// approve-decision code path so recurrence auto-creation keeps working
 /// for free — see that method's doc comment), un-ticking calls
@@ -34,9 +34,9 @@ class ManagerMyTasksScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final effectiveManagerUid =
         managerUid ?? context.watch<AuthProvider>().currentUser!.uid;
-    final tasks = context
-        .watch<TaskProvider>()
-        .personalTasksFor(effectiveManagerUid);
+    final tasks = context.watch<TaskProvider>().personalTasksFor(
+      effectiveManagerUid,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -177,83 +177,91 @@ class _PersonalTaskTile extends StatelessWidget {
               : AppColors.divider,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Checkbox(
-              value: isDone,
-              activeColor: AppColors.gold,
-              onChanged: readOnly ? null : (v) => _toggleDone(context, v),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    task.title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: isDone
-                          ? AppColors.textSecondary
-                          : AppColors.textPrimary,
-                      decoration: isDone
-                          ? TextDecoration.lineThrough
-                          : TextDecoration.none,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => TaskReviewDetailScreen(task: task)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Checkbox(
+                value: isDone,
+                activeColor: AppColors.gold,
+                onChanged: readOnly ? null : (v) => _toggleDone(context, v),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      task.title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: isDone
+                            ? AppColors.textSecondary
+                            : AppColors.textPrimary,
+                        decoration: isDone
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      PriorityBadge(
-                        priorityName: task.priority.name,
-                        compact: true,
-                      ),
-                      Text(
-                        intl.DateFormat('yyyy/MM/dd').format(task.dueDate),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isOverdue
-                              ? AppColors.overdue
-                              : AppColors.textSecondary,
-                          fontWeight: isOverdue
-                              ? FontWeight.w700
-                              : FontWeight.w400,
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        PriorityBadge(
+                          priorityName: task.priority.name,
+                          compact: true,
                         ),
-                      ),
-                      if (isOverdue)
-                        const Text(
-                          'متأخرة',
+                        Text(
+                          intl.DateFormat('yyyy/MM/dd').format(task.dueDate),
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.overdue,
+                            color: isOverdue
+                                ? AppColors.overdue
+                                : AppColors.textSecondary,
+                            fontWeight: isOverdue
+                                ? FontWeight.w700
+                                : FontWeight.w400,
                           ),
                         ),
-                      if (task.recurrenceType != RecurrenceType.none)
-                        Icon(
-                          Icons.repeat,
-                          size: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                    ],
-                  ),
-                ],
+                        if (isOverdue)
+                          const Text(
+                            'متأخرة',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.overdue,
+                            ),
+                          ),
+                        if (task.recurrenceType != RecurrenceType.none)
+                          Icon(
+                            Icons.repeat,
+                            size: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            if (!readOnly)
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                color: AppColors.textSecondary,
-                onPressed: () => _confirmDelete(context),
-              ),
-          ],
+              if (!readOnly)
+                IconButton(
+                  tooltip: 'حذف المهمة',
+                  icon: const Icon(Icons.delete_outline),
+                  color: AppColors.textSecondary,
+                  onPressed: () => _confirmDelete(context),
+                ),
+              const Icon(Icons.chevron_left, color: AppColors.textSecondary),
+            ],
+          ),
         ),
       ),
     );
