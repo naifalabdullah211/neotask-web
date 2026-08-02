@@ -184,8 +184,7 @@ class _FormCard extends StatelessWidget {
             label: const Text('الردود'),
           ),
           if (!readOnly) ...[
-            IconButton(
-              tooltip: 'تعديل',
+            OutlinedButton.icon(
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -193,17 +192,109 @@ class _FormCard extends StatelessWidget {
                 ),
               ),
               icon: const Icon(Icons.edit_outlined),
+              label: const Text('تعديل النموذج'),
             ),
-            Switch(
-              value: form.isActive,
-              onChanged: (value) =>
-                  WorkflowService.setFormActive(form.formId, value),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.statusRejected,
+              ),
+              onPressed: () => _deleteFormWithConfirmation(context, form),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('حذف النموذج'),
+            ),
+            Tooltip(
+              message: form.isActive ? 'إيقاف استقبال الردود' : 'تفعيل النموذج',
+              child: Switch(
+                value: form.isActive,
+                onChanged: (value) =>
+                    WorkflowService.setFormActive(form.formId, value),
+              ),
             ),
           ],
         ],
       ),
     ),
   );
+}
+
+Future<bool> _deleteFormWithConfirmation(
+  BuildContext context,
+  CustomFormDefinition form,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      icon: const Icon(
+        Icons.delete_forever_outlined,
+        color: AppColors.statusRejected,
+        size: 34,
+      ),
+      title: const Text('حذف النموذج بالكامل؟'),
+      content: Text(
+        'سيُحذف نموذج «${form.title}» وجميع الردود المرتبطة به نهائيًا. لا يمكن التراجع عن هذا الإجراء.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.statusRejected,
+          ),
+          onPressed: () => Navigator.pop(dialogContext, true),
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('نعم، احذف النموذج'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return false;
+
+  final rootNavigator = Navigator.of(context, rootNavigator: true);
+  final messenger = ScaffoldMessenger.of(context);
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const PopScope(
+      canPop: false,
+      child: AlertDialog(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            SizedBox(width: 16),
+            Expanded(child: Text('جارٍ حذف النموذج وردوده…')),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  try {
+    await WorkflowService.deleteForm(form.formId);
+    rootNavigator.pop();
+    if (context.mounted) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('تم حذف نموذج «${form.title}»')),
+      );
+    }
+    return true;
+  } catch (_) {
+    rootNavigator.pop();
+    if (context.mounted) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('تعذر حذف النموذج. حاول مرة أخرى.'),
+          backgroundColor: AppColors.statusRejected,
+        ),
+      );
+    }
+    return false;
+  }
 }
 
 class CustomFormEditorScreen extends StatefulWidget {
@@ -253,7 +344,20 @@ class _CustomFormEditorScreenState extends State<CustomFormEditorScreen> {
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    'بيانات النموذج الأساسية',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'يمكنك تعديل عنوان النموذج ووصفه، ثم إدارة الحقول أدناه.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _title,
                     decoration: const InputDecoration(
@@ -353,6 +457,25 @@ class _CustomFormEditorScreenState extends State<CustomFormEditorScreen> {
                 : const Icon(Icons.save_outlined),
             label: const Text('حفظ النموذج'),
           ),
+          if (widget.existing != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.statusRejected,
+              ),
+              onPressed: _saving
+                  ? null
+                  : () async {
+                      final deleted = await _deleteFormWithConfirmation(
+                        context,
+                        widget.existing!,
+                      );
+                      if (deleted && mounted) Navigator.pop(context);
+                    },
+              icon: const Icon(Icons.delete_forever_outlined),
+              label: const Text('حذف النموذج بالكامل'),
+            ),
+          ],
           const SizedBox(height: 40),
         ],
       ),

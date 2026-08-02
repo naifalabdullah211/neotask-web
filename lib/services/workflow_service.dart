@@ -85,6 +85,30 @@ class WorkflowService {
     });
   }
 
+  /// Permanently deletes a form and every response submitted to it.
+  ///
+  /// Firestore does not cascade parent-document deletion to subcollections,
+  /// so responses are removed in bounded batches before the form itself.
+  static Future<void> deleteForm(String formId) async {
+    final formRef = _db.collection('custom_forms').doc(formId);
+    final responsesRef = formRef.collection('responses');
+
+    while (true) {
+      final snapshot = await responsesRef.limit(400).get();
+      if (snapshot.docs.isEmpty) break;
+
+      final batch = _db.batch();
+      for (final response in snapshot.docs) {
+        batch.delete(response.reference);
+      }
+      await batch.commit();
+
+      if (snapshot.docs.length < 400) break;
+    }
+
+    await formRef.delete();
+  }
+
   static Stream<List<CustomFormResponse>> watchFormResponses(String formId) {
     return _db
         .collection('custom_forms')
