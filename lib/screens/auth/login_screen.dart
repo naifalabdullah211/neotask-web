@@ -164,16 +164,9 @@ class _WideLayout extends StatelessWidget {
         ),
         Expanded(
           flex: 44,
-          child: Container(
+          child: _IdentityPanel(
             height: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 56),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topRight,
-                end: Alignment.bottomLeft,
-                colors: [Color(0xFF0F2948), Color(0xFF214C69)],
-              ),
-            ),
             child: const Center(child: _TaglineBlock()),
           ),
         ),
@@ -197,16 +190,9 @@ class _NarrowLayout extends StatelessWidget {
       children: [
         Align(
           alignment: Alignment.topCenter,
-          child: Container(
+          child: _IdentityPanel(
             height: 220,
             width: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topRight,
-                end: Alignment.bottomLeft,
-                colors: [Color(0xFF0F2948), Color(0xFF214C69)],
-              ),
-            ),
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 54),
             child: const Center(child: _TaglineBlock(compact: true)),
           ),
@@ -247,6 +233,51 @@ class _NarrowLayout extends StatelessWidget {
   }
 }
 
+/// NeoTask identity surface used by the right desktop panel and the
+/// responsive mobile header. The radial layer keeps the mint accent confined
+/// to one corner instead of contaminating the full navy gradient.
+class _IdentityPanel extends StatelessWidget {
+  const _IdentityPanel({
+    required this.child,
+    required this.padding,
+    this.height,
+    this.width,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double? height;
+  final double? width;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      width: width,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [Color(0xFF0F2547), Color(0xFF1B3A6B)],
+          ),
+        ),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.bottomLeft,
+              radius: 1.05,
+              colors: [Color(0x2433D6A6), Color(0x0033D6A6)],
+              stops: [0, 0.72],
+            ),
+          ),
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
+    );
+  }
+}
+
 /// Right-side headline + sub-headline shown only on wide/web layouts,
 /// mirroring the reference design's tagline block (which sat opposite
 /// the card).
@@ -264,25 +295,27 @@ class _TaglineBlock extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'مساحة عمل واحدة.\nإنجاز أوضح.',
+          'مساحة عمل واحدة لإنجاز أوضح',
           textAlign: compact ? TextAlign.center : TextAlign.right,
           style: TextStyle(
+            fontFamily: 'Tajawal',
             color: Colors.white,
-            fontSize: compact ? 25 : 38,
-            fontWeight: FontWeight.w800,
-            height: 1.35,
-            letterSpacing: -0.4,
+            fontSize: compact ? 28 : 44,
+            fontWeight: FontWeight.w700,
+            height: 1.25,
+            letterSpacing: -0.25,
           ),
         ),
-        SizedBox(height: compact ? 8 : 16),
+        SizedBox(height: compact ? 12 : 22),
         Text(
-          'نظّم مهامك، تابع فريقك، وأنجز أعمالك اليومية بسهولة من أي جهاز.',
+          'نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز',
           textAlign: compact ? TextAlign.center : TextAlign.right,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.82),
-            fontSize: compact ? 12 : 15,
-            fontWeight: FontWeight.w400,
-            height: 1.6,
+            fontFamily: 'Tajawal',
+            color: Colors.white.withValues(alpha: 0.86),
+            fontSize: compact ? 14 : 18,
+            fontWeight: FontWeight.w500,
+            height: 1.65,
           ),
         ),
       ],
