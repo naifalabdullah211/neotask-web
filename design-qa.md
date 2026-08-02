@@ -78,3 +78,46 @@
 - Required follow-up: run Flutter tests/build after push, capture the authenticated automation screen at desktop and mobile breakpoints, compare it with the approved source, and correct any P0/P1/P2 mismatch before production acceptance.
 
 final result: blocked
+
+## Secondary manager workspaces QA — 2026-08-02
+
+### Design target
+
+- Calendar, Goals, Personal Tasks and Polls use the already approved Work
+  Plan/Automation visual system: 24px heavy page title, mint primary action,
+  white horizontal metrics, RTL list/canvas/details workspace, and bottom-sheet
+  details below the desktop breakpoint.
+- Existing providers, routes, permissions and write operations remain the
+  source of truth; this pass changes information architecture and presentation.
+
+### Implementation coverage
+
+- Calendar: daily/weekly/monthly modes, today/week/month/overdue metrics,
+  day agenda, calendar canvas and selected-day details.
+- Goals: portfolio filters, total/active/completed/criteria/late metrics,
+  measurable-criteria progress canvas and goal details.
+- Personal Tasks: all/today/upcoming/completed filters, private metrics,
+  focus canvas, completion/reopen actions and task details.
+- Polls: all/active/draft/ended/cancelled filters, lifecycle metrics, decision
+  options canvas, privacy/participant/deadline details and archived-poll access.
+- Responsive widget tests cover desktop and mobile Personal Tasks/Polls, and
+  the contract test imports all four top-level screens so CI compiles them.
+
+### Verification state
+
+- Balanced delimiter and `git diff --check` checks pass locally.
+- Flutter is not installed in this workspace, so the new widget tests cannot be
+  executed before the repository workflow runs.
+- A valid rendered comparison also requires an authenticated manager session;
+  the available cloud-browser session cannot reach these private routes.
+
+### Blocking finding
+
+- [P1] Same-state rendered comparison remains blocked until the approved commit
+  is built and an authenticated manager opens all four routes at desktop and
+  mobile widths.
+- Required follow-up: run Flutter tests/build in GitHub Actions, then inspect
+  Calendar, Goals, Personal Tasks and Polls on the live authenticated app and
+  fix any P0/P1/P2 mismatch before production acceptance.
+
+final result: blocked

@@ -1,156 +1,117 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/poll_model.dart';
 import '../../providers/poll_provider.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/neo_app_bar_tabs.dart';
-import '../../widgets/poll_card.dart';
+import '../../widgets/polls_workspace.dart';
 import '../shared/create_poll_screen.dart';
 import 'manager_poll_detail_screen.dart';
 import 'past_polls_screen.dart';
 
-/// Manager-side "تصويت" list — UPGRADED (Phase E) to explicitly surface
-/// all NON-ended statuses (نشط / مسودة / مُلغى) via a segmented tab bar,
-/// instead of only the previous single "open polls" list — per the
-/// requirement that all 4 statuses be visible in the manager's list
-/// view. Ended polls remain in the permanent archive
-/// ([PastPollsScreen]), reachable via the app-bar action. A FAB creates a
-/// new poll.
-class ManagerPollsTab extends StatefulWidget {
+/// Manager decision centre for the complete poll lifecycle. Existing poll
+/// creation, editing, reminders, cancellation, privacy and result routes are
+/// preserved; only the top-level organisation is rebuilt as a responsive
+/// workspace matching Work Plan and Automation.
+class ManagerPollsTab extends StatelessWidget {
   const ManagerPollsTab({super.key, this.readOnly = false});
 
   final bool readOnly;
 
   @override
-  State<ManagerPollsTab> createState() => _ManagerPollsTabState();
-}
-
-class _ManagerPollsTabState extends State<ManagerPollsTab>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController = TabController(
-    length: 3,
-    vsync: this,
-  );
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final pollProvider = context.watch<PollProvider>();
+    final polls = context.watch<PollProvider>().allPolls;
+    final compact = MediaQuery.sizeOf(context).width < 620;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('التصويتات'),
-        actions: [
-          IconButton(
-            tooltip: 'التصويتات السابقة',
-            icon: const Icon(Icons.archive_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PastPollsScreen(readOnly: widget.readOnly),
-                ),
-              );
-            },
-          ),
-        ],
-        bottom: NeoAppBarTabs(
-          controller: _tabController,
-          tabs: const [
-            NeoAppBarTab(icon: Icons.campaign_outlined, label: 'نشط'),
-            NeoAppBarTab(icon: Icons.edit_note_outlined, label: 'مسودة'),
-            NeoAppBarTab(icon: Icons.cancel_outlined, label: 'مُلغى'),
-          ],
-        ),
-      ),
-      backgroundColor: AppColors.background,
-      floatingActionButton: widget.readOnly
-          ? null
-          : FloatingActionButton(
-              backgroundColor: AppColors.mintAccent,
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CreatePollScreen()),
-                );
-              },
-              child: const Icon(Icons.add),
-            ),
-      body: SafeArea(
-        child: TabBarView(
-          controller: _tabController,
-          children: [
-            _PollList(
-              polls: pollProvider.activePolls,
-              readOnly: widget.readOnly,
-              emptyMessage: widget.readOnly
-                  ? 'لا توجد تصويتات نشطة حاليًا.'
-                  : 'لا توجد تصويتات نشطة حاليًا. اضغط + لإنشاء تصويت جديد.',
-            ),
-            _PollList(
-              polls: pollProvider.draftPolls,
-              readOnly: widget.readOnly,
-              emptyMessage: 'لا توجد مسودات محفوظة.',
-            ),
-            _PollList(
-              polls: pollProvider.cancelledPolls,
-              readOnly: widget.readOnly,
-              emptyMessage: 'لا توجد تصويتات مُلغاة.',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PollList extends StatelessWidget {
-  const _PollList({
-    required this.polls,
-    required this.emptyMessage,
-    required this.readOnly,
-  });
-
-  final List<AppPoll> polls;
-  final String emptyMessage;
-  final bool readOnly;
-
-  @override
-  Widget build(BuildContext context) {
-    if (polls.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            emptyMessage,
-            style: const TextStyle(color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
+    void openPoll(AppPoll poll) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ManagerPollDetailScreen(
+            pollId: poll.pollId,
+            readOnly: readOnly,
           ),
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: polls.length,
-      itemBuilder: (context, index) {
-        final AppPoll poll = polls[index];
-        return PollCard(
-          poll: poll,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ManagerPollDetailScreen(
-                  pollId: poll.pollId,
-                  readOnly: readOnly,
-                ),
-              ),
-            );
-          },
-        );
-      },
+
+    void openArchive() {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PastPollsScreen(readOnly: readOnly),
+        ),
+      );
+    }
+
+    void createPoll() {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const CreatePollScreen()),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        centerTitle: false,
+        title: const Text(
+          'التصويت',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          if (compact)
+            IconButton(
+              tooltip: 'التصويتات السابقة',
+              onPressed: openArchive,
+              icon: const Icon(Icons.archive_outlined),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: openArchive,
+              icon: const Icon(Icons.archive_outlined, size: 18),
+              label: const Text('الأرشيف'),
+            ),
+          if (!readOnly)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 8, end: 12),
+              child: compact
+                  ? IconButton.filled(
+                      tooltip: 'تصويت جديد',
+                      onPressed: createPoll,
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
+                      ),
+                      icon: const Icon(Icons.add_rounded),
+                    )
+                  : FilledButton.icon(
+                      onPressed: createPoll,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 20),
+                      label: const Text(
+                        'تصويت جديد',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+            )
+          else
+            const SizedBox(width: 12),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            PollsMetricsBar(polls: polls),
+            Expanded(
+              child: PollsWorkspace(polls: polls, onOpenPoll: openPoll),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

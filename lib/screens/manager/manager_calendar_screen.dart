@@ -9,6 +9,7 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/task_urgency_indicator.dart';
 import '../../widgets/date_nav_arrow_button.dart';
 import '../../widgets/neo_selection_field.dart';
+import '../../widgets/neo_workspace_chrome.dart';
 import 'manager_create_task_screen.dart';
 import 'task_review_detail_screen.dart';
 import '../designer/designer_task_view_screen.dart';
@@ -187,6 +188,13 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
     );
   }
 
+  void _selectDay(DateTime day) {
+    setState(() => _anchor = DateTime(day.year, day.month, day.day));
+    if (MediaQuery.sizeOf(context).width < 1180) {
+      _openDayDetail(day);
+    }
+  }
+
   // ---------------------------------------------------------------------
   // Day mode — UNCHANGED behaviour (per explicit requirement): flat list
   // of today's tasks, identical to the original single-ListView screen.
@@ -305,7 +313,7 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
                   taskCount: dayTasks.length,
                   badgeColor: _worstUrgencyColor(dayTasks),
                   isToday: isToday,
-                  onTap: () => _openDayDetail(day),
+                  onTap: () => _selectDay(day),
                 );
               },
             ),
@@ -318,71 +326,115 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
+    final now = DateTime.now();
+    final todayTasks = provider.tasksForDay(now);
+    final weekTasks = _weekDaysStartingSaturday(now)
+        .expand(provider.tasksForDay)
+        .toList();
+    final monthTasks = provider.tasksForMonth(now);
+    final overdue = provider.teamTasks.where((task) => task.isOverdue).length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('التقويم')),
-      floatingActionButton: widget.readOnly
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        ManagerCreateTaskScreen(initialDueDate: _anchor),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.add_task),
-              label: const Text('مهمة جديدة'),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        centerTitle: false,
+        title: const Text(
+          'التقويم',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          if (!widget.readOnly)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 12),
+              child: MediaQuery.sizeOf(context).width < 620
+                  ? IconButton.filled(
+                      tooltip: 'مهمة جديدة',
+                      onPressed: _createTask,
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
+                      ),
+                      icon: const Icon(Icons.add_rounded),
+                    )
+                  : FilledButton.icon(
+                      onPressed: _createTask,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 20),
+                      label: const Text(
+                        'مهمة جديدة',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
             ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: NeoSelectionField<_MgrRangeMode>(
-                label: 'عرض التقويم',
-                value: _mode,
-                options: const [
-                  NeoSelectionOption(
-                    value: _MgrRangeMode.day,
-                    label: 'يومي',
-                    icon: Icons.today_outlined,
-                  ),
-                  NeoSelectionOption(
-                    value: _MgrRangeMode.week,
-                    label: 'أسبوعي',
-                    icon: Icons.view_week_outlined,
-                  ),
-                  NeoSelectionOption(
-                    value: _MgrRangeMode.month,
-                    label: 'شهري',
-                    icon: Icons.calendar_month_outlined,
-                  ),
-                ],
-                onChanged: (value) => setState(() => _mode = value),
-              ),
+            NeoWorkspaceMetricsBar(
+              items: [
+                NeoWorkspaceMetric(
+                  label: 'مهام اليوم',
+                  value: '${todayTasks.length}',
+                  icon: Icons.today_outlined,
+                  color: const Color(0xFF1F6FD2),
+                ),
+                NeoWorkspaceMetric(
+                  label: 'هذا الأسبوع',
+                  value: '${weekTasks.length}',
+                  icon: Icons.date_range_outlined,
+                  color: AppColors.mintAccent,
+                ),
+                NeoWorkspaceMetric(
+                  label: 'هذا الشهر',
+                  value: '${monthTasks.length}',
+                  icon: Icons.calendar_view_month_outlined,
+                  color: AppColors.gold,
+                ),
+                NeoWorkspaceMetric(
+                  label: 'متأخرة',
+                  value: '$overdue',
+                  icon: Icons.schedule_rounded,
+                  color: AppColors.overdue,
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // RTL: right arrow = next period, left arrow = previous.
-                  DateNavArrowButton.next(
-                    onTap: () => _shift(1),
-                    periodLabel: _periodLabel,
-                  ),
-                  Text(
-                    _rangeLabel,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  DateNavArrowButton.previous(
-                    onTap: () => _shift(-1),
-                    periodLabel: _periodLabel,
-                  ),
-                ],
-              ),
+            Expanded(
+              child: _buildWorkspace(provider),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _createTask() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ManagerCreateTaskScreen(initialDueDate: _anchor),
+      ),
+    );
+  }
+
+  Widget _buildWorkspace(TaskProvider provider) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final central = Column(
+          children: [
+            _CalendarToolbar(
+              mode: _mode,
+              rangeLabel: _rangeLabel,
+              periodLabel: _periodLabel,
+              onModeChanged: (value) => setState(() => _mode = value),
+              onPrevious: () => _shift(-1),
+              onNext: () => _shift(1),
+              onToday: () => setState(() => _anchor = DateTime.now()),
             ),
             Expanded(
               child: switch (_mode) {
@@ -392,8 +444,289 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
               },
             ),
           ],
-        ),
+        );
+
+        if (constraints.maxWidth < 760) return central;
+
+        final showDetails = constraints.maxWidth >= 1180;
+        return DecoratedBox(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: AppColors.divider)),
+          ),
+          child: Row(
+            textDirection: TextDirection.rtl,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              NeoWorkspacePanel(
+                width: showDetails ? 300 : 270,
+                borderEnd: true,
+                child: _CalendarAgendaPanel(
+                  anchor: _anchor,
+                  provider: provider,
+                  onSelectDay: _selectDay,
+                ),
+              ),
+              Expanded(child: central),
+              if (showDetails)
+                NeoWorkspacePanel(
+                  width: 320,
+                  borderStart: true,
+                  child: _CalendarDayDetails(
+                    day: _anchor,
+                    tasks: provider.tasksForDay(_anchor),
+                    readOnly: widget.readOnly,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CalendarToolbar extends StatelessWidget {
+  const _CalendarToolbar({
+    required this.mode,
+    required this.rangeLabel,
+    required this.periodLabel,
+    required this.onModeChanged,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onToday,
+  });
+
+  final _MgrRangeMode mode;
+  final String rangeLabel;
+  final String periodLabel;
+  final ValueChanged<_MgrRangeMode> onModeChanged;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onToday;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(14),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.spaceBetween,
+        children: [
+          SizedBox(
+            width: 190,
+            child: NeoSelectionField<_MgrRangeMode>(
+              label: 'نطاق العرض',
+              value: mode,
+              options: const [
+                NeoSelectionOption(
+                  value: _MgrRangeMode.day,
+                  label: 'يومي',
+                  icon: Icons.today_outlined,
+                ),
+                NeoSelectionOption(
+                  value: _MgrRangeMode.week,
+                  label: 'أسبوعي',
+                  icon: Icons.view_week_outlined,
+                ),
+                NeoSelectionOption(
+                  value: _MgrRangeMode.month,
+                  label: 'شهري',
+                  icon: Icons.calendar_month_outlined,
+                ),
+              ],
+              onChanged: onModeChanged,
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DateNavArrowButton.next(
+                onTap: onNext,
+                periodLabel: periodLabel,
+              ),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 130),
+                child: Text(
+                  rangeLabel,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.deepBlue,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              DateNavArrowButton.previous(
+                onTap: onPrevious,
+                periodLabel: periodLabel,
+              ),
+            ],
+          ),
+          OutlinedButton.icon(
+            onPressed: onToday,
+            icon: const Icon(Icons.my_location_outlined, size: 18),
+            label: const Text('اليوم'),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _CalendarAgendaPanel extends StatelessWidget {
+  const _CalendarAgendaPanel({
+    required this.anchor,
+    required this.provider,
+    required this.onSelectDay,
+  });
+
+  final DateTime anchor;
+  final TaskProvider provider;
+  final ValueChanged<DateTime> onSelectDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = anchor.subtract(const Duration(days: 3));
+    final days = List.generate(10, (index) => start.add(Duration(days: index)));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const NeoWorkspaceSectionHeader(
+          title: 'أجندة الأيام',
+          subtitle: 'اختر يومًا لعرض مهامه',
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(12),
+            itemCount: days.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 7),
+            itemBuilder: (context, index) {
+              final day = days[index];
+              final tasks = provider.tasksForDay(day);
+              final selected = _isSameDate(day, anchor);
+              return Material(
+                color: selected
+                    ? AppColors.deepBlue.withValues(alpha: .07)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                child: InkWell(
+                  onTap: () => onSelectDay(day),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 9,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? AppColors.deepBlue
+                                : AppColors.background,
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                          ),
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              color: selected
+                                  ? Colors.white
+                                  : AppColors.deepBlue,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _weekdayFullNamesSat[(day.weekday - 6) % 7],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                tasks.isEmpty
+                                    ? 'لا توجد مهام'
+                                    : '${tasks.length} مهام',
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (tasks.isNotEmpty)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: _worstUrgencyColor(tasks),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CalendarDayDetails extends StatelessWidget {
+  const _CalendarDayDetails({
+    required this.day,
+    required this.tasks,
+    required this.readOnly,
+  });
+
+  final DateTime day;
+  final List<AppTask> tasks;
+  final bool readOnly;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NeoWorkspaceSectionHeader(
+          title: 'تفاصيل اليوم',
+          subtitle: intl.DateFormat('yyyy/MM/dd').format(day),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: tasks.isEmpty
+              ? const NeoWorkspaceEmptyState(
+                  icon: Icons.event_available_outlined,
+                  title: 'اليوم متاح',
+                  message: 'لا توجد مهام مستحقة في هذا اليوم.',
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: tasks.length,
+                  itemBuilder: (context, index) =>
+                      _taskCard(context, tasks[index], readOnly: readOnly),
+                ),
+        ),
+      ],
     );
   }
 }
