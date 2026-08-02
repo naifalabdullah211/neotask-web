@@ -20,6 +20,7 @@ import 'documents_screen.dart';
 import 'favorites_screen.dart';
 import 'goals_list_screen.dart';
 import 'meetings_screen.dart';
+import 'neotask_assistant_screen.dart';
 import 'settings_screen.dart';
 import 'splash_router.dart';
 
@@ -69,16 +70,6 @@ class _AppDrawerState extends State<AppDrawer> {
       _lastOpenedKey.value = key;
       Navigator.of(context).pop();
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
-    }
-
-    void showComingSoon(String feature) {
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$feature — قريبًا'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
     }
 
     Future<void> logout() async {
@@ -316,7 +307,10 @@ class _AppDrawerState extends State<AppDrawer> {
                     'settings',
                     const SettingsScreen(),
                   ),
-                  onHelp: () => showComingSoon('المساعدة'),
+                  onHelp: () => push(
+                    'help',
+                    const NeoTaskAssistantScreen(),
+                  ),
                   onLogout: logout,
                 ),
               ],
