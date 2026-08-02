@@ -267,6 +267,13 @@ class AuthProvider extends ChangeNotifier {
     required String managerUid,
     String? expectedName,
   }) async {
+    final creator = _currentUser;
+    if (creator == null ||
+        creator.uid != managerUid ||
+        !creator.hasManagerAccess) {
+      throw StateError('لا يملك هذا الحساب صلاحية إنشاء روابط الدعوة');
+    }
+
     final invite = Invitation(
       inviteId: _uuid.v4(),
       token: _uuid.v4(),
@@ -276,7 +283,20 @@ class AuthProvider extends ChangeNotifier {
       expectedEmployeeName: expectedName,
     );
     await FirestoreService.saveInvitation(invite);
-    return invite;
+
+    // Do not hand a link to the manager until Firestore confirms that the
+    // exact invitation is readable, still pending, and attributed to the
+    // account that created it. This covers both the official manager account
+    // and the owner's full-access operational account (400161).
+    final stored = await FirestoreService.getInvitationByTokenFresh(
+      invite.token,
+    );
+    if (stored == null ||
+        stored.status != InvitationStatus.pending ||
+        stored.createdBy != managerUid) {
+      throw StateError('تعذّر التحقق من صلاحية رابط الدعوة');
+    }
+    return stored;
   }
 
   Invitation? validateInviteToken(String token) {

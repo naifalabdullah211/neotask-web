@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/invitation_model.dart';
@@ -799,6 +800,7 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
   final _nameCtrl = TextEditingController();
   Invitation? _lastInvite;
   bool _generating = false;
+  String? _generationError;
 
   @override
   void dispose() {
@@ -814,19 +816,40 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
   }
 
   Future<void> _generate() async {
-    setState(() => _generating = true);
-    final managerUid = context.read<AuthProvider>().currentUser!.uid;
-    final invite = await context.read<AuthProvider>().generateInvitation(
-      managerUid: managerUid,
-      expectedName: _nameCtrl.text.trim().isEmpty
-          ? null
-          : _nameCtrl.text.trim(),
-    );
-    if (!mounted) return;
     setState(() {
-      _lastInvite = invite;
-      _generating = false;
+      _generating = true;
+      _generationError = null;
+      _lastInvite = null;
     });
+    final managerUid = context.read<AuthProvider>().currentUser!.uid;
+    try {
+      final invite = await context.read<AuthProvider>().generateInvitation(
+        managerUid: managerUid,
+        expectedName: _nameCtrl.text.trim().isEmpty
+            ? null
+            : _nameCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() => _lastInvite = invite);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _generationError =
+            'لم يتم إنشاء رابط صالح. تحقق من الاتصال ثم أعد المحاولة.';
+      });
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  Future<void> _copyVerifiedInvite() async {
+    final invite = _lastInvite;
+    if (invite == null) return;
+    await Clipboard.setData(ClipboardData(text: _inviteUrl(invite.token)));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('تم نسخ رابط الدعوة الفعّال')));
   }
 
   @override
@@ -892,6 +915,17 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
                 ],
               ),
             ],
+            if (_generationError != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _generationError!,
+                style: const TextStyle(
+                  color: AppColors.statusRejected,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
             if (_lastInvite != null) ...[
               const SizedBox(height: 14),
               Container(
@@ -917,6 +951,15 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
                       style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _copyVerifiedInvite,
+                        icon: const Icon(Icons.copy_rounded, size: 18),
+                        label: const Text('نسخ الرابط الفعّال وإرساله'),
                       ),
                     ),
                   ],
