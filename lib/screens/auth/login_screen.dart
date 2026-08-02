@@ -234,8 +234,9 @@ class _NarrowLayout extends StatelessWidget {
 }
 
 /// NeoTask identity surface used by the right desktop panel and the
-/// responsive mobile header. The radial layer keeps the mint accent confined
-/// to one corner instead of contaminating the full navy gradient.
+/// responsive mobile header. The supplied building photo stays visible under
+/// a navy readability wash, while the radial layer keeps the mint accent
+/// confined to one corner.
 class _IdentityPanel extends StatelessWidget {
   const _IdentityPanel({
     required this.child,
@@ -254,25 +255,40 @@ class _IdentityPanel extends StatelessWidget {
     return SizedBox(
       height: height,
       width: width,
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: [Color(0xFF0F2547), Color(0xFF1B3A6B)],
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'assets/images/login_bg.jpg',
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
           ),
-        ),
-        child: DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.bottomLeft,
-              radius: 1.05,
-              colors: [Color(0x2433D6A6), Color(0x0033D6A6)],
-              stops: [0, 0.72],
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: [
+                  Color(0xD90F2547),
+                  Color(0xC91B3A6B),
+                  Color(0xB80F2547),
+                ],
+                stops: [0, 0.58, 1],
+              ),
             ),
           ),
-          child: Padding(padding: padding, child: child),
-        ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.bottomLeft,
+                radius: 1.12,
+                colors: [Color(0x5233D6A6), Color(0x0033D6A6)],
+                stops: [0, 0.76],
+              ),
+            ),
+          ),
+          Padding(padding: padding, child: child),
+        ],
       ),
     );
   }
