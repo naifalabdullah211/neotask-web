@@ -1,7 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -384,7 +385,7 @@ class _TemplateCard extends StatelessWidget {
             const SizedBox(height: 7),
             SelectableText(
               columns,
-              textDirection: TextDirection.rtl,
+              textDirection: Directionality.of(context),
               style: const TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 6),

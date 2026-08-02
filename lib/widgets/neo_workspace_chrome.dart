@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
 
 import '../theme/app_theme.dart';
 
@@ -33,7 +34,7 @@ class NeoWorkspaceMetricsBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
-          textDirection: TextDirection.rtl,
+          textDirection: Directionality.of(context),
           children: [
             for (var index = 0; index < items.length; index++) ...[
               _MetricView(data: items[index]),

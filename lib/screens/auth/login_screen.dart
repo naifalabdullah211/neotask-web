@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/language_toggle.dart';
 import '../shared/splash_router.dart';
 
 /// One responsive NeoTask sign-in experience for desktop, tablet and phone.
@@ -74,6 +76,11 @@ class _LoginScreenState extends State<LoginScreen>
         fit: StackFit.expand,
         children: [
           const _LoginBackground(),
+          const PositionedDirectional(
+            top: 14,
+            end: 14,
+            child: SafeArea(child: LanguageToggle(compact: true)),
+          ),
           FadeTransition(
             opacity: _fade,
             child: SlideTransition(
@@ -307,12 +314,12 @@ class _TaglineBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: compact
           ? CrossAxisAlignment.center
-          : CrossAxisAlignment.end,
+          : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'مساحة عمل واحدة لإنجاز أوضح',
-          textAlign: compact ? TextAlign.center : TextAlign.right,
+          textAlign: compact ? TextAlign.center : TextAlign.start,
           style: TextStyle(
             fontFamily: 'Tajawal',
             color: Colors.white,
@@ -325,7 +332,7 @@ class _TaglineBlock extends StatelessWidget {
         SizedBox(height: compact ? 12 : 22),
         Text(
           'نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز',
-          textAlign: compact ? TextAlign.center : TextAlign.right,
+          textAlign: compact ? TextAlign.center : TextAlign.start,
           style: TextStyle(
             fontFamily: 'Tajawal',
             color: Colors.white.withValues(alpha: 0.86),
@@ -553,7 +560,12 @@ class _AuthField extends StatelessWidget {
               ),
             ),
           ),
-          validator: validator,
+          validator: validator == null
+              ? null
+              : (value) {
+                  final message = validator!(value);
+                  return message == null ? null : context.tr(message);
+                },
         ),
       ],
     );

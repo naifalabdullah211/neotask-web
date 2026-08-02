@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/task_model.dart';
@@ -92,7 +94,7 @@ class ManagerMyTasksScreen extends StatelessWidget {
               padding: const EdgeInsetsDirectional.only(end: 12),
               child: MediaQuery.sizeOf(context).width < 620
                   ? IconButton.filled(
-                      tooltip: 'مهمة شخصية جديدة',
+                      tooltip: context.tr('مهمة شخصية جديدة'),
                       onPressed: () => _createTask(context),
                       style: IconButton.styleFrom(
                         backgroundColor: AppColors.mintAccent,

@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/task_model.dart';
@@ -266,21 +268,21 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
             children: [
               TextFormField(
                 controller: _titleCtrl,
-                decoration: const InputDecoration(labelText: 'عنوان المهمة'),
+                decoration: InputDecoration(labelText: context.tr('عنوان المهمة')),
                 validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'أدخل عنوان المهمة'
+                    ? context.tr('أدخل عنوان المهمة')
                     : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _descCtrl,
                 maxLines: 3,
-                decoration: const InputDecoration(labelText: 'وصف المهمة'),
+                decoration: InputDecoration(labelText: context.tr('وصف المهمة')),
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _categoryCtrl,
-                decoration: const InputDecoration(labelText: 'التصنيف'),
+                decoration: InputDecoration(labelText: context.tr('التصنيف')),
               ),
               const SizedBox(height: 14),
               Container(
@@ -338,14 +340,14 @@ class _ManagerCreateTaskScreenState extends State<ManagerCreateTaskScreen> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'الساعات المخططة',
+                      decoration: InputDecoration(
+                        labelText: context.tr('الساعات المخططة'),
                         suffixText: 'ساعة',
                       ),
                       validator: (value) {
                         final hours = double.tryParse(value ?? '');
                         return hours == null || hours <= 0
-                            ? 'أدخل عدد ساعات صحيحًا'
+                            ? context.tr('أدخل عدد ساعات صحيحًا')
                             : null;
                       },
                     ),

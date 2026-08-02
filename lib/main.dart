@@ -18,6 +18,7 @@ import 'providers/poll_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/digest_provider.dart';
 import 'providers/interface_style_provider.dart';
+import 'providers/locale_provider.dart';
 import 'screens/shared/splash_router.dart';
 import 'utils/app_ready.dart';
 import 'widgets/incoming_call_gate.dart';
@@ -121,26 +122,50 @@ class NeoTaskApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => DigestProvider()),
         ChangeNotifierProvider(create: (_) => InterfaceStyleProvider()..load()),
+        ChangeNotifierProxyProvider<AuthProvider, LocaleProvider>(
+          create: (_) => LocaleProvider()..load(),
+          update: (_, auth, locale) {
+            final value = locale ?? LocaleProvider();
+            value.bindUser(auth.currentUser?.uid);
+            return value;
+          },
+        ),
       ],
-      child: Consumer<InterfaceStyleProvider>(
-        builder: (context, interfaceStyle, _) {
+      child: Consumer2<InterfaceStyleProvider, LocaleProvider>(
+        builder: (context, interfaceStyle, appLocale, _) {
+          final baseTheme = interfaceStyle.theme;
+          final fontFamily = appLocale.isArabic ? 'Tajawal' : 'Roboto';
+          final localizedTheme = baseTheme.copyWith(
+            textTheme: baseTheme.textTheme.apply(fontFamily: fontFamily),
+            primaryTextTheme: baseTheme.primaryTextTheme.apply(
+              fontFamily: fontFamily,
+            ),
+            appBarTheme: baseTheme.appBarTheme.copyWith(
+              titleTextStyle: baseTheme.appBarTheme.titleTextStyle?.copyWith(
+                fontFamily: fontFamily,
+              ),
+              toolbarTextStyle: baseTheme.appBarTheme.toolbarTextStyle?.copyWith(
+                fontFamily: fontFamily,
+              ),
+            ),
+          );
           return MaterialApp(
             title: 'NeoTask',
             debugShowCheckedModeBanner: false,
-            theme: interfaceStyle.theme,
-            locale: const Locale('ar'),
+            theme: localizedTheme,
+            locale: appLocale.locale,
             supportedLocales: const [Locale('ar'), Locale('en')],
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
             ],
-            builder: (context, child) {
-              return Directionality(
-                textDirection: TextDirection.rtl,
-                child: child ?? const SizedBox.shrink(),
-              );
-            },
+            builder: (context, child) => Directionality(
+              textDirection: appLocale.isArabic
+                  ? TextDirection.rtl
+                  : TextDirection.ltr,
+              child: child ?? const SizedBox.shrink(),
+            ),
             home: const IncomingCallGate(child: SplashRouter()),
           );
         },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import '../providers/favorite_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -35,7 +36,9 @@ class FavoriteStarButton extends StatelessWidget {
       taskId,
     );
     return IconButton(
-      tooltip: isFavorite ? 'إزالة من المفضلة' : 'إضافة للمفضلة',
+      tooltip: context.tr(
+        isFavorite ? 'إزالة من المفضلة' : 'إضافة للمفضلة',
+      ),
       icon: Icon(
         isFavorite ? Icons.star : Icons.star_border,
         color: isFavorite ? AppColors.favoriteGold : AppColors.textSecondary,

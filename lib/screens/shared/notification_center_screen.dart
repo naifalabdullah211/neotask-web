@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/notification_model.dart';
@@ -47,7 +49,7 @@ class NotificationCenterScreen extends StatelessWidget {
         title: const Text('الإشعارات'),
         actions: [
           IconButton(
-            tooltip: 'تعليم الكل كمقروء',
+            tooltip: context.tr('تعليم الكل كمقروء'),
             icon: const Icon(Icons.done_all),
             onPressed: () => context
                 .read<NotificationProvider>()

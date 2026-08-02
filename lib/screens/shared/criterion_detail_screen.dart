@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import '../../models/criterion_model.dart';
 import '../../models/user_model.dart';
@@ -15,7 +17,7 @@ import 'edit_criterion_dialog.dart';
 /// dedicated live chat thread on the RIGHT, Smartsheet-row-comment style.
 ///
 /// CRITICAL IMPLEMENTATION NOTE — RTL override: `main.dart` wraps the
-/// whole app in `Directionality(textDirection: TextDirection.rtl, ...)`.
+/// whole app in `Directionality(textDirection: Directionality.of(context), ...)`.
 /// Under RTL, a plain `Row(children: [A, B])` renders A on the PHYSICAL
 /// RIGHT and B on the PHYSICAL LEFT. To guarantee criterion-physically-
 /// left / chat-physically-right regardless of the app-wide RTL wrapper,
@@ -75,12 +77,12 @@ class CriterionDetailScreen extends StatelessWidget {
         actions: isManager
             ? [
                 IconButton(
-                  tooltip: 'تعديل المعيار',
+                  tooltip: context.tr('تعديل المعيار'),
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: () => showEditCriterionDialog(context, criterion),
                 ),
                 IconButton(
-                  tooltip: 'حذف المعيار',
+                  tooltip: context.tr('حذف المعيار'),
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
                   onPressed: () => confirmAndDeleteCriterion(
                     context,
@@ -141,10 +143,10 @@ class CriterionDetailScreen extends StatelessWidget {
               length: 2,
               child: Column(
                 children: [
-                  const TabBar(
+                  TabBar(
                     tabs: [
-                      Tab(text: 'المعيار'),
-                      Tab(text: 'المحادثة'),
+                      Tab(text: context.tr('المعيار')),
+                      Tab(text: context.tr('المحادثة')),
                     ],
                   ),
                   Expanded(

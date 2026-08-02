@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import '../../models/criterion_model.dart';
 import '../../providers/criterion_provider.dart';
@@ -33,19 +35,19 @@ Future<void> showEditCriterionDialog(
                   TextFormField(
                     controller: titleCtrl,
                     autofocus: true,
-                    decoration: const InputDecoration(
-                      labelText: 'عنوان المعيار',
+                    decoration: InputDecoration(
+                      labelText: context.tr('عنوان المعيار'),
                     ),
                     validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'أدخل عنوان المعيار'
+                        ? context.tr('أدخل عنوان المعيار')
                         : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: descCtrl,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'وصف المعيار (اختياري)',
+                    decoration: InputDecoration(
+                      labelText: context.tr('وصف المعيار (اختياري)'),
                     ),
                   ),
                 ],

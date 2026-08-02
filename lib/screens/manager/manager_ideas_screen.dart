@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../../models/manager_idea_model.dart';
@@ -270,7 +272,7 @@ class _IdeaComposer extends StatelessWidget {
             maxLines: 6,
             maxLength: 1000,
             decoration: InputDecoration(
-              hintText: 'مثال: إضافة تقرير مختصر للمهام المتأخرة...',
+              hintText: context.tr('مثال: إضافة تقرير مختصر للمهام المتأخرة...'),
               filled: true,
               fillColor: const Color(0xFFF7F9FC),
               border: OutlineInputBorder(
@@ -399,7 +401,7 @@ class _IdeaCard extends StatelessWidget {
           ),
           if (canDelete)
             IconButton(
-              tooltip: 'حذف الفكرة',
+              tooltip: context.tr('حذف الفكرة'),
               onPressed: onDelete,
               color: AppColors.statusRejected,
               icon: const Icon(Icons.delete_outline),

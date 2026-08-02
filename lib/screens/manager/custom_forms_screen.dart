@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -360,8 +362,8 @@ class _CustomFormEditorScreenState extends State<CustomFormEditorScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _title,
-                    decoration: const InputDecoration(
-                      labelText: 'عنوان النموذج',
+                    decoration: InputDecoration(
+                      labelText: context.tr('عنوان النموذج'),
                     ),
                     validator: _required,
                   ),
@@ -369,8 +371,8 @@ class _CustomFormEditorScreenState extends State<CustomFormEditorScreen> {
                   TextFormField(
                     controller: _description,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'وصف وتعليمات النموذج',
+                    decoration: InputDecoration(
+                      labelText: context.tr('وصف وتعليمات النموذج'),
                     ),
                   ),
                 ],
@@ -570,9 +572,9 @@ class _FieldEditorState extends State<_FieldEditor> {
           children: [
             TextFormField(
               controller: _label,
-              decoration: const InputDecoration(labelText: 'اسم الحقل'),
+              decoration: InputDecoration(labelText: context.tr('اسم الحقل')),
               validator: (value) => value == null || value.trim().isEmpty
-                  ? 'اكتب اسم الحقل'
+                  ? context.tr('اكتب اسم الحقل')
                   : null,
             ),
             const SizedBox(height: 12),
@@ -594,8 +596,8 @@ class _FieldEditorState extends State<_FieldEditor> {
               TextFormField(
                 controller: _options,
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'الخيارات — خيار في كل سطر',
+                decoration: InputDecoration(
+                  labelText: context.tr('الخيارات — خيار في كل سطر'),
                 ),
                 validator: (value) =>
                     (value ?? '')
@@ -603,7 +605,7 @@ class _FieldEditorState extends State<_FieldEditor> {
                             .where((e) => e.trim().isNotEmpty)
                             .length <
                         2
-                    ? 'أدخل خيارين على الأقل'
+                    ? context.tr('أدخل خيارين على الأقل')
                     : null,
               ),
             ],

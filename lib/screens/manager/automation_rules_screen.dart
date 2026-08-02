@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -34,7 +36,7 @@ class AutomationRulesScreen extends StatelessWidget {
                 padding: const EdgeInsetsDirectional.only(end: 12),
                 child: MediaQuery.sizeOf(context).width < 620
                     ? IconButton.filled(
-                        tooltip: 'قاعدة جديدة',
+                        tooltip: context.tr('قاعدة جديدة'),
                         onPressed: () => _openEditor(context),
                         style: IconButton.styleFrom(
                           backgroundColor: AppColors.mintAccent,
@@ -67,19 +69,19 @@ class AutomationRulesScreen extends StatelessWidget {
                 alignment: AlignmentDirectional.center,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 620),
-                  child: const TabBar(
+                  child: TabBar(
                     indicatorColor: AppColors.mintAccent,
                     indicatorSize: TabBarIndicatorSize.tab,
                     indicatorWeight: 3,
                     labelColor: AppColors.deepBlue,
                     unselectedLabelColor: AppColors.textSecondary,
-                    labelStyle: TextStyle(
+                    labelStyle: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                     ),
                     tabs: [
-                      Tab(text: 'مساحة القواعد'),
-                      Tab(text: 'سجل التنفيذ'),
+                      Tab(text: context.tr('مساحة القواعد')),
+                      Tab(text: context.tr('سجل التنفيذ')),
                     ],
                   ),
                 ),
@@ -300,7 +302,7 @@ class _AutomationEditorState extends State<_AutomationEditor> {
                 const SizedBox(height: 18),
                 TextFormField(
                   controller: _name,
-                  decoration: const InputDecoration(labelText: 'اسم القاعدة'),
+                  decoration: InputDecoration(labelText: context.tr('اسم القاعدة')),
                   validator: _required,
                 ),
                 const SizedBox(height: 12),
@@ -391,7 +393,7 @@ class _AutomationEditorState extends State<_AutomationEditor> {
                           .toList(),
                       onChanged: (value) => _condition.text = value,
                       validator: (value) =>
-                          value == null ? 'اختر الموظف' : null,
+                          value == null ? context.tr('اختر الموظف') : null,
                     )
                   else if (_field == AutomationConditionField.status)
                     NeoSelectionField<String>(
@@ -441,7 +443,7 @@ class _AutomationEditorState extends State<_AutomationEditor> {
                       ],
                       onChanged: (value) => _condition.text = value,
                       validator: (value) =>
-                          value == null ? 'اختر الحالة' : null,
+                          value == null ? context.tr('اختر الحالة') : null,
                     )
                   else if (_field == AutomationConditionField.priority)
                     NeoSelectionField<String>(
@@ -473,7 +475,7 @@ class _AutomationEditorState extends State<_AutomationEditor> {
                       ],
                       onChanged: (value) => _condition.text = value,
                       validator: (value) =>
-                          value == null ? 'اختر الأولوية' : null,
+                          value == null ? context.tr('اختر الأولوية') : null,
                     )
                   else
                     TextFormField(
@@ -482,7 +484,7 @@ class _AutomationEditorState extends State<_AutomationEditor> {
                           ? TextInputType.number
                           : TextInputType.text,
                       decoration: InputDecoration(
-                        labelText: _conditionHint(_field),
+                        labelText: context.tr(_conditionHint(_field)),
                       ),
                       validator: (value) {
                         final missing = _required(value);
@@ -535,7 +537,8 @@ class _AutomationEditorState extends State<_AutomationEditor> {
                         )
                         .toList(),
                     onChanged: (value) => _actionValue.text = value,
-                    validator: (value) => value == null ? 'اختر الموظف' : null,
+                    validator: (value) =>
+                        value == null ? context.tr('اختر الموظف') : null,
                   )
                 else if (_action == AutomationAction.setPriority)
                   NeoSelectionField<String>(
@@ -571,7 +574,7 @@ class _AutomationEditorState extends State<_AutomationEditor> {
                   TextFormField(
                     controller: _actionValue,
                     maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'نص التنبيه'),
+                    decoration: InputDecoration(labelText: context.tr('نص التنبيه')),
                     validator: _required,
                   ),
               ],
@@ -590,7 +593,9 @@ class _AutomationEditorState extends State<_AutomationEditor> {
   }
 
   String? _required(String? value) =>
-      value == null || value.trim().isEmpty ? 'هذا الحقل مطلوب' : null;
+      value == null || value.trim().isEmpty
+      ? context.tr('هذا الحقل مطلوب')
+      : null;
 
   void _save() {
     if (!_formKey.currentState!.validate()) return;
@@ -640,7 +645,7 @@ class _EditorFlowPreview extends StatelessWidget {
       border: Border.all(color: AppColors.divider),
     ),
     child: Row(
-      textDirection: TextDirection.rtl,
+      textDirection: Directionality.of(context),
       children: [
         Expanded(
           child: _EditorFlowStep(

@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
@@ -96,16 +98,16 @@ class _CreateCriterionScreenState extends State<CreateCriterionScreen> {
             children: [
               TextFormField(
                 controller: _titleCtrl,
-                decoration: const InputDecoration(labelText: 'عنوان المعيار'),
+                decoration: InputDecoration(labelText: context.tr('عنوان المعيار')),
                 validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'أدخل عنوان المعيار'
+                    ? context.tr('أدخل عنوان المعيار')
                     : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _descCtrl,
                 maxLines: 3,
-                decoration: const InputDecoration(labelText: 'وصف المعيار'),
+                decoration: InputDecoration(labelText: context.tr('وصف المعيار')),
               ),
               const SizedBox(height: 20),
               const Text(

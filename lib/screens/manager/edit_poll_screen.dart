@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/poll_model.dart';
@@ -315,15 +317,17 @@ class _EditPollScreenState extends State<EditPollScreen> {
             children: [
               TextFormField(
                 controller: _titleCtrl,
-                decoration: const InputDecoration(labelText: 'العنوان'),
+                decoration: InputDecoration(labelText: context.tr('العنوان')),
                 validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'أدخل العنوان' : null,
+                    (v == null || v.trim().isEmpty)
+                    ? context.tr('أدخل العنوان')
+                    : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _descCtrl,
                 maxLines: 4,
-                decoration: const InputDecoration(labelText: 'الوصف'),
+                decoration: InputDecoration(labelText: context.tr('الوصف')),
               ),
               const SizedBox(height: 20),
 
@@ -352,7 +356,7 @@ class _EditPollScreenState extends State<EditPollScreen> {
                         child: TextFormField(
                           controller: _choiceCtrls[index],
                           decoration: InputDecoration(
-                            labelText: 'اختيار ${index + 1}',
+                            labelText: context.tr('اختيار ${index + 1}'),
                             isDense: true,
                           ),
                         ),
@@ -463,7 +467,7 @@ class _EditPollScreenState extends State<EditPollScreen> {
               TextField(
                 controller: _employeeSearchCtrl,
                 decoration: InputDecoration(
-                  hintText: 'بحث عن موظف...',
+                  hintText: context.tr('بحث عن موظف...'),
                   prefixIcon: const Icon(Icons.search),
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(

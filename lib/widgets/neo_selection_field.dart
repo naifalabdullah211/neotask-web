@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 
 import '../theme/app_theme.dart';
 
@@ -100,7 +102,9 @@ class NeoSelectionField<T> extends StatelessWidget {
               isEmpty: selected == null,
               decoration: InputDecoration(
                 labelText: label,
-                errorText: field.errorText,
+                errorText: field.errorText == null
+                    ? null
+                    : context.tr(field.errorText!),
                 helperText: helperText,
                 enabled: enabled,
                 prefixIcon: leadingIcon == null
@@ -263,7 +267,7 @@ class _NeoSelectionSheetState<T> extends State<_NeoSelectionSheet<T>> {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'إغلاق',
+                      tooltip: context.tr('إغلاق'),
                       onPressed: () => Navigator.pop(context),
                       icon: const Icon(Icons.close_rounded),
                     ),
@@ -277,8 +281,8 @@ class _NeoSelectionSheetState<T> extends State<_NeoSelectionSheet<T>> {
                     controller: _searchController,
                     autofocus: false,
                     onChanged: (value) => setState(() => _query = value),
-                    decoration: const InputDecoration(
-                      hintText: 'بحث',
+                    decoration: InputDecoration(
+                      hintText: context.tr('بحث'),
                       prefixIcon: Icon(Icons.search_rounded),
                     ),
                   ),

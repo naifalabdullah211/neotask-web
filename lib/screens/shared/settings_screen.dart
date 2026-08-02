@@ -1,8 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/locale_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../theme/app_theme.dart';
@@ -121,6 +124,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser!;
+    final appLocale = context.watch<LocaleProvider>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
@@ -186,6 +190,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ],
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xxl),
+            _SectionHeader(icon: Icons.language_rounded, title: 'لغة الواجهة'),
+            const SizedBox(height: AppSpacing.sm),
+            _SettingsCard(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'ar', label: Text('العربية')),
+                      ButtonSegment(value: 'en', label: Text('English')),
+                    ],
+                    selected: {appLocale.languageCode},
+                    showSelectedIcon: true,
+                    onSelectionChanged: (selection) {
+                      appLocale.setLanguage(selection.first);
+                    },
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  appLocale.isArabic
+                      ? 'واجهة عربية واتجاه من اليمين إلى اليسار'
+                      : 'English interface with left-to-right layout',
+                  style: AppTextStyles.bodySecondary,
                 ),
               ],
             ),
@@ -442,7 +474,7 @@ class _ChangeOwnPasswordFormState extends State<_ChangeOwnPasswordForm> {
             textDirection: TextDirection.ltr,
             textAlign: TextAlign.left,
             decoration: InputDecoration(
-              labelText: 'كلمة المرور الحالية',
+              labelText: context.tr('كلمة المرور الحالية'),
               prefixIcon: const Icon(Icons.lock_outline),
               suffixIcon: IconButton(
                 icon: Icon(
@@ -452,8 +484,9 @@ class _ChangeOwnPasswordFormState extends State<_ChangeOwnPasswordForm> {
                     setState(() => _obscureCurrent = !_obscureCurrent),
               ),
             ),
-            validator: (v) =>
-                (v == null || v.isEmpty) ? 'أدخل كلمة المرور الحالية' : null,
+            validator: (v) => (v == null || v.isEmpty)
+                ? context.tr('أدخل كلمة المرور الحالية')
+                : null,
           ),
           const SizedBox(height: AppSpacing.md),
           TextFormField(
@@ -462,7 +495,7 @@ class _ChangeOwnPasswordFormState extends State<_ChangeOwnPasswordForm> {
             textDirection: TextDirection.ltr,
             textAlign: TextAlign.left,
             decoration: InputDecoration(
-              labelText: 'كلمة المرور الجديدة',
+              labelText: context.tr('كلمة المرور الجديدة'),
               prefixIcon: const Icon(Icons.lock_reset_outlined),
               suffixIcon: IconButton(
                 icon: Icon(
@@ -472,9 +505,11 @@ class _ChangeOwnPasswordFormState extends State<_ChangeOwnPasswordForm> {
               ),
             ),
             validator: (v) {
-              if (v == null || v.isEmpty) return 'أدخل كلمة المرور الجديدة';
+              if (v == null || v.isEmpty) {
+                return context.tr('أدخل كلمة المرور الجديدة');
+              }
               if (v.length < 6) {
-                return 'يجب أن تكون 6 أحرف على الأقل';
+                return context.tr('يجب أن تكون 6 أحرف على الأقل');
               }
               return null;
             },
@@ -485,15 +520,17 @@ class _ChangeOwnPasswordFormState extends State<_ChangeOwnPasswordForm> {
             obscureText: _obscureNew,
             textDirection: TextDirection.ltr,
             textAlign: TextAlign.left,
-            decoration: const InputDecoration(
-              labelText: 'تأكيد كلمة المرور الجديدة',
+            decoration: InputDecoration(
+              labelText: context.tr('تأكيد كلمة المرور الجديدة'),
               prefixIcon: Icon(Icons.check_circle_outline),
             ),
             validator: (v) {
               if (v == null || v.isEmpty) {
-                return 'أعد كتابة كلمة المرور الجديدة';
+                return context.tr('أعد كتابة كلمة المرور الجديدة');
               }
-              if (v != _newCtrl.text) return 'كلمتا المرور غير متطابقتين';
+              if (v != _newCtrl.text) {
+                return context.tr('كلمتا المرور غير متطابقتين');
+              }
               return null;
             },
           ),

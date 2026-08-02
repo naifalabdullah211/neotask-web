@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../models/automation_rule_model.dart';
@@ -66,7 +68,7 @@ class AutomationMetricsBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
-          textDirection: TextDirection.rtl,
+          textDirection: Directionality.of(context),
           children: [
             for (var index = 0; index < items.length; index++) ...[
               _AutomationMetricView(data: items[index]),
@@ -220,7 +222,7 @@ class _AutomationRulesWorkspaceState extends State<AutomationRulesWorkspace> {
                         message: 'غيّر عامل التصفية لعرض بقية قواعد الأتمتة.',
                       )
                     : Row(
-                        textDirection: TextDirection.rtl,
+                        textDirection: Directionality.of(context),
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           SizedBox(
@@ -303,7 +305,7 @@ class _AutomationRunLogState extends State<AutomationRunLog> {
           color: const Color(0xFFF9FAFC),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
-            textDirection: TextDirection.rtl,
+            textDirection: Directionality.of(context),
             children: [
               const Expanded(
                 child: Text(
@@ -388,7 +390,7 @@ class _AutomationToolbar extends StatelessWidget {
     color: const Color(0xFFF9FAFC),
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     child: Row(
-      textDirection: TextDirection.rtl,
+      textDirection: Directionality.of(context),
       children: [
         const Text(
           'مسار الأتمتة',
@@ -1022,7 +1024,7 @@ class _AutomationDetailsPanelState extends State<_AutomationDetailsPanel> {
               ),
               if (!widget.readOnly)
                 IconButton(
-                  tooltip: 'تعديل القاعدة',
+                  tooltip: context.tr('تعديل القاعدة'),
                   onPressed: widget.onEdit,
                   icon: const Icon(Icons.tune_rounded, size: 20),
                 ),
@@ -1399,7 +1401,7 @@ class _MobileFlowSummary extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppRadius.md),
     ),
     child: Row(
-      textDirection: TextDirection.rtl,
+      textDirection: Directionality.of(context),
       children: [
         Expanded(
           child: Text(
@@ -1547,7 +1549,7 @@ class _AutomationMetricView extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
     width: 174,
     child: Row(
-      textDirection: TextDirection.rtl,
+      textDirection: Directionality.of(context),
       children: [
         Container(
           width: 42,

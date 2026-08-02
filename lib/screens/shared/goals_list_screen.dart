@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import '../../models/goal_model.dart';
 import '../../providers/auth_provider.dart';
@@ -44,7 +46,7 @@ class GoalsListScreen extends StatelessWidget {
               padding: const EdgeInsetsDirectional.only(end: 12),
               child: MediaQuery.sizeOf(context).width < 620
                   ? IconButton.filled(
-                      tooltip: 'هدف جديد',
+                      tooltip: context.tr('هدف جديد'),
                       onPressed: () => showCreateGoalDialog(context),
                       style: IconButton.styleFrom(
                         backgroundColor: AppColors.mintAccent,

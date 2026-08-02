@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../theme/app_theme.dart';
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import '../theme/app_theme.dart';
 
 /// Consistent, RTL-correct day/week/month range-navigation arrow button,
@@ -38,7 +39,7 @@ class DateNavArrowButton extends StatelessWidget {
   }) {
     return DateNavArrowButton._(
       icon: Icons.chevron_right_rounded,
-      tooltip: '$periodLabel التالي',
+      tooltip: context.tr('$periodLabel التالي'),
       onTap: onTap,
     );
   }
@@ -49,7 +50,7 @@ class DateNavArrowButton extends StatelessWidget {
   }) {
     return DateNavArrowButton._(
       icon: Icons.chevron_left_rounded,
-      tooltip: '$periodLabel السابق',
+      tooltip: context.tr('$periodLabel السابق'),
       onTap: onTap,
     );
   }

@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/message_provider.dart';
@@ -54,7 +56,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'بحث',
+            tooltip: context.tr('بحث'),
             icon: const Icon(Icons.search),
             onPressed: () {
               Navigator.of(
@@ -81,7 +83,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
             ),
           ),
           IconButton(
-            tooltip: 'تسجيل الخروج',
+            tooltip: context.tr('تسجيل الخروج'),
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await context.read<AuthProvider>().logout();

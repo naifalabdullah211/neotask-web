@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../models/task_model.dart';
@@ -153,7 +155,7 @@ class _ProjectPlanTimelineWorkspaceState
                   ),
                 ),
                 child: Row(
-                  textDirection: TextDirection.rtl,
+                  textDirection: Directionality.of(context),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
@@ -266,7 +268,7 @@ class ProjectPlanMetricsBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
-          textDirection: TextDirection.rtl,
+          textDirection: Directionality.of(context),
           children: [
             for (var index = 0; index < items.length; index++) ...[
               _HeaderMetric(data: items[index]),
@@ -310,7 +312,7 @@ class _HeaderMetric extends StatelessWidget {
     return SizedBox(
       width: 174,
       child: Row(
-        textDirection: TextDirection.rtl,
+        textDirection: Directionality.of(context),
         children: [
           Container(
             width: 42,
@@ -370,14 +372,15 @@ class _TimelineControls extends StatelessWidget {
       if (task.startDate.isBefore(start)) start = task.startDate;
       if (task.dueDate.isAfter(end)) end = task.dueDate;
     }
+    final locale = Localizations.localeOf(context).languageCode;
     final range =
-        '${intl.DateFormat('d MMM', 'ar').format(start)} — ${intl.DateFormat('d MMM yyyy', 'ar').format(end)}';
+        '${intl.DateFormat('d MMM', locale).format(start)} — ${intl.DateFormat('d MMM yyyy', locale).format(end)}';
 
     return Container(
       color: const Color(0xFFF9FAFC),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
-        textDirection: TextDirection.rtl,
+        textDirection: Directionality.of(context),
         children: [
           const Text(
             'الجدول الزمني',
@@ -508,7 +511,9 @@ class _TaskListPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
-        border: Border(left: BorderSide(color: AppColors.divider)),
+        border: BorderDirectional(
+          end: BorderSide(color: AppColors.divider),
+        ),
       ),
       child: Column(
         children: [
@@ -569,7 +574,7 @@ class _TaskListHeader extends StatelessWidget {
         border: Border(bottom: BorderSide(color: AppColors.divider)),
       ),
       child: const Row(
-        textDirection: TextDirection.rtl,
+        textDirection: Directionality.of(context),
         children: [
           Expanded(
             flex: 4,
@@ -629,7 +634,7 @@ class _TaskPlanRow extends StatelessWidget {
             ),
           ),
           child: Row(
-            textDirection: TextDirection.rtl,
+            textDirection: Directionality.of(context),
             children: [
               Expanded(
                 flex: 4,
@@ -847,9 +852,9 @@ class _TimelineChart extends StatelessWidget {
           .min(chartWidth - right, math.max(72.0, durationDays * dayWidth))
           .toDouble();
       widgets.add(
-        Positioned(
+        PositionedDirectional(
           top: top + 15,
-          right: right,
+          start: right,
           width: width,
           height: 36,
           child: _TimelineTaskBar(
@@ -895,8 +900,8 @@ class _TimelineDateHeader extends StatelessWidget {
       child: Stack(
         children: [
           for (var week = 0; week < weeks; week++)
-            Positioned(
-              right: (week * 7 * dayWidth).toDouble(),
+            PositionedDirectional(
+              start: (week * 7 * dayWidth).toDouble(),
               width:
                   math.min(7, totalDays - week * 7).toDouble() * dayWidth,
               top: 0,
@@ -905,7 +910,10 @@ class _TimelineDateHeader extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    intl.DateFormat('d MMM', 'ar').format(
+                    intl.DateFormat(
+                      'd MMM',
+                      Localizations.localeOf(context).languageCode,
+                    ).format(
                       minDate.add(Duration(days: week * 7)),
                     ),
                     style: const TextStyle(
@@ -916,7 +924,7 @@ class _TimelineDateHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Row(
-                    textDirection: TextDirection.rtl,
+                    textDirection: Directionality.of(context),
                     children: [
                       for (
                         var day = 0;
@@ -930,6 +938,7 @@ class _TimelineDateHeader extends StatelessWidget {
                               minDate.add(
                                 Duration(days: week * 7 + day),
                               ),
+                              Localizations.localeOf(context).languageCode,
                             ),
                             textAlign: TextAlign.center,
                             style: AppTextStyles.sectionLabel,
@@ -976,8 +985,8 @@ class _TimelineDateHeader extends StatelessWidget {
       child: Stack(
         children: [
           for (final segment in segments)
-            Positioned(
-              right: (segment.offsetDays * dayWidth).toDouble(),
+            PositionedDirectional(
+              start: (segment.offsetDays * dayWidth).toDouble(),
               width: (segment.days * dayWidth).toDouble(),
               top: 0,
               bottom: 0,
@@ -989,7 +998,10 @@ class _TimelineDateHeader extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  intl.DateFormat('MMMM yyyy', 'ar').format(segment.start),
+                  intl.DateFormat(
+                    'MMMM yyyy',
+                    Localizations.localeOf(context).languageCode,
+                  ).format(segment.start),
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 11.5,
@@ -1283,7 +1295,9 @@ class _TaskDetailsPanel extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(right: BorderSide(color: AppColors.divider)),
+        border: BorderDirectional(
+          start: BorderSide(color: AppColors.divider),
+        ),
       ),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
@@ -1302,7 +1316,7 @@ class _TaskDetailsPanel extends StatelessWidget {
               ),
               if (!readOnly)
                 IconButton(
-                  tooltip: 'تعديل الخطة',
+                  tooltip: context.tr('تعديل الخطة'),
                   onPressed: onEdit,
                   icon: const Icon(Icons.tune_rounded, size: 20),
                 ),
@@ -1749,8 +1763,8 @@ Color _statusColor(AppTask task) => switch (task.status) {
   TaskStatus.editRequested => AppColors.statusPending,
 };
 
-String _weekdayInitial(DateTime date) {
-  final label = intl.DateFormat('EEE', 'ar').format(date).trim();
+String _weekdayInitial(DateTime date, String locale) {
+  final label = intl.DateFormat('EEE', locale).format(date).trim();
   if (label.isEmpty) return '';
   return String.fromCharCode(label.runes.first);
 }

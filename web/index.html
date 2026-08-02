@@ -69,12 +69,28 @@
       direction: rtl;
     }
     .boot-card {
+      position: relative;
       width: min(100%, 430px);
       box-sizing: border-box;
       padding: 34px;
       border-radius: 28px;
       background: #fff;
       box-shadow: 0 24px 70px rgba(17, 37, 68, .12);
+    }
+    .boot-language {
+      position: absolute;
+      inset-block-start: 16px;
+      inset-inline-end: 16px;
+      min-height: 34px;
+      padding: 6px 11px;
+      border: 1px solid #dce3ed;
+      border-radius: 999px;
+      color: #1b3a6b;
+      background: #fff;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
     }
     .boot-card img {
       display: block;
@@ -274,6 +290,7 @@
     <div class="boot-shell">
       <main class="boot-form-side">
         <section class="boot-card">
+          <button id="boot-language" class="boot-language" type="button" aria-label="Switch to English">English</button>
           <img src="assets/assets/images/neotask_brand_full.png?v=20260801-7" alt="NeoTask">
           <h2 class="boot-title">مرحبًا بعودتك</h2>
           <p class="boot-subtitle">سجّل الدخول للوصول إلى مساحة عملك</p>
@@ -304,6 +321,77 @@
   </div>
 
   <script>
+    let bootLanguage = 'ar';
+    try {
+      bootLanguage = localStorage.getItem('flutter.neotask_locale_guest') === 'en'
+        ? 'en'
+        : 'ar';
+    } catch (_) {}
+
+    function bootText(ar, en) {
+      return bootLanguage === 'en' ? en : ar;
+    }
+
+    function applyBootLanguage() {
+      const english = bootLanguage === 'en';
+      document.documentElement.lang = english ? 'en' : 'ar';
+      document.documentElement.dir = english ? 'ltr' : 'rtl';
+      const values = {
+        '.boot-title': ['مرحبًا بعودتك', 'Welcome back'],
+        '.boot-subtitle': ['سجّل الدخول للوصول إلى مساحة عملك', 'Sign in to access your workspace'],
+        'label[for="boot-employee-number"]': ['الرقم الوظيفي', 'Employee ID'],
+        'label[for="boot-password"]': ['الرقم السري', 'Password'],
+        '.boot-secure': ['بياناتك آمنة ومشفرة بالكامل', 'Your data is secure and fully encrypted'],
+        '.boot-brand-copy h1': ['مساحة عمل واحدة لإنجاز أوضح', 'One workspace. Clearer execution.'],
+        '.boot-brand-copy p': [
+          'نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز',
+          'Organize tasks, follow your team, and complete daily work from any device',
+        ],
+        '#boot-retry': ['إعادة المحاولة', 'Try again'],
+      };
+      Object.entries(values).forEach(function ([selector, copy]) {
+        const node = document.querySelector(selector);
+        if (node) node.textContent = english ? copy[1] : copy[0];
+      });
+      const employee = document.getElementById('boot-employee-number');
+      const password = document.getElementById('boot-password');
+      const action = document.getElementById('boot-message');
+      const toggle = document.getElementById('boot-password-toggle');
+      const language = document.getElementById('boot-language');
+      if (employee) {
+        employee.placeholder = english ? 'Example: 10234' : 'مثال: 10234';
+        employee.setAttribute('aria-label', english ? 'Employee ID' : 'الرقم الوظيفي');
+      }
+      if (password) password.setAttribute('aria-label', english ? 'Password' : 'الرقم السري');
+      if (action && !document.getElementById('boot-submit').classList.contains('is-loading')) {
+        action.textContent = english ? 'Sign in' : 'تسجيل الدخول';
+      }
+      if (toggle) {
+        const reveal = password && password.type === 'text';
+        toggle.textContent = reveal
+          ? bootText('إخفاء', 'Hide')
+          : bootText('إظهار', 'Show');
+        toggle.setAttribute(
+          'aria-label',
+          reveal ? bootText('إخفاء الرقم السري', 'Hide password') : bootText('إظهار الرقم السري', 'Show password'),
+        );
+      }
+      if (language) {
+        language.textContent = english ? 'العربية' : 'English';
+        language.setAttribute('aria-label', english ? 'التبديل إلى العربية' : 'Switch to English');
+      }
+    }
+
+    document.getElementById('boot-language').addEventListener('click', function () {
+      bootLanguage = bootLanguage === 'ar' ? 'en' : 'ar';
+      try {
+        localStorage.setItem('flutter.neotask_locale_guest', bootLanguage);
+        localStorage.setItem('neotask_locale_guest', bootLanguage);
+      } catch (_) {}
+      applyBootLanguage();
+    });
+    applyBootLanguage();
+
     function removeBootStatus() {
       const status = document.getElementById('boot-status');
       if (status) status.remove();
@@ -326,13 +414,13 @@
 
     window.addEventListener('error', function (event) {
       const message = document.getElementById('boot-message');
-      if (message) message.textContent = 'تعذّر تحميل التطبيق، أعد فتح الصفحة';
+      if (message) message.textContent = bootText('تعذّر تحميل التطبيق، أعد فتح الصفحة', 'Could not load the app. Reopen the page.');
       console.error('NeoTask startup error:', event.error || event.message);
     });
 
     window.addEventListener('unhandledrejection', function (event) {
       const message = document.getElementById('boot-message');
-      if (message) message.textContent = 'تعذّر تحميل التطبيق، أعد المحاولة';
+      if (message) message.textContent = bootText('تعذّر تحميل التطبيق، أعد المحاولة', 'Could not load the app. Try again.');
       console.error('NeoTask startup rejection:', event.reason);
     });
 
@@ -411,7 +499,7 @@
       const currentUrl = new URL(window.location.href);
       if (mustReload) {
         const message = document.getElementById('boot-message');
-        if (message) message.textContent = 'جارٍ تحديث NeoTask';
+        if (message) message.textContent = bootText('جارٍ تحديث NeoTask', 'Updating NeoTask');
         currentUrl.searchParams.set('_build', NEO_TASK_BUILD_ID);
         window.location.replace(currentUrl.toString());
         return;
@@ -423,7 +511,7 @@
       script.onerror = function () {
         const message = document.getElementById('boot-message');
         const retry = document.getElementById('boot-retry');
-        if (message) message.textContent = 'تعذّر تحميل التطبيق';
+        if (message) message.textContent = bootText('تعذّر تحميل التطبيق', 'Could not load the app');
         if (retry) retry.style.display = 'block';
       };
       document.body.appendChild(script);
@@ -435,7 +523,7 @@
       const forceLogin = currentUrl.pathname.replace(/\/+$/, '') === '/login';
       if (inviteToken) {
         window.__neotaskAllowFirstFrameFallback = true;
-        setBootLoading(true, 'جارٍ فتح الدعوة');
+        setBootLoading(true, bootText('جارٍ فتح الدعوة', 'Opening invitation'));
         await startFlutter();
         return;
       }
@@ -455,8 +543,8 @@
       passwordToggle.addEventListener('click', function () {
         const reveal = passwordInput.type === 'password';
         passwordInput.type = reveal ? 'text' : 'password';
-        passwordToggle.textContent = reveal ? 'إخفاء' : 'إظهار';
-        passwordToggle.setAttribute('aria-label', reveal ? 'إخفاء الرقم السري' : 'إظهار الرقم السري');
+        passwordToggle.textContent = reveal ? bootText('إخفاء', 'Hide') : bootText('إظهار', 'Show');
+        passwordToggle.setAttribute('aria-label', reveal ? bootText('إخفاء الرقم السري', 'Hide password') : bootText('إظهار الرقم السري', 'Show password'));
       });
 
       // Attach before importing Firebase so the visible form is never a dead
@@ -469,11 +557,11 @@
         const password = passwordInput.value;
         const cleaned = employeeNumber.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!cleaned || !password) {
-          setBootError('أدخل الرقم الوظيفي والرقم السري');
+          setBootError(bootText('أدخل الرقم الوظيفي والرقم السري', 'Enter your employee ID and password'));
           return;
         }
 
-        setBootLoading(true, 'جارٍ التحقق');
+        setBootLoading(true, bootText('جارٍ التحقق', 'Verifying'));
         try {
           const { auth, authSdk } = await authReady;
           await authSdk.signInWithEmailAndPassword(
@@ -481,7 +569,7 @@
             `${cleaned}@neotask.local`,
             password,
           );
-          setBootLoading(true, 'جارٍ فتح مساحة العمل');
+          setBootLoading(true, bootText('جارٍ فتح مساحة العمل', 'Opening workspace'));
           await startFlutter();
         } catch (error) {
           const code = error && error.code ? error.code : '';
@@ -490,11 +578,11 @@
             code === 'auth/wrong-password' ||
             code === 'auth/invalid-email';
           setBootError(invalidCredential
-            ? 'الرقم الوظيفي أو الرقم السري غير صحيح'
+            ? bootText('الرقم الوظيفي أو الرقم السري غير صحيح', 'Employee ID or password is incorrect')
             : code === 'auth/too-many-requests'
-              ? 'محاولات كثيرة، انتظر قليلًا ثم أعد المحاولة'
-              : 'تعذّر الاتصال بخدمة الدخول، أعد المحاولة');
-          setBootLoading(false, 'تسجيل الدخول');
+              ? bootText('محاولات كثيرة، انتظر قليلًا ثم أعد المحاولة', 'Too many attempts. Wait briefly, then try again.')
+              : bootText('تعذّر الاتصال بخدمة الدخول، أعد المحاولة', 'Could not reach the sign-in service. Try again.'));
+          setBootLoading(false, bootText('تسجيل الدخول', 'Sign in'));
         }
       });
 
@@ -518,7 +606,7 @@
         resolveAuth({ auth, authSdk });
         authSdk.onAuthStateChanged(auth, function (user) {
           if (!user || flutterStarted) return;
-          setBootLoading(true, 'جارٍ فتح مساحة العمل');
+          setBootLoading(true, bootText('جارٍ فتح مساحة العمل', 'Opening workspace'));
           startFlutter();
         });
 
@@ -547,7 +635,7 @@
           clearTimeout(timeout);
           if (lockResponse.status === 404 && !auth.currentUser) {
             window.__neotaskAllowFirstFrameFallback = true;
-            setBootLoading(true, 'جارٍ فتح إعداد المدير');
+            setBootLoading(true, bootText('جارٍ فتح إعداد المدير', 'Opening manager setup'));
             await startFlutter();
             return;
           }
@@ -560,8 +648,8 @@
         console.error('NeoTask instant login failed:', error);
         rejectAuth(error);
         window.__neotaskAllowFirstFrameFallback = true;
-        setBootError('تعذّر تجهيز الدخول السريع، جارٍ فتح التطبيق');
-        setBootLoading(true, 'جارٍ فتح التطبيق');
+        setBootError(bootText('تعذّر تجهيز الدخول السريع، جارٍ فتح التطبيق', 'Instant sign-in is unavailable. Opening the app.'));
+        setBootLoading(true, bootText('جارٍ فتح التطبيق', 'Opening app'));
         await startFlutter();
       }
     }

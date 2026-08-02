@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
@@ -169,12 +171,12 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                         const SizedBox(height: 20),
                         TextFormField(
                           controller: _nameCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'الاسم الكامل',
+                          decoration: InputDecoration(
+                            labelText: context.tr('الاسم الكامل'),
                             prefixIcon: Icon(Icons.person_outline),
                           ),
                           validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'أدخل الاسم'
+                              ? context.tr('أدخل الاسم')
                               : null,
                         ),
                         const SizedBox(height: 14),
@@ -184,12 +186,12 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                           // Digits are LTR content too — same fix.
                           textDirection: TextDirection.ltr,
                           textAlign: TextAlign.left,
-                          decoration: const InputDecoration(
-                            labelText: 'الرقم الوظيفي',
+                          decoration: InputDecoration(
+                            labelText: context.tr('الرقم الوظيفي'),
                             prefixIcon: Icon(Icons.badge_outlined),
                           ),
                           validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'أدخل الرقم الوظيفي'
+                              ? context.tr('أدخل الرقم الوظيفي')
                               : null,
                         ),
                         const SizedBox(height: 14),
@@ -200,7 +202,7 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                           textDirection: TextDirection.ltr,
                           textAlign: TextAlign.left,
                           decoration: InputDecoration(
-                            labelText: 'الرقم السري',
+                            labelText: context.tr('الرقم السري'),
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -213,7 +215,7 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                             ),
                           ),
                           validator: (v) => (v == null || v.length < 6)
-                              ? 'الرقم السري 6 أحرف على الأقل'
+                              ? context.tr('الرقم السري 6 أحرف على الأقل')
                               : null,
                         ),
                         const SizedBox(height: 14),
@@ -222,12 +224,12 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                           obscureText: _obscure,
                           textDirection: TextDirection.ltr,
                           textAlign: TextAlign.left,
-                          decoration: const InputDecoration(
-                            labelText: 'تأكيح الرقم السري',
+                          decoration: InputDecoration(
+                            labelText: context.tr('تأكيح الرقم السري'),
                             prefixIcon: Icon(Icons.lock_outline),
                           ),
                           validator: (v) => (v != _passwordCtrl.text)
-                              ? 'الرقمان السريان لا يتطابقان'
+                              ? context.tr('الرقمان السريان لا يتطابقان')
                               : null,
                         ),
                         const SizedBox(height: 22),

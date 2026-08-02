@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/task_history_model.dart';
@@ -106,24 +108,24 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
                   children: [
                     TextFormField(
                       controller: titleCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'عنوان المهمة',
+                      decoration: InputDecoration(
+                        labelText: context.tr('عنوان المهمة'),
                       ),
                       validator: (value) =>
                           value == null || value.trim().isEmpty
-                          ? 'عنوان المهمة مطلوب'
+                          ? context.tr('عنوان المهمة مطلوب')
                           : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: descriptionCtrl,
                       maxLines: 3,
-                      decoration: const InputDecoration(labelText: 'الوصف'),
+                      decoration: InputDecoration(labelText: context.tr('الوصف')),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: categoryCtrl,
-                      decoration: const InputDecoration(labelText: 'التصنيف'),
+                      decoration: InputDecoration(labelText: context.tr('التصنيف')),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -131,14 +133,14 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'الساعات المخططة',
+                      decoration: InputDecoration(
+                        labelText: context.tr('الساعات المخططة'),
                         suffixText: 'ساعة',
                       ),
                       validator: (value) {
                         final hours = double.tryParse(value ?? '');
                         return hours == null || hours <= 0
-                            ? 'أدخل عدد ساعات صحيحًا'
+                            ? context.tr('أدخل عدد ساعات صحيحًا')
                             : null;
                       },
                     ),
@@ -559,8 +561,8 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
           controller: ctrl,
           autofocus: true,
           maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'اكتب السبب أو الملاحظة هنا...',
+          decoration: InputDecoration(
+            hintText: context.tr('اكتب السبب أو الملاحظة هنا...'),
           ),
         ),
         actions: [
@@ -602,7 +604,7 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
           FavoriteStarButton(userUid: managerUid, taskId: current.taskId),
           // Full manager edit, available regardless of task status.
           IconButton(
-            tooltip: 'تعديل المهمة',
+            tooltip: context.tr('تعديل المهمة'),
             icon: const Icon(Icons.edit_outlined),
             onPressed: () => _editTaskDetails(current),
           ),
@@ -925,7 +927,7 @@ class _TaskChatButton extends StatelessWidget {
             .where((m) => m.recipientUid == managerUid && m.readAt == null)
             .length;
         return IconButton(
-          tooltip: 'محادثة المهمة',
+          tooltip: context.tr('محادثة المهمة'),
           icon: Badge(
             isLabelVisible: unread > 0,
             label: Text('$unread'),
@@ -1073,8 +1075,8 @@ class _CommentInputBoxState extends State<_CommentInputBox> {
           enabled: !_sending,
           minLines: 1,
           maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'اكتب تعليقًا سريعًا...',
+          decoration: InputDecoration(
+            hintText: context.tr('اكتب تعليقًا سريعًا...'),
             isDense: true,
             border: OutlineInputBorder(),
           ),

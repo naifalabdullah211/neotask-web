@@ -1,6 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../models/voice_call_model.dart';
@@ -453,7 +455,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                     Align(
                       alignment: AlignmentDirectional.centerStart,
                       child: IconButton(
-                        tooltip: 'إغلاق',
+                        tooltip: context.tr('إغلاق'),
                         color: Colors.white70,
                         onPressed: () {
                           unawaited(_finalize(_hangupStatus));
@@ -502,7 +504,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           _RoundCallButton(
-                            tooltip: _muted ? 'تشغيل الميكروفون' : 'كتم الصوت',
+                            tooltip: context.tr(
+                              _muted ? 'تشغيل الميكروفون' : 'كتم الصوت',
+                            ),
                             icon: _muted ? Icons.mic_off : Icons.mic,
                             backgroundColor: Colors.white.withValues(alpha: 0.14),
                             foregroundColor: Colors.white,
@@ -510,7 +514,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                           ),
                           const SizedBox(width: 34),
                           _RoundCallButton(
-                            tooltip: 'إنهاء المكالمة',
+                            tooltip: context.tr('إنهاء المكالمة'),
                             icon: Icons.call_end_rounded,
                             backgroundColor: const Color(0xFFE5484D),
                             foregroundColor: Colors.white,

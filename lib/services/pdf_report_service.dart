@@ -2,6 +2,8 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:flutter/widgets.dart' show Locale;
+import '../l10n/app_i18n.dart';
 import '../models/task_model.dart';
 import '../models/user_model.dart';
 import '../utils/recurrence_utils.dart';
@@ -52,7 +54,11 @@ class PdfReportService {
     // since both read from the exact same computation.
     required TaskStats stats,
     Map<String, AppUser>? employeesById,
+    String languageCode = 'ar',
   }) async {
+    final locale = Locale(languageCode == 'en' ? 'en' : 'ar');
+    final isEnglish = languageCode == 'en';
+    String tr(String value) => AppI18n.translate(value, locale);
     final doc = pw.Document();
     final font = await PdfGoogleFonts.notoSansArabicRegular();
     final boldFont = await PdfGoogleFonts.notoSansArabicBold();
@@ -68,7 +74,8 @@ class PdfReportService {
 
     doc.addPage(
       pw.MultiPage(
-        textDirection: pw.TextDirection.rtl,
+        textDirection:
+            isEnglish ? pw.TextDirection.ltr : pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(
           base: font,
           bold: boldFont,
@@ -79,7 +86,9 @@ class PdfReportService {
           pw.Header(
             level: 0,
             child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              crossAxisAlignment: isEnglish
+                  ? pw.CrossAxisAlignment.start
+                  : pw.CrossAxisAlignment.end,
               children: [
                 pw.Text(
                   'NeoTask',
@@ -87,8 +96,8 @@ class PdfReportService {
                   style: const pw.TextStyle(fontSize: 22),
                 ),
                 pw.SizedBox(height: 4),
-                pw.Text(title, style: const pw.TextStyle(fontSize: 16)),
-                pw.Text(rangeLabel, style: const pw.TextStyle(fontSize: 11)),
+                pw.Text(tr(title), style: const pw.TextStyle(fontSize: 16)),
+                pw.Text(tr(rangeLabel), style: const pw.TextStyle(fontSize: 11)),
               ],
             ),
           ),
@@ -96,14 +105,14 @@ class PdfReportService {
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              _statBox('الإجمالي', stats.total),
-              _statBox('مكتملة', stats.completed),
+              _statBox(tr('الإجمالي'), stats.total),
+              _statBox(tr('مكتملة'), stats.completed),
               // Same merged pending+inProgress bucket ("قيد الانتظار") used
               // on-screen — see TaskStats.pendingDisplay doc comment.
-              _statBox('قيد الانتظار', stats.pendingDisplay),
-              _statBox('بانتظار المراجعة', stats.submitted),
-              _statBox('مرفوضة', stats.rejected),
-              _statBox('متأخرة', stats.overdue),
+              _statBox(tr('قيد الانتظار'), stats.pendingDisplay),
+              _statBox(tr('بانتظار المراجعة'), stats.submitted),
+              _statBox(tr('مرفوضة'), stats.rejected),
+              _statBox(tr('متأخرة'), stats.overdue),
             ],
           ),
           pw.SizedBox(height: 16),
@@ -121,12 +130,12 @@ class PdfReportService {
               pw.TableRow(
                 decoration: const pw.BoxDecoration(color: PdfColors.blue50),
                 children: [
-                  _cell('العنوان', bold: true),
-                  _cell('الموظف', bold: true),
-                  _cell('الاستحقاق', bold: true),
-                  _cell('الأولوية', bold: true),
-                  _cell('الحالة', bold: true),
-                  _cell('التكرار', bold: true),
+                  _cell(tr('العنوان'), bold: true),
+                  _cell(tr('الموظف'), bold: true),
+                  _cell(tr('الاستحقاق'), bold: true),
+                  _cell(tr('الأولوية'), bold: true),
+                  _cell(tr('الحالة'), bold: true),
+                  _cell(tr('التكرار'), bold: true),
                 ],
               ),
               ...tasks.map(
@@ -135,9 +144,9 @@ class PdfReportService {
                     _cell(t.title),
                     _cell(employeesById?[t.assignedTo]?.name ?? t.assignedTo),
                     _cell(_fmtDate(t.dueDate)),
-                    _cell(_priorityAr(t.priority)),
-                    _cell(_statusAr(t.status)),
-                    _cell(RecurrenceUtils.recurrenceLabelAr(t)),
+                    _cell(tr(_priorityAr(t.priority))),
+                    _cell(tr(_statusAr(t.status))),
+                    _cell(tr(RecurrenceUtils.recurrenceLabelAr(t))),
                   ],
                 ),
               ),
@@ -160,7 +169,7 @@ class PdfReportService {
             direction: pw.Axis.horizontal,
             children: [
               pw.Text(
-                'تم إنشاء هذا التقرير بواسطة المدير عبر منصة',
+                tr('تم إنشاء هذا التقرير بواسطة المدير عبر منصة'),
                 style: const pw.TextStyle(
                   fontSize: 9,
                   color: PdfColors.grey600,
@@ -175,7 +184,7 @@ class PdfReportService {
                 ),
               ),
               pw.Text(
-                'بتاريخ',
+                tr('بتاريخ'),
                 style: const pw.TextStyle(
                   fontSize: 9,
                   color: PdfColors.grey600,

@@ -1,7 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../providers/locale_provider.dart';
 import '../../theme/app_theme.dart';
 
 enum _HelpAudience { all, manager, employee, managerOrDesigner }
@@ -58,7 +61,10 @@ class _NeoTaskAssistantScreenState extends State<NeoTaskAssistantScreen> {
     super.dispose();
   }
 
-  List<_HelpTopic> _visibleTopics(AuthProvider auth) {
+  List<_HelpTopic> _visibleTopics(
+    AuthProvider auth,
+    LocaleProvider locale,
+  ) {
     return _topics.where((topic) {
       return switch (topic.audience) {
         _HelpAudience.all => true,
@@ -66,7 +72,42 @@ class _NeoTaskAssistantScreenState extends State<NeoTaskAssistantScreen> {
         _HelpAudience.employee => auth.isEmployee,
         _HelpAudience.managerOrDesigner => auth.isManager || auth.isDesigner,
       };
+    }).map((topic) {
+      return locale.isArabic ? topic : _englishTopic(topic);
     }).toList(growable: false);
+  }
+
+  static _HelpTopic _englishTopic(_HelpTopic source) {
+    final title = AppI18n.translate(source.title, const Locale('en'));
+    final group = AppI18n.translate(source.group, const Locale('en'));
+    final purpose = _assistantPurposeEn[source.title] ??
+        'Explains what $title does and when to use it in NeoTask.';
+    final permission = switch (source.audience) {
+      _HelpAudience.manager => 'Available to the manager only.',
+      _HelpAudience.employee => 'Available to employees for their assigned work.',
+      _HelpAudience.managerOrDesigner =>
+        'The manager can use all actions. The designer can view this area only.',
+      _HelpAudience.all =>
+        'Available to signed-in accounts; actions still follow each account’s permissions.',
+    };
+    return _HelpTopic(
+      title: title,
+      group: group,
+      icon: source.icon,
+      purpose: purpose,
+      steps: [
+        'Open “$title” from the relevant navigation tab, menu item, or action icon.',
+        'Review the displayed details and choose the item you want to work with.',
+        'Use the available action and confirm it when NeoTask requests confirmation.',
+      ],
+      permission: permission,
+      result:
+          'NeoTask opens or updates the related workflow and records any permitted change in the relevant screen or activity history.',
+      tip:
+          'If an action is hidden or read-only, the current account does not have permission to perform it.',
+      keywords: [title, group, 'help', 'guide', 'how to use', 'icon', 'tab'],
+      audience: source.audience,
+    );
   }
 
   void _selectTopic(_HelpTopic topic, {bool scroll = true}) {
@@ -144,7 +185,8 @@ class _NeoTaskAssistantScreenState extends State<NeoTaskAssistantScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final visibleTopics = _visibleTopics(auth);
+    final locale = context.watch<LocaleProvider>();
+    final visibleTopics = _visibleTopics(auth, locale);
     final groups = <String, List<_HelpTopic>>{};
     for (final topic in visibleTopics) {
       groups.putIfAbsent(topic.group, () => []).add(topic);
@@ -177,11 +219,17 @@ class _NeoTaskAssistantScreenState extends State<NeoTaskAssistantScreen> {
               children: [
                 _AssistantIntro(
                   name: auth.currentUser?.name ?? '',
-                  roleDescription: auth.isManager
-                      ? 'سأشرح لك أدوات المدير وإجراءات إدارة الفريق.'
+                  roleDescription: locale.isArabic
+                      ? auth.isManager
+                            ? 'سأشرح لك أدوات المدير وإجراءات إدارة الفريق.'
+                            : auth.isDesigner
+                            ? 'سأشرح لك الواجهات وحدود صلاحية العرض فقط.'
+                            : 'سأشرح لك أدوات الموظف وطريقة إنجاز المهام.'
+                      : auth.isManager
+                      ? 'I will explain the manager tools and team-management workflows.'
                       : auth.isDesigner
-                      ? 'سأشرح لك الواجهات وحدود صلاحية العرض فقط.'
-                      : 'سأشرح لك أدوات الموظف وطريقة إنجاز المهام.',
+                      ? 'I will explain the interface and the limits of view-only access.'
+                      : 'I will explain the employee tools and how to complete assigned work.',
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 _QuestionBox(
@@ -237,6 +285,7 @@ class _AssistantIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isArabic = context.watch<LocaleProvider>().isArabic;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
@@ -270,9 +319,13 @@ class _AssistantIntro extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name.isEmpty
-                      ? 'مرحبًا، أنا مساعد NeoTask'
-                      : 'مرحبًا $name، أنا مساعد NeoTask',
+                  isArabic
+                      ? name.isEmpty
+                            ? 'مرحبًا، أنا مساعد NeoTask'
+                            : 'مرحبًا $name، أنا مساعد NeoTask'
+                      : name.isEmpty
+                      ? 'Hello, I’m the NeoTask Assistant'
+                      : 'Hello $name, I’m the NeoTask Assistant',
                   style: const TextStyle(
                     color: Colors.white,
                     fontFamily: 'IBMPlexSansArabic',
@@ -282,7 +335,9 @@ class _AssistantIntro extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'اختر أي تبويب أو أيقونة، أو اكتب اسمها، وسأوضح وظيفتها وطريقة استخدامها وما الذي يحدث بعدها. $roleDescription',
+                  isArabic
+                      ? 'اختر أي تبويب أو أيقونة، أو اكتب اسمها، وسأوضح وظيفتها وطريقة استخدامها وما الذي يحدث بعدها. $roleDescription'
+                      : 'Choose any tab or icon, or type its name. I’ll explain what it does, how to use it, and what happens next. $roleDescription',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: .72),
                     fontFamily: 'IBMPlexSansArabic',
@@ -314,16 +369,16 @@ class _QuestionBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       textField: true,
-      label: 'اسأل مساعد NeoTask عن تبويب أو أيقونة',
+      label: context.tr('اسأل مساعد NeoTask عن تبويب أو أيقونة'),
       child: TextField(
         controller: controller,
         textInputAction: TextInputAction.search,
         onSubmitted: onSubmitted,
         decoration: InputDecoration(
-          hintText: 'مثال: اشرح لي أيقونة المراجعة',
+          hintText: context.tr('مثال: اشرح لي أيقونة المراجعة'),
           prefixIcon: const Icon(Icons.search_rounded),
           suffixIcon: IconButton(
-            tooltip: 'عرض الشرح',
+            tooltip: context.tr('عرض الشرح'),
             onPressed: onSend,
             icon: const Icon(Icons.send_rounded),
           ),
@@ -639,6 +694,7 @@ class _NoExactAnswer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isArabic = context.watch<LocaleProvider>().isArabic;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
@@ -663,7 +719,9 @@ class _NoExactAnswer extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'لم أجد تطابقًا مؤكدًا لسؤالك «$question». اكتب اسم الأيقونة كما يظهر في NeoTask أو اخترها من القائمة أدناه.',
+            isArabic
+                ? 'لم أجد تطابقًا مؤكدًا لسؤالك «$question». اكتب اسم الأيقونة كما يظهر في NeoTask أو اخترها من القائمة أدناه.'
+                : 'I could not confidently match “$question”. Type the icon or tab name as it appears in NeoTask, or choose from the suggestions below.',
             style: AppTextStyles.bodySecondary,
           ),
           if (suggestions.isNotEmpty) ...[
@@ -689,6 +747,71 @@ class _NoExactAnswer extends StatelessWidget {
     );
   }
 }
+
+const Map<String, String> _assistantPurposeEn = {
+  'ملخص المدير':
+      'Shows the manager’s live pending, awaiting-review, and overdue counts at the top of the side menu.',
+  'الرئيسية':
+      'Provides an at-a-glance view of current work, key performance indicators, team pulse, and upcoming items.',
+  'المراجعة':
+      'Collects tasks submitted by employees so the manager can approve them or return them with a clear note.',
+  'الموظفون':
+      'Manages team accounts, join requests, employee status, workload, and individual performance information.',
+  'التقارير':
+      'Builds operational task reports by period or employee and provides the available export options.',
+  'المحادثات':
+      'Keeps work conversations and task-related messages in one permission-controlled area.',
+  'مهامي':
+      'Lists the employee’s assigned tasks with priority, due date, progress, and submission controls.',
+  'التقويم':
+      'Places tasks and events on a daily, weekly, or monthly calendar so due work is visible in time.',
+  'تصويت':
+      'Supports creating, managing, or participating in decision polls according to the current account’s permissions.',
+  'خطة العمل':
+      'Organizes planned tasks on a timeline and shows dependencies, critical-path work, and employee capacity.',
+  'الأتمتة الشرطية':
+      'Creates trigger-condition-action rules that automate routine follow-up and records every execution.',
+  'الأهداف':
+      'Tracks goals, their criteria, owners, dates, progress, and related comments.',
+  'مهامي الشخصية':
+      'Keeps the manager’s private tasks separate from team assignments while retaining planning and progress tools.',
+  'أفكار المدير':
+      'Stores the manager’s product or workflow ideas so they remain available for review and implementation.',
+  'النماذج المخصصة':
+      'Builds public or internal forms with configurable fields and keeps submitted responses in NeoTask.',
+  'استيراد Excel / CSV':
+      'Validates employee or task rows from Excel/CSV before saving valid, non-duplicate data.',
+  'مركز المعرفة':
+      'Stores policies, procedures, guides, files, revisions, comments, and linked tasks.',
+  'الاجتماعات':
+      'Records meeting agendas, minutes, decisions, owners, and follow-up tasks.',
+  'جهات الاتصال':
+      'Maintains a permission-controlled directory of work contacts and their details.',
+  'المفضلة':
+      'Collects starred tasks and frequently needed items for faster access.',
+  'البحث':
+      'Searches across the items available to the account, including tasks, goals, criteria, and employees.',
+  'الإشعارات':
+      'Shows unread and historical alerts, opens the related item, and supports marking alerts as read.',
+  'صورة الحساب والقائمة':
+      'Opens the account menu, manager summary, additional work areas, settings, help, and sign-out.',
+  'إضافة مهمة':
+      'Starts a new team or personal task and captures its owner, priority, dates, recurrence, and dependencies.',
+  'تحديث نسبة الإنجاز':
+      'Records the current completion percentage and an optional work note on an assigned task.',
+  'إرسال المهمة للمراجعة':
+      'Moves completed employee work to the manager’s review queue while preserving notes, files, and history.',
+  'المرفقات':
+      'Adds an approved image or file to the related task, chat, form, or knowledge record.',
+  'تعديل':
+      'Opens the permitted fields of the current record so they can be corrected and saved.',
+  'حذف':
+      'Removes the selected record after confirmation, subject to the item’s retention and permission rules.',
+  'الإعدادات':
+      'Manages the current account’s profile, password, interface preferences, and language.',
+  'تسجيل الخروج':
+      'Ends the current authenticated session and returns the device to the sign-in screen.',
+};
 
 const List<_HelpTopic> _topics = [
   _HelpTopic(

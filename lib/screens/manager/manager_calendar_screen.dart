@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/task_model.dart';
@@ -348,7 +350,7 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
               padding: const EdgeInsetsDirectional.only(end: 12),
               child: MediaQuery.sizeOf(context).width < 620
                   ? IconButton.filled(
-                      tooltip: 'مهمة جديدة',
+                      tooltip: context.tr('مهمة جديدة'),
                       onPressed: _createTask,
                       style: IconButton.styleFrom(
                         backgroundColor: AppColors.mintAccent,
@@ -455,7 +457,7 @@ class _ManagerCalendarScreenState extends State<ManagerCalendarScreen> {
             border: Border(top: BorderSide(color: AppColors.divider)),
           ),
           child: Row(
-            textDirection: TextDirection.rtl,
+            textDirection: Directionality.of(context),
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               NeoWorkspacePanel(

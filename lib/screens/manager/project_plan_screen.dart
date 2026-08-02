@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 
@@ -86,7 +88,7 @@ class _ProjectPlanScreenState extends State<ProjectPlanScreen>
               padding: const EdgeInsetsDirectional.only(end: 12),
               child: MediaQuery.sizeOf(context).width < 620
                   ? IconButton.filled(
-                      tooltip: 'مهمة جديدة',
+                      tooltip: context.tr('مهمة جديدة'),
                       onPressed: () => QuickAddTaskSheet.show(context),
                       style: IconButton.styleFrom(
                         backgroundColor: AppColors.mintAccent,
@@ -130,9 +132,9 @@ class _ProjectPlanScreenState extends State<ProjectPlanScreen>
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                   ),
-                  tabs: const [
-                    Tab(text: 'الخط الزمني'),
-                    Tab(text: 'عبء العمل'),
+                  tabs: [
+                    Tab(text: context.tr('الخط الزمني')),
+                    Tab(text: context.tr('عبء العمل')),
                   ],
                 ),
               ),
@@ -334,10 +336,10 @@ class _WorkloadCard extends StatelessWidget {
           controller: controller,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'ساعات العمل المتاحة أسبوعيًا',
+          decoration: InputDecoration(
+            labelText: context.tr('ساعات العمل المتاحة أسبوعيًا'),
             suffixText: 'ساعة',
-            helperText: 'مثال: 20 للدوام الجزئي، 40 للدوام الكامل',
+            helperText: context.tr('مثال: 20 للدوام الجزئي، 40 للدوام الكامل'),
           ),
         ),
         actions: [
@@ -424,7 +426,7 @@ class _WorkloadCard extends StatelessWidget {
                 ),
                 if (!readOnly)
                   IconButton(
-                    tooltip: 'تعديل السعة الأسبوعية',
+                    tooltip: context.tr('تعديل السعة الأسبوعية'),
                     onPressed: () => _editCapacity(context),
                     icon: const Icon(Icons.edit_calendar_outlined, size: 19),
                   ),
@@ -611,8 +613,8 @@ class _PlanningEditorState extends State<_PlanningEditor> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'الساعات المخططة',
+                decoration: InputDecoration(
+                  labelText: context.tr('الساعات المخططة'),
                   suffixText: 'ساعة',
                 ),
               ),

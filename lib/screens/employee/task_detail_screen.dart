@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/task_history_model.dart';
@@ -188,9 +190,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         content: TextField(
           controller: noteCtrl,
           maxLines: 4,
-          decoration: const InputDecoration(
-            labelText: 'ملاحظة (اختياري)',
-            hintText: 'أضف أي تفاصيل تريد إطلاع المدير عليها...',
+          decoration: InputDecoration(
+            labelText: context.tr('ملاحظة (اختياري)'),
+            hintText: context.tr('أضف أي تفاصيل تريد إطلاع المدير عليها...'),
           ),
         ),
         actions: [
@@ -490,7 +492,7 @@ class _TaskChatButton extends StatelessWidget {
             .where((m) => m.recipientUid == employeeUid && m.readAt == null)
             .length;
         return IconButton(
-          tooltip: 'محادثة المهمة',
+          tooltip: context.tr('محادثة المهمة'),
           icon: Badge(
             isLabelVisible: unread > 0,
             label: Text('$unread'),
@@ -529,7 +531,7 @@ class _InfoRow extends StatelessWidget {
           style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
           children: [
             TextSpan(
-              text: '$label: ',
+              text: '${context.tr(label)}: ',
               style: const TextStyle(color: AppColors.textSecondary),
             ),
             TextSpan(
@@ -626,8 +628,8 @@ class _CommentInputBoxState extends State<_CommentInputBox> {
           enabled: !_sending,
           minLines: 1,
           maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'اكتب تعليقًا سريعًا...',
+          decoration: InputDecoration(
+            hintText: context.tr('اكتب تعليقًا سريعًا...'),
             isDense: true,
             border: OutlineInputBorder(),
           ),

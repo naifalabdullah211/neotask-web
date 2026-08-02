@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 
 import '../../models/custom_form_model.dart';
 import '../../services/workflow_service.dart';
@@ -170,14 +172,16 @@ class _PublicFormScreenState extends State<PublicFormScreen> {
             .map((option) => NeoSelectionOption(value: option, label: option))
             .toList(),
         onChanged: (value) => _answers[field.fieldId] = value,
-        validator: (value) =>
-            field.isRequired && value == null ? 'هذا الحقل مطلوب' : null,
+        validator: (value) => field.isRequired && value == null
+            ? context.tr('هذا الحقل مطلوب')
+            : null,
       );
     } else if (field.type == CustomFieldType.checkbox) {
       child = FormField<bool>(
         initialValue: false,
-        validator: (value) =>
-            field.isRequired && value != true ? 'يجب تأكيد هذا الحقل' : null,
+        validator: (value) => field.isRequired && value != true
+            ? context.tr('يجب تأكيد هذا الحقل')
+            : null,
         builder: (state) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -216,7 +220,7 @@ class _PublicFormScreenState extends State<PublicFormScreen> {
         ),
         validator: (value) {
           if (field.isRequired && (value == null || value.trim().isEmpty))
-            return 'هذا الحقل مطلوب';
+            return context.tr('هذا الحقل مطلوب');
           if (field.type == CustomFieldType.number &&
               value!.isNotEmpty &&
               num.tryParse(value) == null)

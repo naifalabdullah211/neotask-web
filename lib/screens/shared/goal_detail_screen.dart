@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/criterion_model.dart';
@@ -56,12 +58,12 @@ class GoalDetailScreen extends StatelessWidget {
         actions: isManager
             ? [
                 IconButton(
-                  tooltip: 'تعديل الهدف',
+                  tooltip: context.tr('تعديل الهدف'),
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: () => showEditGoalDialog(context, goal),
                 ),
                 IconButton(
-                  tooltip: 'حذف الهدف',
+                  tooltip: context.tr('حذف الهدف'),
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
                   onPressed: () => confirmAndDeleteGoal(
                     context,
@@ -443,8 +445,8 @@ class _CommentInputBoxState extends State<_CommentInputBox> {
           enabled: !_sending,
           minLines: 1,
           maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'اكتب تعليقًا...',
+          decoration: InputDecoration(
+            hintText: context.tr('اكتب تعليقًا...'),
             isDense: true,
             border: OutlineInputBorder(),
           ),

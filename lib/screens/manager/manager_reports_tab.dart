@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:provider/provider.dart';
 import '../../models/task_model.dart';
 import '../../models/user_model.dart';
@@ -101,6 +102,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
         tasks: tasks,
         stats: stats,
         employeesById: employeesById,
+        languageCode: Localizations.localeOf(context).languageCode,
       );
       await PdfReportService.shareOrPrint(
         bytes,

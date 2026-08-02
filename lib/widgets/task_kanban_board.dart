@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:intl/intl.dart' as intl;
 import '../models/task_model.dart';
 import '../services/firestore_service.dart';

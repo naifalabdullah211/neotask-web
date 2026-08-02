@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/task_history_model.dart';
@@ -42,7 +44,7 @@ class DesignerTaskViewScreen extends StatelessWidget {
         title: const Text('عرض المهمة (قراءة فقط)'),
         actions: [
           IconButton(
-            tooltip: 'عرض محادثة المهمة',
+            tooltip: context.tr('عرض محادثة المهمة'),
             icon: const Icon(Icons.chat_bubble_outline),
             onPressed: () {
               final manager = FirestoreService.getManager();

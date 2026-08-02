@@ -1,5 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 
@@ -837,7 +839,7 @@ class _ExecutionDateNavigator extends StatelessWidget {
       child: Row(
         children: [
           _DateArrowButton(
-            tooltip: 'الفترة السابقة',
+            tooltip: context.tr('الفترة السابقة'),
             icon: Icons.chevron_right,
             onPressed: () => onShift(-1),
           ),
@@ -868,7 +870,7 @@ class _ExecutionDateNavigator extends StatelessWidget {
             ),
           ),
           _DateArrowButton(
-            tooltip: 'الفترة التالية',
+            tooltip: context.tr('الفترة التالية'),
             icon: Icons.chevron_left,
             onPressed: () => onShift(1),
           ),

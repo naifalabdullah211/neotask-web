@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -47,7 +49,7 @@ class KnowledgeDocumentDetailScreen extends StatelessWidget {
         actions: [
           if (canEdit)
             IconButton(
-              tooltip: 'تعديل وإصدار جديد',
+              tooltip: context.tr('تعديل وإصدار جديد'),
               icon: const Icon(Icons.edit_note_outlined),
               onPressed: () => _edit(context, document),
             ),
@@ -184,43 +186,43 @@ class KnowledgeDocumentDetailScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   TextField(
                     controller: title,
-                    decoration: const InputDecoration(labelText: 'العنوان *'),
+                    decoration: InputDecoration(labelText: context.tr('العنوان *')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: description,
                     maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'الملخص'),
+                    decoration: InputDecoration(labelText: context.tr('الملخص')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: content,
                     minLines: 5,
                     maxLines: 12,
-                    decoration: const InputDecoration(labelText: 'المحتوى'),
+                    decoration: InputDecoration(labelText: context.tr('المحتوى')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: category,
-                    decoration: const InputDecoration(labelText: 'التصنيف'),
+                    decoration: InputDecoration(labelText: context.tr('التصنيف')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: department,
-                    decoration: const InputDecoration(labelText: 'القسم'),
+                    decoration: InputDecoration(labelText: context.tr('القسم')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: tags,
-                    decoration: const InputDecoration(
-                      labelText: 'الوسوم مفصولة بفاصلة',
+                    decoration: InputDecoration(
+                      labelText: context.tr('الوسوم مفصولة بفاصلة'),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: note,
-                    decoration: const InputDecoration(
-                      labelText: 'ملخص التغيير',
+                    decoration: InputDecoration(
+                      labelText: context.tr('ملخص التغيير'),
                     ),
                   ),
                 ],
@@ -394,8 +396,8 @@ class _WorkflowActions extends StatelessWidget {
                   content: TextField(
                     controller: controller,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'الملاحظة المطلوبة *',
+                    decoration: InputDecoration(
+                      labelText: context.tr('الملاحظة المطلوبة *'),
                     ),
                   ),
                   actions: [
@@ -619,7 +621,7 @@ class _LinkedTasksSection extends StatelessWidget {
               children: [
                 TextField(
                   controller: title,
-                  decoration: const InputDecoration(labelText: 'عنوان المهمة'),
+                  decoration: InputDecoration(labelText: context.tr('عنوان المهمة')),
                 ),
                 const SizedBox(height: 10),
                 NeoSelectionField<AppUser>(
@@ -801,14 +803,14 @@ class _CommentsSection extends StatelessWidget {
                   TextField(
                     controller: body,
                     maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'التعليق *'),
+                    decoration: InputDecoration(labelText: context.tr('التعليق *')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: anchor,
                     maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'الفقرة أو النص المقصود (اختياري)',
+                    decoration: InputDecoration(
+                      labelText: context.tr('الفقرة أو النص المقصود (اختياري)'),
                     ),
                   ),
                   const SizedBox(height: 12),

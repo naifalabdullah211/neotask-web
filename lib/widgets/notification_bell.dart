@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import '../providers/notification_provider.dart';
 import '../screens/shared/notification_center_screen.dart';
@@ -29,7 +31,7 @@ class NotificationBell extends StatelessWidget {
       builder: (context, snapshot) {
         final unread = snapshot.data ?? 0;
         return IconButton(
-          tooltip: 'الإشعارات',
+          tooltip: context.tr('الإشعارات'),
           icon: Badge(
             isLabelVisible: unread > 0,
             label: Text('$unread'),

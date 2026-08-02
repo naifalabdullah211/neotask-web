@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../models/task_model.dart';
@@ -200,7 +201,7 @@ class _PersonalTasksWorkspaceState extends State<PersonalTasksWorkspace> {
                         message: 'غيّر عامل التصفية لعرض بقية مهامك الشخصية.',
                       )
                     : Row(
-                        textDirection: TextDirection.rtl,
+                        textDirection: Directionality.of(context),
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           NeoWorkspacePanel(

@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../providers/calendar_provider.dart';
@@ -90,9 +92,9 @@ class _EmployeeCalendarTabState extends State<EmployeeCalendarTab> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _urlCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'رابط ICS / Webcal',
-                      hintText: 'webcal://p123-caldav.icloud.com/...',
+                    decoration: InputDecoration(
+                      labelText: context.tr('رابط ICS / Webcal'),
+                      hintText: context.tr('webcal://p123-caldav.icloud.com/...'),
                       prefixIcon: Icon(Icons.link),
                     ),
                   ),

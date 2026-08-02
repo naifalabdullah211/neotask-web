@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/contact_model.dart';
@@ -55,31 +57,31 @@ class _ContactsScreenState extends State<ContactsScreen> {
             children: [
               TextField(
                 controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'الاسم'),
+                decoration: InputDecoration(labelText: context.tr('الاسم')),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: phoneCtrl,
-                decoration: const InputDecoration(labelText: 'الهاتف'),
+                decoration: InputDecoration(labelText: context.tr('الهاتف')),
                 keyboardType: TextInputType.phone,
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: emailCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'البريد الإلكتروني',
+                decoration: InputDecoration(
+                  labelText: context.tr('البريد الإلكتروني'),
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: jobCtrl,
-                decoration: const InputDecoration(labelText: 'المسمى الوظيفي'),
+                decoration: InputDecoration(labelText: context.tr('المسمى الوظيفي')),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: notesCtrl,
-                decoration: const InputDecoration(labelText: 'ملاحظات'),
+                decoration: InputDecoration(labelText: context.tr('ملاحظات')),
                 maxLines: 2,
               ),
             ],
@@ -158,8 +160,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
               padding: const EdgeInsets.all(16),
               child: TextField(
                 controller: _searchCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'بحث',
+                decoration: InputDecoration(
+                  labelText: context.tr('بحث'),
                   prefixIcon: Icon(Icons.search),
                 ),
                 onChanged: (_) => setState(() {}),

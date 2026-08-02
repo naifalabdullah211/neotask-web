@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/meeting_model.dart';
@@ -172,31 +174,31 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
                 children: [
                   TextField(
                     controller: title,
-                    decoration: const InputDecoration(
-                      labelText: 'عنوان الاجتماع *',
+                    decoration: InputDecoration(
+                      labelText: context.tr('عنوان الاجتماع *'),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: description,
                     maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'الغرض من الاجتماع',
+                    decoration: InputDecoration(
+                      labelText: context.tr('الغرض من الاجتماع'),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: agenda,
                     maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'جدول الأعمال — بند في كل سطر',
+                    decoration: InputDecoration(
+                      labelText: context.tr('جدول الأعمال — بند في كل سطر'),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: location,
-                    decoration: const InputDecoration(
-                      labelText: 'المكان أو رابط الاتصال',
+                    decoration: InputDecoration(
+                      labelText: context.tr('المكان أو رابط الاتصال'),
                     ),
                   ),
                   ListTile(
@@ -518,8 +520,8 @@ class MeetingMinutesScreen extends StatelessWidget {
             controller: controller,
             minLines: 8,
             maxLines: 16,
-            decoration: const InputDecoration(
-              hintText: 'اكتب النقاشات والنتائج الأساسية',
+            decoration: InputDecoration(
+              hintText: context.tr('اكتب النقاشات والنتائج الأساسية'),
             ),
           ),
         ),
@@ -560,7 +562,7 @@ class MeetingMinutesScreen extends StatelessWidget {
                 TextField(
                   controller: text,
                   maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'نص القرار *'),
+                  decoration: InputDecoration(labelText: context.tr('نص القرار *')),
                 ),
                 const SizedBox(height: 10),
                 NeoSelectionField<AppUser>(

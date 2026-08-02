@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/poll_model.dart';
@@ -59,7 +61,7 @@ class ManagerPollsTab extends StatelessWidget {
         actions: [
           if (compact)
             IconButton(
-              tooltip: 'التصويتات السابقة',
+              tooltip: context.tr('التصويتات السابقة'),
               onPressed: openArchive,
               icon: const Icon(Icons.archive_outlined),
             )
@@ -74,7 +76,7 @@ class ManagerPollsTab extends StatelessWidget {
               padding: const EdgeInsetsDirectional.only(start: 8, end: 12),
               child: compact
                   ? IconButton.filled(
-                      tooltip: 'تصويت جديد',
+                      tooltip: context.tr('تصويت جديد'),
                       onPressed: createPoll,
                       style: IconButton.styleFrom(
                         backgroundColor: AppColors.mintAccent,

@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
@@ -168,7 +170,7 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
                     // previous.
                     _NavArrowButton(
                       icon: Icons.chevron_right_rounded,
-                      tooltip: '$_periodLabel التالي',
+                      tooltip: context.tr('$_periodLabel التالي'),
                       onTap: () => _shift(1),
                     ),
                     const SizedBox(width: 4),
@@ -183,7 +185,7 @@ class _DesignerDashboardTabState extends State<DesignerDashboardTab> {
                     const SizedBox(width: 4),
                     _NavArrowButton(
                       icon: Icons.chevron_left_rounded,
-                      tooltip: '$_periodLabel السابق',
+                      tooltip: context.tr('$_periodLabel السابق'),
                       onTap: () => _shift(-1),
                     ),
                   ],

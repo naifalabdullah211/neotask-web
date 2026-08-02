@@ -1,12 +1,16 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../providers/locale_provider.dart';
 import '../../providers/digest_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/user_avatar.dart';
+import '../../widgets/language_toggle.dart';
 import '../manager/automation_rules_screen.dart';
 import '../manager/bulk_import_screen.dart';
 import '../manager/custom_forms_screen.dart';
@@ -361,7 +365,7 @@ class _DrawerAccountHeader extends StatelessWidget {
                 width: 32,
                 height: 32,
                 fit: BoxFit.contain,
-                semanticLabel: 'NeoTask',
+                semanticLabel: context.tr('NeoTask'),
               ),
               const SizedBox(width: AppSpacing.sm),
               const Expanded(
@@ -375,8 +379,10 @@ class _DrawerAccountHeader extends StatelessWidget {
                   ),
                 ),
               ),
+              const LanguageToggle(compact: true, dark: true),
+              const SizedBox(width: AppSpacing.sm),
               IconButton(
-                tooltip: 'إغلاق القائمة',
+                tooltip: context.tr('إغلاق القائمة'),
                 onPressed: onClose,
                 style: IconButton.styleFrom(
                   foregroundColor: Colors.white70,
@@ -516,14 +522,17 @@ class _DrawerManagerSummaryState extends State<_DrawerManagerSummary> {
 
   @override
   Widget build(BuildContext context) {
+    final isEnglish = !context.watch<LocaleProvider>().isArabic;
     final digestText = widget.digestText?.trim();
-    final detailsText = digestText != null && digestText.isNotEmpty
+    final detailsText = isEnglish
+        ? _fallbackDetails(english: true)
+        : digestText != null && digestText.isNotEmpty
         ? digestText
-        : _fallbackDetails;
+        : _fallbackDetails(english: false);
 
     return Semantics(
       container: true,
-      label: 'ملخص المدير',
+      label: context.tr('ملخص المدير'),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -727,7 +736,12 @@ class _DrawerManagerSummaryState extends State<_DrawerManagerSummary> {
     );
   }
 
-  String get _fallbackDetails {
+  String _fallbackDetails({required bool english}) {
+    if (english) {
+      return '${widget.pending} pending, ${widget.submitted} awaiting review, '
+          '${widget.overdue} overdue, and ${widget.completedThisWeek ?? 0} '
+          'completed this week.';
+    }
     if (widget.overdue > 0 || widget.submitted > 0) {
       return 'يحتاج انتباهك ${widget.overdue} مهمة متأخرة و'
           '${widget.submitted} مهمة بانتظار المراجعة.';

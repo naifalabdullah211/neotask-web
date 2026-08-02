@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
@@ -254,7 +256,7 @@ class _WelcomeCopy extends StatelessWidget {
     final welcomeSize = compact ? 25.0 : 40.0;
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: Directionality.of(context),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -295,7 +297,7 @@ class _WelcomeCopy extends StatelessWidget {
               ],
             ),
             textAlign: TextAlign.center,
-            textDirection: TextDirection.rtl,
+            textDirection: Directionality.of(context),
             style: TextStyle(
               fontFamily: _font,
               color: _mint,
@@ -328,7 +330,7 @@ class _WelcomeCopy extends StatelessWidget {
                 width: compact ? 50 : 64,
                 height: compact ? 50 : 64,
                 fit: BoxFit.contain,
-                semanticLabel: 'شعار NeoTask',
+                semanticLabel: context.tr('شعار NeoTask'),
               ),
               SizedBox(width: compact ? 12 : 16),
               Text(
@@ -414,7 +416,7 @@ class _WelcomeCopy extends StatelessWidget {
           const Text(
             'جميع الحقوق محفوظة · NAY211@2026',
             textAlign: TextAlign.center,
-            textDirection: TextDirection.rtl,
+            textDirection: Directionality.of(context),
             style: TextStyle(
               fontFamily: _font,
               color: Color(0xFF7890A9),

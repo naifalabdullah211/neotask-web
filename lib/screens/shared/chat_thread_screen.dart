@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -478,7 +480,7 @@ class ChatThreadScreen extends StatelessWidget {
         actions: [
           if (!readOnly)
             IconButton(
-              tooltip: 'اتصال صوتي',
+              tooltip: context.tr('اتصال صوتي'),
               icon: const Icon(Icons.call_outlined),
               onPressed: () {
                 Navigator.of(context).push(
@@ -952,7 +954,7 @@ class _MessageInputBar extends StatelessWidget {
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
                 decoration: InputDecoration(
-                  hintText: 'اكتب رسالة...',
+                  hintText: context.tr('اكتب رسالة...'),
                   filled: true,
                   fillColor: AppColors.background,
                   contentPadding: const EdgeInsets.symmetric(

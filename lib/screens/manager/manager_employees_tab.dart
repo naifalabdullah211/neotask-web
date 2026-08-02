@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
@@ -290,7 +292,7 @@ class _ActiveEmployeeTile extends StatelessWidget {
                     textDirection: TextDirection.ltr,
                     textAlign: TextAlign.left,
                     decoration: InputDecoration(
-                      labelText: 'كلمة المرور الجديدة',
+                      labelText: context.tr('كلمة المرور الجديدة'),
                       suffixIcon: IconButton(
                         icon: Icon(
                           obscureNew
@@ -303,10 +305,12 @@ class _ActiveEmployeeTile extends StatelessWidget {
                     ),
                     validator: (v) {
                       if (v == null || v.isEmpty) {
-                        return 'يرجى إدخال كلمة المرور الجديدة';
+                        return context.tr('يرجى إدخال كلمة المرور الجديدة');
                       }
                       if (v.length < 6) {
-                        return 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل';
+                        return context.tr(
+                          'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل',
+                        );
                       }
                       return null;
                     },
@@ -318,7 +322,7 @@ class _ActiveEmployeeTile extends StatelessWidget {
                     textDirection: TextDirection.ltr,
                     textAlign: TextAlign.left,
                     decoration: InputDecoration(
-                      labelText: 'تأكيد كلمة المرور',
+                      labelText: context.tr('تأكيد كلمة المرور'),
                       suffixIcon: IconButton(
                         icon: Icon(
                           obscureConfirm
@@ -331,10 +335,10 @@ class _ActiveEmployeeTile extends StatelessWidget {
                     ),
                     validator: (v) {
                       if (v == null || v.isEmpty) {
-                        return 'يرجى تأكيد كلمة المرور';
+                        return context.tr('يرجى تأكيد كلمة المرور');
                       }
                       if (v != newPasswordCtrl.text) {
-                        return 'كلمتا المرور غير متطابقتين';
+                        return context.tr('كلمتا المرور غير متطابقتين');
                       }
                       return null;
                     },
@@ -889,8 +893,8 @@ class _InviteGeneratorCardState extends State<_InviteGeneratorCard> {
             TextField(
               controller: _nameCtrl,
               enabled: !widget.readOnly,
-              decoration: const InputDecoration(
-                labelText: 'اسم الموظف المتوقع (اختياري)',
+              decoration: InputDecoration(
+                labelText: context.tr('اسم الموظف المتوقع (اختياري)'),
                 prefixIcon: Icon(Icons.person_outline),
               ),
             ),

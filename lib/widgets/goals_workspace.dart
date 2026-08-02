@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../models/criterion_model.dart';
@@ -124,7 +125,7 @@ class _GoalsWorkspaceState extends State<GoalsWorkspace> {
                         message: 'غيّر عامل التصفية لعرض بقية الأهداف.',
                       )
                     : Row(
-                        textDirection: TextDirection.rtl,
+                        textDirection: Directionality.of(context),
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           NeoWorkspacePanel(

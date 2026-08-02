@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
 import '../models/poll_model.dart';
 import '../theme/app_theme.dart';
 import 'status_chip.dart' show AppPill;

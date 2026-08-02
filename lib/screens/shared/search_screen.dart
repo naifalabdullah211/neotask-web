@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import '../../models/criterion_model.dart';
 import '../../models/goal_model.dart';
@@ -114,8 +116,8 @@ class _SearchScreenState extends State<SearchScreen> {
           autofocus: true,
           onChanged: (v) => setState(() => _query = v),
           style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'ابحث عن معيار، هدف، موظف، أو أعمال موظف...',
+          decoration: InputDecoration(
+            hintText: context.tr('ابحث عن معيار، هدف، موظف، أو أعمال موظف...'),
             hintStyle: TextStyle(color: Colors.white70),
             border: InputBorder.none,
           ),

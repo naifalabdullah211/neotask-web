@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
@@ -196,7 +198,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'بحث',
+            tooltip: context.tr('بحث'),
             icon: const Icon(Icons.search),
             onPressed: () {
               Navigator.of(
@@ -206,7 +208,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           ),
           NotificationBell(userUid: managerUid),
           IconButton(
-            tooltip: 'تسجيل الخروج',
+            tooltip: context.tr('تسجيل الخروج'),
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await context.read<AuthProvider>().logout();
@@ -346,14 +348,14 @@ class LuxuryTopNav extends StatelessWidget {
               ),
               const Spacer(),
               IconButton(
-                tooltip: 'بحث شامل',
+                tooltip: context.tr('بحث شامل'),
                 onPressed: onOpenSearch,
                 color: Colors.white,
                 icon: const Icon(Icons.search, size: 25),
               ),
               const SizedBox(width: 3),
               IconButton(
-                tooltip: 'أفكار المدير',
+                tooltip: context.tr('أفكار المدير'),
                 onPressed: onOpenIdeas,
                 color: const Color(0xFFE6AD36),
                 icon: const Icon(Icons.lightbulb_outline, size: 25),
@@ -435,7 +437,7 @@ class LuxuryTopNav extends StatelessWidget {
           ),
           const SizedBox(width: 28),
           IconButton(
-            tooltip: 'بحث شامل',
+            tooltip: context.tr('بحث شامل'),
             onPressed: onOpenSearch,
             color: Colors.white,
             icon: const Icon(Icons.search, size: 27),
@@ -447,7 +449,7 @@ class LuxuryTopNav extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.20),
           ),
           IconButton(
-            tooltip: 'أفكار المدير',
+            tooltip: context.tr('أفكار المدير'),
             onPressed: onOpenIdeas,
             color: const Color(0xFFE6AD36),
             icon: const Icon(Icons.lightbulb_outline, size: 27),

@@ -1,5 +1,7 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -156,7 +158,7 @@ class _ManagerPollDetailScreenState extends State<ManagerPollDetailScreen> {
           if (canEditOrCancel && !widget.readOnly)
             IconButton(
               icon: const Icon(Icons.edit_outlined),
-              tooltip: 'تعديل التصويت',
+              tooltip: context.tr('تعديل التصويت'),
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => EditPollScreen(pollId: poll.pollId),
@@ -166,7 +168,7 @@ class _ManagerPollDetailScreenState extends State<ManagerPollDetailScreen> {
           if (poll.status == PollStatus.ended)
             IconButton(
               icon: const Icon(Icons.assessment_outlined),
-              tooltip: 'عرض التقرير النهائي',
+              tooltip: context.tr('عرض التقرير النهائي'),
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => PollReportScreen(pollId: poll.pollId),

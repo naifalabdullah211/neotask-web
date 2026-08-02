@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -364,19 +366,19 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
             children: [
               TextFormField(
                 controller: _titleCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'عنوان / الفكرة المطروحة للتصويت',
+                decoration: InputDecoration(
+                  labelText: context.tr('عنوان / الفكرة المطروحة للتصويت'),
                 ),
                 validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'أدخل عنوان التصويت'
+                    ? context.tr('أدخل عنوان التصويت')
                     : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _descCtrl,
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'وصف تفصيلي (اختياري)',
+                decoration: InputDecoration(
+                  labelText: context.tr('وصف تفصيلي (اختياري)'),
                 ),
               ),
               const SizedBox(height: 14),
@@ -445,7 +447,7 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
                         child: TextFormField(
                           controller: _choiceCtrls[index],
                           decoration: InputDecoration(
-                            labelText: 'اختيار ${index + 1}',
+                            labelText: context.tr('اختيار ${index + 1}'),
                             isDense: true,
                           ),
                         ),
@@ -599,7 +601,7 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
                 TextField(
                   controller: _employeeSearchCtrl,
                   decoration: InputDecoration(
-                    hintText: 'بحث عن موظف بالاسم أو الرقم الوظيفي...',
+                    hintText: context.tr('بحث عن موظف بالاسم أو الرقم الوظيفي...'),
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _employeeSearchQuery.isEmpty
                         ? null

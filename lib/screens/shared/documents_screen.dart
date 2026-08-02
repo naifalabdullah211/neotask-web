@@ -1,5 +1,7 @@
 import 'package:file_picker/file_picker.dart' as fp;
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/document_model.dart';
@@ -85,8 +87,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: TextField(
                 onChanged: (value) => setState(() => _query = value),
-                decoration: const InputDecoration(
-                  hintText: 'ابحث في العنوان والمحتوى والوسوم',
+                decoration: InputDecoration(
+                  hintText: context.tr('ابحث في العنوان والمحتوى والوسوم'),
                   prefixIcon: Icon(Icons.search),
                 ),
               ),
@@ -374,13 +376,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: title,
-                    decoration: const InputDecoration(labelText: 'العنوان *'),
+                    decoration: InputDecoration(labelText: context.tr('العنوان *')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: description,
                     maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'ملخص قصير'),
+                    decoration: InputDecoration(labelText: context.tr('ملخص قصير')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -388,9 +390,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     minLines: contentOptional ? 2 : 5,
                     maxLines: 10,
                     decoration: InputDecoration(
-                      labelText: contentOptional
-                          ? 'ملاحظات أو محتوى إضافي'
-                          : 'المحتوى *',
+                      labelText: context.tr(
+                        contentOptional
+                            ? 'ملاحظات أو محتوى إضافي'
+                            : 'المحتوى *',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -399,8 +403,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                       Expanded(
                         child: TextField(
                           controller: category,
-                          decoration: const InputDecoration(
-                            labelText: 'التصنيف',
+                          decoration: InputDecoration(
+                            labelText: context.tr('التصنيف'),
                           ),
                         ),
                       ),
@@ -408,7 +412,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                       Expanded(
                         child: TextField(
                           controller: department,
-                          decoration: const InputDecoration(labelText: 'القسم'),
+                          decoration: InputDecoration(labelText: context.tr('القسم')),
                         ),
                       ),
                     ],
@@ -416,9 +420,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: tags,
-                    decoration: const InputDecoration(
-                      labelText: 'الوسوم مفصولة بفاصلة',
-                      hintText: 'جودة، JCI، صيدلية',
+                    decoration: InputDecoration(
+                      labelText: context.tr('الوسوم مفصولة بفاصلة'),
+                      hintText: context.tr('جودة، JCI، صيدلية'),
                     ),
                   ),
                 ],

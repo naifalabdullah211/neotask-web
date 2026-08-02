@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
@@ -129,24 +131,24 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                                 obscureText: true,
                                 textDirection: TextDirection.ltr,
                                 textAlign: TextAlign.left,
-                                decoration: const InputDecoration(
-                                  labelText: 'مفتاح التأسيس',
+                                decoration: InputDecoration(
+                                  labelText: context.tr('مفتاح التأسيس'),
                                   prefixIcon: Icon(Icons.key_outlined),
                                 ),
                                 validator: (v) => v == _setupKey
                                     ? null
-                                    : 'مفتاح التأسيس غير صحيح',
+                                    : context.tr('مفتاح التأسيس غير صحيح'),
                               ),
                               const SizedBox(height: 14),
                               TextFormField(
                                 controller: _nameCtrl,
-                                decoration: const InputDecoration(
-                                  labelText: 'الاسم الكامل',
+                                decoration: InputDecoration(
+                                  labelText: context.tr('الاسم الكامل'),
                                   prefixIcon: Icon(Icons.person_outline),
                                 ),
                                 validator: (v) =>
                                     (v == null || v.trim().isEmpty)
-                                    ? 'أدخل الاسم'
+                                    ? context.tr('أدخل الاسم')
                                     : null,
                               ),
                               const SizedBox(height: 14),
@@ -155,13 +157,13 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                                 keyboardType: TextInputType.number,
                                 textDirection: TextDirection.ltr,
                                 textAlign: TextAlign.left,
-                                decoration: const InputDecoration(
-                                  labelText: 'الرقم الوظيفي',
+                                decoration: InputDecoration(
+                                  labelText: context.tr('الرقم الوظيفي'),
                                   prefixIcon: Icon(Icons.badge_outlined),
                                 ),
                                 validator: (v) =>
                                     (v == null || v.trim().isEmpty)
-                                    ? 'أدخل الرقم الوظيفي'
+                                    ? context.tr('أدخل الرقم الوظيفي')
                                     : null,
                               ),
                               const SizedBox(height: 14),
@@ -171,7 +173,7 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                                 textDirection: TextDirection.ltr,
                                 textAlign: TextAlign.left,
                                 decoration: InputDecoration(
-                                  labelText: 'الرقم السري',
+                                  labelText: context.tr('الرقم السري'),
                                   prefixIcon: const Icon(Icons.lock_outline),
                                   suffixIcon: IconButton(
                                     icon: Icon(
@@ -184,7 +186,7 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                                   ),
                                 ),
                                 validator: (v) => (v == null || v.length < 6)
-                                    ? 'الرقم السري 6 أحرف على الأقل'
+                                    ? context.tr('الرقم السري 6 أحرف على الأقل')
                                     : null,
                               ),
                               const SizedBox(height: 14),
@@ -193,12 +195,12 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                                 obscureText: _obscure,
                                 textDirection: TextDirection.ltr,
                                 textAlign: TextAlign.left,
-                                decoration: const InputDecoration(
-                                  labelText: 'تأكيد الرقم السري',
+                                decoration: InputDecoration(
+                                  labelText: context.tr('تأكيد الرقم السري'),
                                   prefixIcon: Icon(Icons.lock_outline),
                                 ),
                                 validator: (v) => (v != _passwordCtrl.text)
-                                    ? 'الرقمان السريان لا يتطابقان'
+                                    ? context.tr('الرقمان السريان لا يتطابقان')
                                     : null,
                               ),
                               const SizedBox(height: 22),

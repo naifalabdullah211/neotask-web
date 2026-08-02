@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -57,17 +59,17 @@ Future<void> showCreateGoalDialog(BuildContext context) async {
                   TextFormField(
                     controller: titleCtrl,
                     autofocus: true,
-                    decoration: const InputDecoration(labelText: 'عنوان الهدف'),
+                    decoration: InputDecoration(labelText: context.tr('عنوان الهدف')),
                     validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'أدخل عنوان الهدف'
+                        ? context.tr('أدخل عنوان الهدف')
                         : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: descCtrl,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'الوصف (اختياري)',
+                    decoration: InputDecoration(
+                      labelText: context.tr('الوصف (اختياري)'),
                     ),
                   ),
                   const SizedBox(height: 12),
