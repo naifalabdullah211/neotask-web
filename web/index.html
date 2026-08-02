@@ -14,18 +14,40 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="preload" as="image" href="assets/assets/images/neotask_brand_full.png?v=20260801-7">
+  <link rel="preload" as="image" href="assets/assets/images/login_bg.jpg?v=20260802-1">
 
   <title>NeoTask</title>
   <link rel="manifest" href="manifest.json">
 
   <style>
+    @font-face {
+      font-family: "Tajawal";
+      src: url("assets/assets/fonts/Tajawal-Regular.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Tajawal";
+      src: url("assets/assets/fonts/Tajawal-Medium.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 500;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Tajawal";
+      src: url("assets/assets/fonts/Tajawal-Bold.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+    }
     html, body {
       width: 100%;
       height: 100%;
       margin: 0;
       overflow: hidden;
       background: #f5f7fa;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      font-family: "Tajawal", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
     }
     #boot-status {
       position: fixed;
@@ -157,29 +179,30 @@
       align-items: center;
       padding: 64px;
       color: #fff;
-      background: linear-gradient(145deg, #0f2948 0%, #163a61 68%, #214c69 100%);
+      background:
+        radial-gradient(circle at 0% 100%, rgba(51, 214, 166, .28) 0%, rgba(51, 214, 166, 0) 50%),
+        linear-gradient(145deg, rgba(15, 37, 71, .78) 0%, rgba(27, 58, 107, .68) 100%),
+        url("assets/assets/images/login_bg.jpg?v=20260802-1") center / cover no-repeat;
       direction: rtl;
     }
     .boot-brand-side::before {
       content: "";
       position: absolute;
-      width: 360px;
-      height: 360px;
-      left: -170px;
-      bottom: -170px;
-      border-radius: 50%;
-      background: rgba(111, 215, 190, .16);
+      inset: 0;
+      background: linear-gradient(180deg, rgba(15, 37, 71, .05), rgba(15, 37, 71, .22));
     }
     .boot-brand-copy { position: relative; max-width: 440px; }
     .boot-brand-copy h1 {
       margin: 0 0 14px;
       font-size: clamp(29px, 3vw, 46px);
+      font-weight: 700;
       line-height: 1.35;
     }
     .boot-brand-copy p {
       margin: 0;
       color: rgba(255,255,255,.74);
-      font-size: 16px;
+      font-size: 18px;
+      font-weight: 500;
       line-height: 1.8;
     }
     #boot-status .spinner {
@@ -273,8 +296,8 @@
       </main>
       <aside class="boot-brand-side">
         <div class="boot-brand-copy">
-          <h1>مساحة عمل واحدة.<br>إنجاز أوضح.</h1>
-          <p>نظّم مهامك، تابع فريقك، وأنجز أعمالك اليومية بسهولة من أي جهاز.</p>
+          <h1>مساحة عمل واحدة لإنجاز أوضح</h1>
+          <p>نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز</p>
         </div>
       </aside>
     </div>
@@ -317,7 +340,7 @@
       window.location.reload();
     });
 
-    const NEO_TASK_BUILD_ID = '20260801-13';
+    const NEO_TASK_BUILD_ID = '20260802-1';
     let flutterStarted = false;
 
     function setBootLoading(loading, text) {
