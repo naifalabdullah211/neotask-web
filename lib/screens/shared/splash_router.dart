@@ -6,6 +6,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/app_ready.dart';
+import '../../utils/manager_setup_route.dart';
 import '../auth/login_screen.dart';
 import '../auth/manager_setup_screen.dart';
 import '../auth/manager_welcome_screen.dart';
@@ -24,12 +25,6 @@ class SplashRouter extends StatefulWidget {
 }
 
 class _SplashRouterState extends State<SplashRouter> {
-  // NeoTask is an established production workspace with an existing manager.
-  // Keep the historical bootstrap screen closed on signed-out devices even if
-  // its legacy sentinel is missing; the authenticated manager repairs that
-  // sentinel after login via AuthProvider.
-  static const bool _managerBootstrapClosed = true;
-
   String? _inviteToken;
   String? _publicFormId;
   bool _inviteReady = true;
@@ -123,10 +118,11 @@ class _SplashRouterState extends State<SplashRouter> {
               ? RegisterViaInviteScreen(token: _inviteToken!)
               : const _InviteBootstrapView();
         } else if (!auth.isLoggedIn) {
-          destination = !_forceLogin &&
-                  !_managerBootstrapClosed &&
-                  _managerStatusReady &&
-                  !auth.managerExists
+          destination = shouldShowManagerSetup(
+                forceLogin: _forceLogin,
+                managerStatusReady: _managerStatusReady,
+                managerExists: auth.managerExists,
+              )
               ? const ManagerSetupScreen()
               : const LoginScreen();
         } else {
