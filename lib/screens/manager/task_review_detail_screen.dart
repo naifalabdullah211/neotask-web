@@ -373,7 +373,10 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
   /// `getAllEmployees().where(accountStatus == active)` pattern used by
   /// `manager_reports_tab.dart` / `request_reassignment_dialog.dart`.
   Future<void> _transferAction(AppTask current, String managerUid) async {
-    final candidates = FirestoreService.getAllEmployees()
+    final teamMembers = FirestoreService.getAllEmployees()
+        .where((u) => u.accountStatus == AccountStatus.active)
+        .toList();
+    final candidates = teamMembers
         .where(
           (u) =>
               u.accountStatus == AccountStatus.active &&
@@ -392,6 +395,7 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
     }
 
     AppUser? selected = candidates.first;
+    bool assignToWholeTeam = false;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -402,20 +406,52 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'اختر الموظف المسؤول. بعد التحويل تخرج المهمة من «المهام الشخصية» وتصبح ضمن مهام الفريق مع بقاء جميع تفاصيلها وتعليقاتها.',
+                'اختر موظفًا مسؤولًا أو أسند المهمة لكل أعضاء الفريق النشطين. تبقى التفاصيل والتعليقات محفوظة.',
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<AppUser>(
-                initialValue: selected,
-                decoration: const InputDecoration(isDense: true),
-                items: candidates
-                    .map((u) => DropdownMenuItem(value: u, child: Text(u.name)))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setDialogState(() => selected = v);
-                },
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: false,
+                    icon: Icon(Icons.person_outline),
+                    label: Text('موظف محدد'),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    icon: Icon(Icons.groups_outlined),
+                    label: Text('الفريق كاملًا'),
+                  ),
+                ],
+                selected: {assignToWholeTeam},
+                onSelectionChanged: (selection) =>
+                    setDialogState(() => assignToWholeTeam = selection.first),
               ),
+              const SizedBox(height: 12),
+              if (!assignToWholeTeam)
+                DropdownButtonFormField<AppUser>(
+                  initialValue: selected,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    labelText: 'الموظف المسؤول',
+                  ),
+                  items: candidates
+                      .map(
+                        (u) => DropdownMenuItem(value: u, child: Text(u.name)),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setDialogState(() => selected = v);
+                  },
+                )
+              else
+                Text(
+                  'سيتم إنشاء مهمة مستقلة لكل موظف نشط (${teamMembers.length}) ليتابع كل موظف إنجازه وتعليقاته بشكل منفصل.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
             ],
           ),
           actions: [
@@ -432,7 +468,20 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
       ),
     );
 
-    if (confirmed != true || selected == null || !mounted) return;
+    if (confirmed != true || !mounted) return;
+    if (assignToWholeTeam) {
+      final count = await context.read<TaskProvider>().reassignTaskToTeam(
+        taskId: current.taskId,
+        managerUid: managerUid,
+        teamMemberUids: teamMembers.map((user) => user.uid).toList(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تم إسناد المهمة إلى الفريق ($count موظف)')),
+      );
+      return;
+    }
+    if (selected == null) return;
     await context.read<TaskProvider>().reassignTaskDirect(
       taskId: current.taskId,
       managerUid: managerUid,

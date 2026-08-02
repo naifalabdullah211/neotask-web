@@ -830,6 +830,71 @@ class TaskProvider extends ChangeNotifier {
     );
   }
 
+  /// Delegates one manager task to every active member selected by the
+  /// caller. The original task becomes the first employee's assignment;
+  /// additional employees receive independent copies so each person can
+  /// progress and submit their own work without overwriting teammates.
+  Future<int> reassignTaskToTeam({
+    required String taskId,
+    required String managerUid,
+    required List<String> teamMemberUids,
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return 0;
+    final assignees = teamMemberUids
+        .map((uid) => uid.trim())
+        .where((uid) => uid.isNotEmpty && uid != managerUid)
+        .toSet()
+        .toList();
+    if (assignees.isEmpty) return 0;
+
+    final firstAssignee = assignees.first;
+    await FirestoreService.saveTask(
+      task.copyWith(
+        assignedTo: firstAssignee,
+        viewedByEmployee: false,
+        updatedAt: DateTime.now(),
+      ),
+    );
+    await _logHistory(
+      taskId,
+      HistoryAction.statusChange,
+      managerUid,
+      note: 'تحويل المهمة إلى الفريق (${assignees.length} موظف)',
+    );
+
+    for (final employeeUid in assignees.skip(1)) {
+      final copy = await createTask(
+        title: task.title,
+        description: task.description,
+        assignedTo: employeeUid,
+        assignedBy: managerUid,
+        dueDate: task.dueDate,
+        startDate: task.startDate,
+        plannedHours: task.plannedHours,
+        parentTaskId: task.parentTaskId,
+        predecessorTaskIds: task.predecessorTaskIds,
+        linkedDocumentIds: task.linkedDocumentIds,
+        priority: task.priority,
+        category: task.category,
+        recurrenceType: task.recurrenceType,
+        recurrenceDayOfMonth: task.recurrenceDayOfMonth,
+        recurrenceWeekOrdinal: task.recurrenceWeekOrdinal,
+        recurrenceWeekday: task.recurrenceWeekday,
+        recurrenceEndDate: task.recurrenceEndDate,
+      );
+      if (task.activityLog.isNotEmpty) {
+        await FirestoreService.saveTask(
+          copy.copyWith(
+            activityLog: task.activityLog,
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
+    }
+    return assignees.length;
+  }
+
   /// Marks [taskId] as viewed by its assigned employee (in-app notification
   /// pattern mirroring `MessageProvider.markConversationRead`). Called when
   /// the employee opens `TaskDetailScreen`. No-op if already viewed.
