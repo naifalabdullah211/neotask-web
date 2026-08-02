@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../providers/digest_provider.dart';
+import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/user_avatar.dart';
@@ -43,6 +45,13 @@ class _AppDrawerState extends State<AppDrawer> {
     final isManager = auth.isManager;
     final isDesigner = auth.isDesigner;
     final showManagerTools = isManager || isDesigner;
+    final taskProvider = context.watch<TaskProvider>();
+    final managerStats = isManager
+        ? taskProvider.statsForRange(taskProvider.teamTasks)
+        : null;
+    final managerDigest = isManager
+        ? context.watch<DigestProvider>().todayDigest
+        : null;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final drawerWidth = screenWidth < 420
         ? screenWidth * .91
@@ -114,6 +123,18 @@ class _AppDrawerState extends State<AppDrawer> {
                       AppSpacing.xl,
                     ),
                     children: [
+                      if (isManager && managerStats != null) ...[
+                        _DrawerManagerSummary(
+                          pending: managerStats.pendingDisplay,
+                          submitted: managerStats.submitted,
+                          overdue: managerStats.overdue,
+                          completedThisWeek:
+                              managerDigest?.completedThisWeek,
+                          digestText: managerDigest?.messageText,
+                          isWeekly: managerDigest?.isWeekly ?? false,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
                       _DrawerSection(
                         title: 'التخطيط والتنفيذ',
                         icon: Icons.account_tree_outlined,
@@ -462,6 +483,315 @@ class _DrawerAccountHeader extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact, live manager overview pinned to the top of the navigation list.
+///
+/// The three counts deliberately reuse [TaskProvider.statsForRange], the same
+/// single source of truth as the dashboard. The optional narrative reuses the
+/// persisted daily/weekly digest instead of deriving a competing summary.
+class _DrawerManagerSummary extends StatefulWidget {
+  const _DrawerManagerSummary({
+    required this.pending,
+    required this.submitted,
+    required this.overdue,
+    required this.completedThisWeek,
+    required this.digestText,
+    required this.isWeekly,
+  });
+
+  final int pending;
+  final int submitted;
+  final int overdue;
+  final int? completedThisWeek;
+  final String? digestText;
+  final bool isWeekly;
+
+  @override
+  State<_DrawerManagerSummary> createState() =>
+      _DrawerManagerSummaryState();
+}
+
+class _DrawerManagerSummaryState extends State<_DrawerManagerSummary> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final digestText = widget.digestText?.trim();
+    final detailsText = digestText != null && digestText.isNotEmpty
+        ? digestText
+        : _fallbackDetails;
+
+    return Semantics(
+      container: true,
+      label: 'ملخص المدير',
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: AppColors.navy.withValues(alpha: .09),
+          ),
+          boxShadow: AppElevation.lowShadow,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.md,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.navy.withValues(alpha: .08),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                        child: const Icon(
+                          Icons.summarize_outlined,
+                          size: 19,
+                          color: AppColors.navy,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ملخص المدير',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontFamily: 'IBMPlexSansArabic',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'تحديث مباشر لحالة العمل',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontFamily: 'IBMPlexSansArabic',
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      AnimatedRotation(
+                        turns: _expanded ? .5 : 0,
+                        duration: AppMotion.medium,
+                        child: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 21,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                0,
+                AppSpacing.sm,
+                AppSpacing.md,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _DrawerSummaryMetric(
+                      label: 'قيد الانتظار',
+                      value: widget.pending,
+                      color: AppColors.deepBlue,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _DrawerSummaryMetric(
+                      label: 'بانتظار المراجعة',
+                      value: widget.submitted,
+                      color: AppColors.gold,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _DrawerSummaryMetric(
+                      label: 'متأخرة',
+                      value: widget.overdue,
+                      color: AppColors.statusRejected,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AnimatedSize(
+              duration: AppMotion.medium,
+              curve: AppMotion.standard,
+              child: !_expanded
+                  ? const SizedBox.shrink()
+                  : Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                        AppSpacing.md,
+                        AppSpacing.md,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
+                        border: Border(
+                          top: BorderSide(color: AppColors.divider),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.sm,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withValues(alpha: .13),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.pill,
+                                  ),
+                                ),
+                                child: Text(
+                                  widget.isWeekly
+                                      ? 'ملخص الأسبوع'
+                                      : 'ملخص اليوم',
+                                  style: const TextStyle(
+                                    color: AppColors.gold,
+                                    fontFamily: 'IBMPlexSansArabic',
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              if (widget.completedThisWeek != null) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    '${widget.completedThisWeek} مكتملة هذا الأسبوع',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontFamily: 'IBMPlexSansArabic',
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            detailsText,
+                            maxLines: 7,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontFamily: 'IBMPlexSansArabic',
+                              fontSize: 11.5,
+                              height: 1.55,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String get _fallbackDetails {
+    if (widget.overdue > 0 || widget.submitted > 0) {
+      return 'يحتاج انتباهك ${widget.overdue} مهمة متأخرة و'
+          '${widget.submitted} مهمة بانتظار المراجعة.';
+    }
+    if (widget.pending > 0) {
+      return 'لا توجد مهام متأخرة أو مراجعات معلقة. يوجد '
+          '${widget.pending} مهمة قيد الانتظار.';
+    }
+    return 'لا توجد مهام متأخرة أو مراجعات معلقة حاليًا.';
+  }
+}
+
+class _DrawerSummaryMetric extends StatelessWidget {
+  const _DrawerSummaryMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .065),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: color.withValues(alpha: .09)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '$value',
+            textDirection: TextDirection.ltr,
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              height: 1,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontFamily: 'IBMPlexSansArabic',
+              fontSize: 9.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

@@ -56,4 +56,24 @@ void main() {
     expect(source, contains('Semantics('));
     expect(source, contains('selected: isActive'));
   });
+
+  test('manager summary is live, first, compact, and manager-only', () {
+    final source = File(
+      'lib/screens/shared/app_drawer.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('if (isManager && managerStats != null)'));
+    expect(source, contains('_DrawerManagerSummary('));
+    expect(source, contains('taskProvider.statsForRange(taskProvider.teamTasks)'));
+    expect(source, contains('تحديث مباشر لحالة العمل'));
+    expect(source, contains('قيد الانتظار'));
+    expect(source, contains('بانتظار المراجعة'));
+    expect(source, contains('متأخرة'));
+    expect(source, contains("label: 'ملخص المدير'"));
+
+    final summaryOffset = source.indexOf('_DrawerManagerSummary(');
+    final firstSectionOffset = source.indexOf('_DrawerSection(');
+    expect(summaryOffset, greaterThanOrEqualTo(0));
+    expect(firstSectionOffset, greaterThan(summaryOffset));
+  });
 }
