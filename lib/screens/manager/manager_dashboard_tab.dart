@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart' as intl;
 import '../../models/task_model.dart';
 import '../../models/user_model.dart';
-import '../../models/manager_digest_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/poll_provider.dart';
@@ -14,7 +13,6 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/date_nav_arrow_button.dart';
 import '../../widgets/dashboard_stat_widgets.dart';
-import '../../widgets/daily_digest_card.dart';
 import '../../widgets/task_list_tile.dart';
 import '../../widgets/task_kanban_board.dart';
 import 'quick_add_task_sheet.dart';
@@ -242,8 +240,6 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
     final managerUid = context.read<AuthProvider>().currentUser!.uid;
-    final digestState = context.watch<DigestProvider>();
-
     _maybeGenerateDigest(context, provider, managerUid);
 
     return SafeArea(
@@ -318,8 +314,6 @@ class _ManagerDashboardTabState extends State<ManagerDashboardTab> {
                       rangeTasks: _tasksForRange(provider),
                       managerUid: managerUid,
                       emptyStateTitle: _emptyStateTitle,
-                      digest: digestState.todayDigest,
-                      isGeneratingDigest: digestState.isGenerating,
                     )
                   : TaskKanbanBoard(
                       // Kanban ignores the day/week/month filter entirely —
@@ -362,28 +356,18 @@ class _ListView extends StatelessWidget {
     required this.rangeTasks,
     required this.managerUid,
     required this.emptyStateTitle,
-    required this.digest,
-    required this.isGeneratingDigest,
   });
 
   final TaskProvider provider;
   final List<AppTask> rangeTasks;
   final String managerUid;
   final String emptyStateTitle;
-  final ManagerDigest? digest;
-  final bool isGeneratingDigest;
 
   @override
   Widget build(BuildContext context) {
     final stats = provider.statsForRange(rangeTasks);
     return ListView(
       children: [
-        // "ملخص المدير" — placed ABOVE the 6 stat cards, per explicit
-        // requirement. Renders nothing (no visible gap) until either the
-        // digest exists or is actively being generated for the first time
-        // today.
-        if (digest != null || isGeneratingDigest)
-          DailyDigestCard(digest: digest, isGenerating: isGeneratingDigest),
         // Fixed-size boxes via Wrap (not GridView.count — see the
         // designer dashboard's identical fix for why GridView.count
         // stretches cells on wide viewports).

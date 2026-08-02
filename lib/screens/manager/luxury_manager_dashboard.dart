@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 
-import '../../models/manager_digest_model.dart';
 import '../../models/meeting_model.dart';
 import '../../models/task_model.dart';
 import '../../models/user_model.dart';
@@ -16,7 +15,6 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/task_stats.dart';
-import '../../widgets/daily_digest_card.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/task_kanban_board.dart';
 import '../designer/designer_task_view_screen.dart';
@@ -108,7 +106,6 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
     final manager = context.watch<AuthProvider>().currentUser!;
-    final digest = context.watch<DigestProvider>();
     final meetings = context.watch<MeetingProvider>().upcoming.toList()
       ..sort((a, b) => a.startTime.compareTo(b.startTime));
     final employees = FirestoreService.getAllEmployees()
@@ -154,8 +151,6 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
                       managerUid: manager.uid,
                       employees: employees,
                       meetings: meetings,
-                      digest: digest.todayDigest,
-                      isGeneratingDigest: digest.isGenerating,
                       range: _range,
                       rangeLabel: _rangeLabel,
                       kanban: _kanban,
@@ -339,8 +334,6 @@ class _DashboardSurface extends StatelessWidget {
     required this.managerUid,
     required this.employees,
     required this.meetings,
-    required this.digest,
-    required this.isGeneratingDigest,
     required this.range,
     required this.rangeLabel,
     required this.kanban,
@@ -356,8 +349,6 @@ class _DashboardSurface extends StatelessWidget {
   final String managerUid;
   final List<AppUser> employees;
   final List<MeetingItem> meetings;
-  final ManagerDigest? digest;
-  final bool isGeneratingDigest;
   final _LuxuryRange range;
   final String rangeLabel;
   final bool kanban;
@@ -509,10 +500,6 @@ class _DashboardSurface extends StatelessWidget {
                 ),
           SizedBox(height: desktop ? 30 : 22),
           content,
-          if (digest != null || isGeneratingDigest) ...[
-            const SizedBox(height: 18),
-            DailyDigestCard(digest: digest, isGenerating: isGeneratingDigest),
-          ],
         ],
       ),
     );
