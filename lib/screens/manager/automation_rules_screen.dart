@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/workflow_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/automation_workspace.dart';
 import '../../widgets/neo_selection_field.dart';
 
 class AutomationRulesScreen extends StatelessWidget {
@@ -17,92 +18,116 @@ class AutomationRulesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('الأتمتة الشرطية')),
-      floatingActionButton: readOnly
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _openEditor(context),
-              icon: const Icon(Icons.add),
-              label: const Text('قاعدة جديدة'),
-            ),
-      body: StreamBuilder<List<AutomationRule>>(
-        stream: WorkflowService.watchAutomationRules(),
-        builder: (context, rulesSnapshot) {
-          final rules = rulesSnapshot.data ?? const [];
-          return StreamBuilder<List<AutomationRun>>(
-            stream: WorkflowService.watchAutomationRuns(),
-            builder: (context, runsSnapshot) {
-              final runs = runsSnapshot.data ?? const [];
-              return ListView(
-                padding: const EdgeInsets.all(18),
-                children: [
-                  _SummaryCard(
-                    active: rules.where((r) => r.isActive).length,
-                    runs: runs.length,
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    'القواعد',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (rules.isEmpty)
-                    const _EmptyCard(
-                      text:
-                          'لا توجد قواعد بعد. أنشئ قاعدة تربط حدثًا بشرط وإجراء فعلي.',
-                    )
-                  else
-                    ...rules.map(
-                      (rule) => _RuleCard(
-                        rule: rule,
-                        readOnly: readOnly,
-                        onEdit: () => _openEditor(context, existing: rule),
-                      ),
-                    ),
-                  const SizedBox(height: 22),
-                  Text(
-                    'سجل التنفيذ',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (runs.isEmpty)
-                    const _EmptyCard(
-                      text: 'سيظهر هنا كل تشغيل مع المهمة والنتيجة والتوقيت.',
-                    )
-                  else
-                    ...runs
-                        .take(25)
-                        .map(
-                          (run) => Card(
-                            child: ListTile(
-                              leading: Icon(
-                                run.status == 'completed'
-                                    ? Icons.check_circle
-                                    : Icons.error_outline,
-                                color: run.status == 'completed'
-                                    ? AppColors.mintAccent
-                                    : AppColors.statusRejected,
-                              ),
-                              title: Text('${run.ruleName} · ${run.taskTitle}'),
-                              subtitle: Text(
-                                '${_actionLabel(run.action)}\n${run.executedAt.toLocal().toString().substring(0, 16)}${run.message == null ? '' : ' · ${run.message}'}',
-                              ),
-                              isThreeLine: true,
-                            ),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          centerTitle: false,
+          title: const Text(
+            'الأتمتة',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+          ),
+          actions: [
+            if (!readOnly)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 12),
+                child: MediaQuery.sizeOf(context).width < 620
+                    ? IconButton.filled(
+                        tooltip: 'قاعدة جديدة',
+                        onPressed: () => _openEditor(context),
+                        style: IconButton.styleFrom(
+                          backgroundColor: AppColors.mintAccent,
+                          foregroundColor: AppColors.navy,
+                        ),
+                        icon: const Icon(Icons.add_rounded),
+                      )
+                    : FilledButton.icon(
+                        onPressed: () => _openEditor(context),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.mintAccent,
+                          foregroundColor: AppColors.navy,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
                         ),
-                  const SizedBox(height: 90),
-                ],
-              );
-            },
-          );
-        },
+                        icon: const Icon(Icons.add_rounded, size: 20),
+                        label: const Text(
+                          'قاعدة جديدة',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+              ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(54),
+            child: ColoredBox(
+              color: Colors.white,
+              child: Align(
+                alignment: AlignmentDirectional.center,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: const TabBar(
+                    indicatorColor: AppColors.mintAccent,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    indicatorWeight: 3,
+                    labelColor: AppColors.deepBlue,
+                    unselectedLabelColor: AppColors.textSecondary,
+                    labelStyle: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    tabs: [
+                      Tab(text: 'مساحة القواعد'),
+                      Tab(text: 'سجل التنفيذ'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        body: StreamBuilder<List<AutomationRule>>(
+          stream: WorkflowService.watchAutomationRules(),
+          builder: (context, rulesSnapshot) {
+            final rules = rulesSnapshot.data ?? const <AutomationRule>[];
+            return StreamBuilder<List<AutomationRun>>(
+              stream: WorkflowService.watchAutomationRuns(),
+              builder: (context, runsSnapshot) {
+                final runs = runsSnapshot.data ?? const <AutomationRun>[];
+                return Column(
+                  children: [
+                    AutomationMetricsBar(rules: rules, runs: runs),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          AutomationRulesWorkspace(
+                            rules: rules,
+                            runs: runs,
+                            readOnly: readOnly,
+                            resolveUserName: (uid) =>
+                                FirestoreService.getUser(uid)?.name,
+                            resolveUserPhotoUrl: (uid) =>
+                                FirestoreService.getUser(uid)?.profilePhotoUrl,
+                            onEdit: (rule) =>
+                                _openEditor(context, existing: rule),
+                            onDuplicate: (rule) =>
+                                _duplicateRule(context, rule),
+                            onDelete: (rule) =>
+                                _confirmDelete(context, rule),
+                            onToggle: (rule, active) => WorkflowService
+                                .setAutomationRuleActive(rule, active),
+                          ),
+                          AutomationRunLog(runs: runs),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -126,122 +151,68 @@ class AutomationRulesScreen extends StatelessWidget {
       ).showSnackBar(const SnackBar(content: Text('تم حفظ قاعدة الأتمتة')));
     }
   }
-}
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.active, required this.runs});
-  final int active;
-  final int runs;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      gradient: AppColors.primaryGradient,
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Row(
-      children: [
-        const Icon(
-          Icons.account_tree_outlined,
-          color: AppColors.gold,
-          size: 38,
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'قواعد تعمل على المهام تلقائيًا',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '$active قاعدة نشطة · $runs عملية مسجلة',
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ],
+  Future<void> _confirmDelete(
+    BuildContext context,
+    AutomationRule rule,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف قاعدة الأتمتة'),
+        content: Text('سيتم حذف «${rule.name}» نهائيًا.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
           ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _RuleCard extends StatelessWidget {
-  const _RuleCard({
-    required this.rule,
-    required this.readOnly,
-    required this.onEdit,
-  });
-  final AutomationRule rule;
-  final bool readOnly;
-  final VoidCallback onEdit;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 10),
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.mintAccent.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(12),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.statusRejected,
             ),
-            child: const Icon(Icons.bolt, color: AppColors.navy),
+            child: const Text('حذف'),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  rule.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_triggerLabel(rule.trigger)} ← ${_conditionSummary(rule)} ← ${_actionLabel(rule.action.name)}',
-                  style: const TextStyle(color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: rule.isActive,
-            onChanged: readOnly
-                ? null
-                : (value) =>
-                      WorkflowService.setAutomationRuleActive(rule, value),
-          ),
-          if (!readOnly)
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'edit') onEdit();
-                if (value == 'delete')
-                  WorkflowService.deleteAutomationRule(rule.ruleId);
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('تعديل')),
-                PopupMenuItem(value: 'delete', child: Text('حذف')),
-              ],
-            ),
         ],
       ),
-    ),
-  );
+    );
+    if (confirmed != true) return;
+    await WorkflowService.deleteAutomationRule(rule.ruleId);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حذف قاعدة الأتمتة')),
+      );
+    }
+  }
+
+  Future<void> _duplicateRule(
+    BuildContext context,
+    AutomationRule source,
+  ) async {
+    final now = DateTime.now();
+    final manager = context.read<AuthProvider>().currentUser!;
+    final copy = AutomationRule(
+      ruleId: const Uuid().v4(),
+      name: '${source.name} - نسخة',
+      isActive: false,
+      trigger: source.trigger,
+      conditionField: source.conditionField,
+      conditionOperator: source.conditionOperator,
+      conditionValue: source.conditionValue,
+      action: source.action,
+      actionValue: source.actionValue,
+      dueWithinHours: source.dueWithinHours,
+      createdBy: manager.uid,
+      createdAt: now,
+      updatedAt: now,
+    );
+    await WorkflowService.saveAutomationRule(copy);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إنشاء نسخة متوقفة من القاعدة')),
+      );
+    }
+  }
 }
 
 class _AutomationEditor extends StatefulWidget {
@@ -292,17 +263,41 @@ class _AutomationEditorState extends State<_AutomationEditor> {
         .where((u) => u.accountStatus == AccountStatus.active)
         .toList();
     return AlertDialog(
-      title: Text(
-        widget.existing == null ? 'إنشاء قاعدة أتمتة' : 'تعديل قاعدة الأتمتة',
+      title: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.mintAccent.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: const Icon(Icons.bolt_rounded, color: AppColors.deepBlue),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              widget.existing == null
+                  ? 'إنشاء قاعدة أتمتة'
+                  : 'تعديل قاعدة الأتمتة',
+            ),
+          ),
+        ],
       ),
       content: SizedBox(
-        width: 560,
+        width: 600,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                _EditorFlowPreview(
+                  trigger: _trigger,
+                  field: _field,
+                  action: _action,
+                ),
+                const SizedBox(height: 18),
                 TextFormField(
                   controller: _name,
                   decoration: const InputDecoration(labelText: 'اسم القاعدة'),
@@ -625,20 +620,104 @@ class _AutomationEditorState extends State<_AutomationEditor> {
   }
 }
 
-class _EmptyCard extends StatelessWidget {
-  const _EmptyCard({required this.text});
-  final String text;
+class _EditorFlowPreview extends StatelessWidget {
+  const _EditorFlowPreview({
+    required this.trigger,
+    required this.field,
+    required this.action,
+  });
+
+  final AutomationTrigger trigger;
+  final AutomationConditionField field;
+  final AutomationAction action;
+
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(22),
-      child: Center(
-        child: Text(
-          text,
-          style: const TextStyle(color: AppColors.textSecondary),
-        ),
-      ),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF7F9FC),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      border: Border.all(color: AppColors.divider),
     ),
+    child: Row(
+      textDirection: TextDirection.rtl,
+      children: [
+        Expanded(
+          child: _EditorFlowStep(
+            label: 'الحدث',
+            value: _triggerLabel(trigger),
+            icon: Icons.bolt_outlined,
+            color: const Color(0xFF1F6FD2),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 7),
+          child: Icon(
+            Icons.arrow_back_rounded,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        Expanded(
+          child: _EditorFlowStep(
+            label: 'الشرط',
+            value: _fieldLabel(field),
+            icon: Icons.rule_outlined,
+            color: AppColors.gold,
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 7),
+          child: Icon(
+            Icons.arrow_back_rounded,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        Expanded(
+          child: _EditorFlowStep(
+            label: 'الإجراء',
+            value: _actionLabel(action.name),
+            icon: Icons.play_circle_outline_rounded,
+            color: AppColors.mintAccent,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _EditorFlowStep extends StatelessWidget {
+  const _EditorFlowStep({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Icon(icon, color: color, size: 21),
+      const SizedBox(height: 5),
+      Text(
+        label,
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900),
+      ),
+      const SizedBox(height: 3),
+      Text(
+        value,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+      ),
+    ],
   );
 }
 
@@ -692,22 +771,4 @@ String _conditionHint(AutomationConditionField field) => switch (field) {
   AutomationConditionField.category => 'اسم التصنيف',
   AutomationConditionField.progress => 'النسبة مثل 80',
   _ => 'قيمة الشرط',
-};
-
-String _conditionSummary(AutomationRule rule) {
-  if (rule.conditionField == AutomationConditionField.any) return 'كل المهام';
-  return '${_fieldLabel(rule.conditionField)} ${_operatorLabel(rule.conditionOperator)} ${_conditionValueLabel(rule.conditionValue)}';
-}
-
-String _conditionValueLabel(String value) => switch (value) {
-  'assigned' => 'قيد الانتظار',
-  'inProgress' => 'قيد التنفيذ',
-  'submitted' => 'بانتظار المراجعة',
-  'approved' => 'مكتملة',
-  'rejected' => 'مرفوضة',
-  'editRequested' => 'مطلوب تعديلها',
-  'low' => 'منخفضة',
-  'medium' => 'متوسطة',
-  'high' => 'عالية',
-  _ => value,
 };
