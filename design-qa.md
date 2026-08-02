@@ -1,48 +1,29 @@
-**Source visual truth**
+# Login identity panel design QA
 
-- Desktop: `/workspace/scratch/neotask-dashboard-logo-v2-20260731.jpg`
-- Mobile: `/workspace/scratch/neotask-dashboard-mobile-original-tabs-final-20260731.jpg`
+## Source visual truth
 
-**Browser-rendered implementation evidence**
+- Supplied building photograph: `upload/CB07DE46-B3AD-4474-B90E-9810CB02E2EB.jpeg` (960×540).
+- Approved copy: `مساحة عمل واحدة لإنجاز أوضح` and `نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز`.
+- Brand direction: navy `#0F2547` to `#1B3A6B`, subtle mint `#33D6A6`, Tajawal typography, RTL alignment.
 
-- Desktop: `/workspace/scratch/neotask-flutter-luxury-desktop-1785563833029.jpg`
-- Mobile frame: `/workspace/scratch/neotask-flutter-luxury-mobile-1785564053433.jpg`
-- Desktop comparison: `/workspace/scratch/neotask-design-qa-desktop-comparison.jpg`
-- Mobile comparison: `/workspace/scratch/neotask-design-qa-mobile-comparison.jpg`
+## Browser-rendered implementation evidence
 
-**Normalization**
+- Production route: `https://neotask1-ff5a4.web.app/login?_build=20260802-1`.
+- Viewport: 1363×936 at DPR 1.
+- State: signed-out instant login shell, Arabic RTL.
 
-- Desktop source: 1348×926 px; implementation: 1363×936 px; both normalized to 1363×936 at DPR 1 for comparison.
-- Mobile source: 390×844 px; implementation app frame: 393×852 CSS px at DPR 1; source normalized to 393×852.
-- State: manager home dashboard, Arabic RTL, weekly range, list view, deterministic representative content.
+## Findings
 
-**Findings**
+- P0/P1/P2: none.
+- The supplied photograph is the actual background asset and is centered with `cover`; the building remains recognizable without stretching.
+- Navy and mint overlays preserve brand identity while maintaining strong white-text contrast.
+- Title and description match the approved punctuation-free copy and use Tajawal Bold/Medium.
+- The login card, logo, fields, button, and authentication behavior were not altered.
+- The static instant-login shell and Flutter login panel now use the same image, copy, palette, and typography.
 
-- No P0/P1/P2 layout mismatch remained after the responsive implementation pass.
-- Typography: hierarchy, weight, Arabic wrapping, metric sizing, and compact table density match the approved direction. Flutter uses the product's configured Arabic-capable platform fallback instead of importing a new font package.
-- Spacing/layout: desktop hero/surface overlap, six-metric row, execution/sidebar ratio, panel radii, and mobile two-column metrics match the reference. The range/list controls are an intentional addition inside `مسار التنفيذ` to preserve the existing day/week/month and list/Kanban workflows.
-- Colors/tokens: deep navy, mint, gold, coral, white surface, dividers, and elevation match the approved palette.
-- Image quality: the supplied NeoTask header logo and Saudi profile portrait were reused and optimized to their rendered sizes. The cloud QA browser reported CPU-only Flutter rendering and did not paint raster images inside the CanvasKit canvas; both files were separately opened from the exact served asset URLs and verified sharp and intact. This is a QA-environment renderer limitation, not a missing asset or HTTP failure.
-- Copy/content: original production navigation labels remain exactly `الرئيسية`, `المراجعة`, `الموظفون`, `التقارير`, `المحادثات`; no experimental `المشاريع` or `الفريق` labels were introduced.
+## Runtime checks
 
-**Focused evidence**
-
-- Desktop comparison checks header/navigation, hero, metric row, execution table, team pulse, and upcoming meetings in one equal-size composite.
-- Mobile comparison checks the compact header, hero hierarchy, metric reflow, execution panel, and persistent bottom navigation at the same 393×852 app-frame size.
-
-**Interactions and console**
-
-- Responsive desktop/mobile breakpoints rendered in the cloud browser.
-- Primary navigation, notification, profile/drawer, quick-add, range, and list/Kanban controls remain wired to the existing production callbacks and screens; authenticated Firebase writes were not exercised in the non-writing visual-QA harness.
-- Console checked. After serving the compiled build as static output, there were no Flutter layout/runtime exceptions; the browser reported only the expected service-worker-unavailable warning for the non-secure local preview and a CPU-only WebGL fallback warning.
-
-**Comparison history**
-
-- Initial desktop pass: production structure matched, but the cloud CanvasKit CPU fallback did not paint the two raster identity assets.
-- Action: optimized the supplied assets for their actual display slots and verified each served URL directly. Layout remained unchanged and both desktop/mobile comparison passes retained the approved proportions.
-
-**Follow-up polish**
-
-- P3: the preserved range/list controls add slightly more density than the static mock, but removing them would regress existing NeoTask functionality.
+- Production HTML, JavaScript bundle, photo, and Tajawal font assets returned successfully.
+- No application-origin console errors were observed; the cloud browser only reported its own extension metadata message.
 
 final result: passed
