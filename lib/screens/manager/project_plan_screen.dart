@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
@@ -12,8 +10,9 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/neo_selection_field.dart';
 import '../../utils/project_planning.dart';
-import '../../widgets/neo_app_bar_tabs.dart';
+import '../../widgets/project_plan_timeline_workspace.dart';
 import '../designer/designer_task_view_screen.dart';
+import 'quick_add_task_sheet.dart';
 import 'task_review_detail_screen.dart';
 
 class ProjectPlanScreen extends StatefulWidget {
@@ -62,66 +61,105 @@ class _ProjectPlanScreenState extends State<ProjectPlanScreen>
                   tasks.fold<double>(0, (sum, task) => sum + task.plannedHours))
               .round();
 
+    void openTask(AppTask task) {
+      final isDesigner = context.read<AuthProvider>().isDesigner;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => isDesigner
+              ? DesignerTaskViewScreen(task: task)
+              : TaskReviewDetailScreen(task: task),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('خطة العمل'),
-        bottom: NeoAppBarTabs(
-          controller: _tabController,
-          maxWidth: 560,
-          tabs: const [
-            NeoAppBarTab(
-              icon: Icons.view_timeline_outlined,
-              label: 'الخط الزمني',
+        centerTitle: false,
+        title: const Text(
+          'خطة العمل',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          if (!widget.readOnly)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 12),
+              child: MediaQuery.sizeOf(context).width < 620
+                  ? IconButton.filled(
+                      tooltip: 'مهمة جديدة',
+                      onPressed: () => QuickAddTaskSheet.show(context),
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
+                      ),
+                      icon: const Icon(Icons.add_rounded),
+                    )
+                  : FilledButton.icon(
+                      onPressed: () => QuickAddTaskSheet.show(context),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 20),
+                      label: const Text(
+                        'مهمة جديدة',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
             ),
-            NeoAppBarTab(icon: Icons.groups_outlined, label: 'عبء العمل'),
           ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(54),
+          child: ColoredBox(
+            color: Colors.white,
+            child: Align(
+              alignment: AlignmentDirectional.center,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 620),
+                child: TabBar(
+                  controller: _tabController,
+                  indicatorColor: AppColors.mintAccent,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicatorWeight: 3,
+                  labelColor: AppColors.deepBlue,
+                  unselectedLabelColor: AppColors.textSecondary,
+                  labelStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  tabs: const [
+                    Tab(text: 'الخط الزمني'),
+                    Tab(text: 'عبء العمل'),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _Metric(
-                  label: 'مهام الخطة',
-                  value: '${tasks.length}',
-                  icon: Icons.task_alt,
-                ),
-                _Metric(
-                  label: 'التقدم الموزون',
-                  value: '$weightedProgress%',
-                  icon: Icons.trending_up,
-                ),
-                _Metric(
-                  label: 'متوقفة بتبعية',
-                  value: '$blocked',
-                  icon: Icons.lock_clock,
-                ),
-                _Metric(
-                  label: 'المسار الحرج',
-                  value: '${critical.length}',
-                  icon: Icons.route_outlined,
-                ),
-                _Metric(
-                  label: 'متأخرة',
-                  value: '$overdue',
-                  icon: Icons.warning_amber,
-                ),
-              ],
-            ),
+          ProjectPlanMetricsBar(
+            taskCount: tasks.length,
+            weightedProgress: weightedProgress,
+            blockedCount: blocked,
+            criticalCount: critical.length,
+            overdueCount: overdue,
           ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                _TimelineView(
+                ProjectPlanTimelineWorkspace(
                   tasks: tasks,
                   criticalTaskIds: critical,
                   readOnly: widget.readOnly,
+                  onEditTask: (task) =>
+                      _showPlanningEditor(context, task, tasks),
+                  onOpenTask: openTask,
                 ),
                 _WorkloadView(
                   tasks: tasks,
@@ -135,397 +173,6 @@ class _ProjectPlanScreenState extends State<ProjectPlanScreen>
                   onNext: () => setState(
                     () => _workloadWeek = _workloadWeek.add(
                       const Duration(days: 7),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value, required this.icon});
-
-  final String label;
-  final String value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 170,
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.deepBlue),
-          const SizedBox(width: 9),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TimelineView extends StatelessWidget {
-  const _TimelineView({
-    required this.tasks,
-    required this.criticalTaskIds,
-    required this.readOnly,
-  });
-
-  final List<AppTask> tasks;
-  final Set<String> criticalTaskIds;
-  final bool readOnly;
-
-  List<AppTask> _orderedTasks() {
-    final byParent = <String?, List<AppTask>>{};
-    for (final task in tasks) {
-      byParent.putIfAbsent(task.parentTaskId, () => []).add(task);
-    }
-    for (final group in byParent.values) {
-      group.sort((a, b) => a.startDate.compareTo(b.startDate));
-    }
-    final result = <AppTask>[];
-    final visited = <String>{};
-    void addBranch(AppTask task) {
-      if (!visited.add(task.taskId)) return;
-      result.add(task);
-      for (final child in byParent[task.taskId] ?? const <AppTask>[]) {
-        addBranch(child);
-      }
-    }
-
-    for (final root in byParent[null] ?? const <AppTask>[]) {
-      addBranch(root);
-    }
-    for (final task in tasks) {
-      addBranch(task);
-    }
-    return result;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (tasks.isEmpty) {
-      return const Center(child: Text('لا توجد مهام لعرضها في الخطة'));
-    }
-    final ordered = _orderedTasks();
-    var minDate = tasks.first.startDate;
-    var maxDate = tasks.first.dueDate;
-    for (final task in tasks) {
-      if (task.startDate.isBefore(minDate)) minDate = task.startDate;
-      if (task.dueDate.isAfter(maxDate)) maxDate = task.dueDate;
-    }
-    minDate = DateTime(minDate.year, minDate.month, minDate.day);
-    maxDate = DateTime(
-      maxDate.year,
-      maxDate.month,
-      maxDate.day,
-    ).add(const Duration(days: 1));
-    final totalDays = math.max(1, maxDate.difference(minDate).inDays).toInt();
-    final timelineWidth = math
-        .min(10000.0, math.max(720.0, totalDays / 7 * 74))
-        .toDouble();
-    const labelWidth = 300.0;
-    const rowHeight = 68.0;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: labelWidth + timelineWidth,
-          child: Column(
-            children: [
-              _TimelineHeader(
-                minDate: minDate,
-                totalDays: totalDays,
-                timelineWidth: timelineWidth,
-                labelWidth: labelWidth,
-              ),
-              ...ordered.map(
-                (task) => _TimelineRow(
-                  task: task,
-                  allTasks: tasks,
-                  minDate: minDate,
-                  totalDays: totalDays,
-                  timelineWidth: timelineWidth,
-                  labelWidth: labelWidth,
-                  rowHeight: rowHeight,
-                  critical: criticalTaskIds.contains(task.taskId),
-                  readOnly: readOnly,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TimelineHeader extends StatelessWidget {
-  const _TimelineHeader({
-    required this.minDate,
-    required this.totalDays,
-    required this.timelineWidth,
-    required this.labelWidth,
-  });
-
-  final DateTime minDate;
-  final int totalDays;
-  final double timelineWidth;
-  final double labelWidth;
-
-  @override
-  Widget build(BuildContext context) {
-    final weeks = math.max(1, (totalDays / 7).ceil()).toInt();
-    return Container(
-      height: 48,
-      decoration: const BoxDecoration(
-        color: AppColors.navy,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: labelWidth,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'المهمة والمسؤول',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-            width: timelineWidth,
-            child: Row(
-              children: List.generate(weeks, (index) {
-                final date = minDate.add(Duration(days: index * 7));
-                return Expanded(
-                  child: Container(
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      border: BorderDirectional(
-                        start: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.13),
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      intl.DateFormat('MM/dd').format(date),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TimelineRow extends StatelessWidget {
-  const _TimelineRow({
-    required this.task,
-    required this.allTasks,
-    required this.minDate,
-    required this.totalDays,
-    required this.timelineWidth,
-    required this.labelWidth,
-    required this.rowHeight,
-    required this.critical,
-    required this.readOnly,
-  });
-
-  final AppTask task;
-  final List<AppTask> allTasks;
-  final DateTime minDate;
-  final int totalDays;
-  final double timelineWidth;
-  final double labelWidth;
-  final double rowHeight;
-  final bool critical;
-  final bool readOnly;
-
-  @override
-  Widget build(BuildContext context) {
-    final assignee = FirestoreService.getUser(task.assignedTo);
-    final isChild = task.parentTaskId != null;
-    final blocked = ProjectPlanning.isBlocked(task, allTasks);
-    final startOffset = task.startDate.difference(minDate).inHours / 24;
-    final duration = math
-        .max(1.0, task.dueDate.difference(task.startDate).inHours / 24 + 1)
-        .toDouble();
-    final left = (startOffset / totalDays * timelineWidth)
-        .clamp(0.0, timelineWidth)
-        .toDouble();
-    final width = math
-        .max(34.0, duration / totalDays * timelineWidth)
-        .toDouble();
-
-    void openDetails() {
-      final isDesigner = context.read<AuthProvider>().isDesigner;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => isDesigner
-              ? DesignerTaskViewScreen(task: task)
-              : TaskReviewDetailScreen(task: task),
-        ),
-      );
-    }
-
-    return Container(
-      height: rowHeight,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: labelWidth,
-            child: InkWell(
-              onTap: openDetails,
-              child: Padding(
-                padding: EdgeInsetsDirectional.only(
-                  start: isChild ? 28 : 12,
-                  end: 8,
-                ),
-                child: Row(
-                  children: [
-                    if (isChild)
-                      const Padding(
-                        padding: EdgeInsetsDirectional.only(end: 7),
-                        child: Icon(Icons.subdirectory_arrow_left, size: 18),
-                      ),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            task.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          Text(
-                            assignee?.name ?? 'غير مسند',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (blocked)
-                      const Tooltip(
-                        message: 'بانتظار مهام سابقة',
-                        child: Icon(
-                          Icons.lock_clock,
-                          size: 18,
-                          color: AppColors.statusPending,
-                        ),
-                      ),
-                    if (!readOnly)
-                      IconButton(
-                        tooltip: 'تعديل الخطة',
-                        icon: const Icon(Icons.tune, size: 19),
-                        onPressed: () =>
-                            _showPlanningEditor(context, task, allTasks),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-            width: timelineWidth,
-            height: rowHeight,
-            child: Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                Positioned(
-                  left: left,
-                  width: math.min(width, timelineWidth - left).toDouble(),
-                  height: 30,
-                  child: Container(
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: critical
-                          ? AppColors.gold.withValues(alpha: 0.22)
-                          : AppColors.deepBlue.withValues(alpha: 0.13),
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(
-                        color: critical ? AppColors.gold : AppColors.deepBlue,
-                        width: critical ? 2 : 1,
-                      ),
-                    ),
-                    child: Stack(
-                      children: [
-                        FractionallySizedBox(
-                          widthFactor: (task.progressPercent / 100)
-                              .clamp(0, 1)
-                              .toDouble(),
-                          child: Container(
-                            color: critical
-                                ? AppColors.gold.withValues(alpha: 0.65)
-                                : AppColors.deepBlue.withValues(alpha: 0.62),
-                          ),
-                        ),
-                        Center(
-                          child: Text(
-                            '${task.progressPercent}%',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ),
