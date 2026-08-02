@@ -34,12 +34,10 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _currentUser != null;
   bool get isManager => _currentUser?.hasManagerAccess ?? false;
-  bool get isEmployee =>
-      _currentUser?.role == UserRole.employee && !isManager;
+  bool get isEmployee => _currentUser?.role == UserRole.employee && !isManager;
   // Read-only observer role — see UserRole.designer doc comment
   // (user_model.dart) for the full 1-a/2-a/3-no design rationale.
-  bool get isDesigner =>
-      _currentUser?.role == UserRole.designer && !isManager;
+  bool get isDesigner => _currentUser?.role == UserRole.designer && !isManager;
 
   static const _uuid = Uuid();
 
@@ -285,6 +283,12 @@ class AuthProvider extends ChangeNotifier {
     final invite = FirestoreService.getInvitationByToken(token);
     if (invite == null) return null;
     if (invite.status == InvitationStatus.used) return null;
+    return invite;
+  }
+
+  Future<Invitation?> validateInviteTokenFresh(String token) async {
+    final invite = await FirestoreService.getInvitationByTokenFresh(token);
+    if (invite == null || invite.status == InvitationStatus.used) return null;
     return invite;
   }
 

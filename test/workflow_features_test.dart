@@ -6,27 +6,74 @@ import 'package:neotask_pro/models/automation_rule_model.dart';
 import 'package:neotask_pro/models/custom_form_model.dart';
 import 'package:neotask_pro/models/document_model.dart';
 import 'package:neotask_pro/models/meeting_model.dart';
+import 'package:neotask_pro/models/task_model.dart';
 import 'package:neotask_pro/models/user_model.dart';
 import 'package:neotask_pro/models/voice_call_model.dart';
 import 'package:neotask_pro/utils/import_table_parser.dart';
+import 'package:neotask_pro/utils/invitation_link.dart';
 
 void main() {
-  test('employee number 400161 receives manager access under its own identity', () {
-    final owner = AppUser.fromMap({
-      'uid': 'owner-400161',
-      'name': 'Owner',
-      'email': '400161@neotask.local',
-      'employeeNumber': '400161',
-      'role': 'designer',
-      'accountStatus': 'active',
-      'createdAt': DateTime(2026, 8, 2).toIso8601String(),
-    });
+  test('invitation URL always uses the public root route', () {
+    final url = buildInvitationUrl(
+      Uri.parse('https://neotask1-ff5a4.web.app/login?tab=employees'),
+      'invite-token',
+    );
 
-    expect(owner.hasManagerAccess, isTrue);
-    expect(owner.uid, 'owner-400161');
-    expect(owner.employeeNumber, '400161');
-    expect(owner.role, UserRole.designer);
+    expect(url, 'https://neotask1-ff5a4.web.app/?invite=invite-token');
   });
+
+  test('personal task keeps details and comments when delegated to team', () {
+    final now = DateTime(2026, 8, 2, 12);
+    final personal = AppTask(
+      taskId: 'task-1',
+      title: 'مهمة شخصية',
+      description: 'تفاصيل محفوظة',
+      assignedTo: 'manager-1',
+      assignedBy: 'manager-1',
+      dueDate: now.add(const Duration(days: 1)),
+      priority: TaskPriority.medium,
+      status: TaskStatus.assigned,
+      category: 'إدارة',
+      activityLog: [
+        ActivityLogEntry(
+          updatedBy: 'manager-1',
+          updatedAt: now,
+          note: 'تعليق المدير',
+          previousStatus: TaskStatus.assigned.name,
+          newStatus: TaskStatus.assigned.name,
+        ),
+      ],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final delegated = personal.copyWith(assignedTo: 'employee-1');
+    expect(personal.isPersonal, isTrue);
+    expect(delegated.isPersonal, isFalse);
+    expect(delegated.title, personal.title);
+    expect(delegated.description, personal.description);
+    expect(delegated.activityLog.single.note, 'تعليق المدير');
+  });
+
+  test(
+    'employee number 400161 receives manager access under its own identity',
+    () {
+      final owner = AppUser.fromMap({
+        'uid': 'owner-400161',
+        'name': 'Owner',
+        'email': '400161@neotask.local',
+        'employeeNumber': '400161',
+        'role': 'designer',
+        'accountStatus': 'active',
+        'createdAt': DateTime(2026, 8, 2).toIso8601String(),
+      });
+
+      expect(owner.hasManagerAccess, isTrue);
+      expect(owner.uid, 'owner-400161');
+      expect(owner.employeeNumber, '400161');
+      expect(owner.role, UserRole.designer);
+    },
+  );
 
   test('ordinary employees do not receive manager access', () {
     final employee = AppUser.fromMap({
@@ -133,7 +180,8 @@ void main() {
   });
 
   test('CSV parser accepts Arabic headers, UTF-8, and quoted commas', () {
-    const csv = 'الاسم,الرقم الوظيفي,كلمة المرور\n"نايف, عبدالله",1001,secret1\n';
+    const csv =
+        'الاسم,الرقم الوظيفي,كلمة المرور\n"نايف, عبدالله",1001,secret1\n';
     final table = ImportTableParser.parse(
       fileName: 'employees.csv',
       bytes: Uint8List.fromList(utf8.encode(csv)),

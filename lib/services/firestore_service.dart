@@ -896,6 +896,28 @@ class FirestoreService {
     return null;
   }
 
+  /// Reads one invitation directly from Firestore instead of relying only
+  /// on the public listener cache. This closes the short synchronization
+  /// window immediately after a manager creates and shares a link, where a
+  /// newly opened browser could render before its first cache snapshot.
+  static Future<Invitation?> getInvitationByTokenFresh(String token) async {
+    final normalized = token.trim();
+    if (normalized.isEmpty) return null;
+    try {
+      final query = await _db
+          .collection('invitations')
+          .where('token', isEqualTo: normalized)
+          .limit(1)
+          .get(const GetOptions(source: Source.server));
+      if (query.docs.isEmpty) return null;
+      return Invitation.fromMap(query.docs.first.data());
+    } catch (_) {
+      // The live cache remains a safe fallback for transient connectivity
+      // failures after initPublic has already completed.
+      return getInvitationByToken(normalized);
+    }
+  }
+
   /// Atomically validates and consumes a single-use invite token, then
   /// creates the new employee user in the SAME Firestore transaction.
   ///

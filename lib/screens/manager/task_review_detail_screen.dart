@@ -75,64 +75,164 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
     }
   }
 
-  /// Part 4 — MANAGER-ONLY edit of `priority`/`dueDate`. Available
-  /// regardless of the task's current status (per the explicit
-  /// requirement that this restriction/permission is unconditional).
-  Future<void> _editPriorityAndDueDate(AppTask current) async {
+  /// Full manager edit for both personal and delegated tasks.
+  Future<void> _editTaskDetails(AppTask current) async {
     final managerUid = context.read<AuthProvider>().currentUser!.uid;
+    final formKey = GlobalKey<FormState>();
+    final titleCtrl = TextEditingController(text: current.title);
+    final descriptionCtrl = TextEditingController(text: current.description);
+    final categoryCtrl = TextEditingController(text: current.category);
+    final plannedHoursCtrl = TextEditingController(
+      text: current.plannedHours.toString(),
+    );
     TaskPriority selectedPriority = current.priority;
+    DateTime selectedStartDate = current.startDate;
     DateTime selectedDueDate = current.dueDate;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('تعديل الأولوية وتاريخ الاستحقاق'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'الأولوية',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              SegmentedButton<TaskPriority>(
-                segments: const [
-                  ButtonSegment(value: TaskPriority.low, label: Text('منخفضة')),
-                  ButtonSegment(
-                    value: TaskPriority.medium,
-                    label: Text('متوسطة'),
-                  ),
-                  ButtonSegment(value: TaskPriority.high, label: Text('عالية')),
-                ],
-                selected: {selectedPriority},
-                onSelectionChanged: (s) =>
-                    setDialogState(() => selectedPriority = s.first),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('تاريخ الاستحقاق'),
-                subtitle: Text(
-                  intl.DateFormat('yyyy/MM/dd').format(selectedDueDate),
-                ),
-                trailing: const Icon(Icons.calendar_today_outlined),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: selectedDueDate,
-                    firstDate: DateTime.now().subtract(
-                      const Duration(days: 3650),
+          title: const Text('تعديل المهمة'),
+          content: SizedBox(
+            width: 520,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'عنوان المهمة',
+                      ),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'عنوان المهمة مطلوب'
+                          : null,
                     ),
-                    lastDate: DateTime.now().add(const Duration(days: 3650)),
-                  );
-                  if (picked != null) {
-                    setDialogState(() => selectedDueDate = picked);
-                  }
-                },
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: descriptionCtrl,
+                      maxLines: 3,
+                      decoration: const InputDecoration(labelText: 'الوصف'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: categoryCtrl,
+                      decoration: const InputDecoration(labelText: 'التصنيف'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: plannedHoursCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'الساعات المخططة',
+                        suffixText: 'ساعة',
+                      ),
+                      validator: (value) {
+                        final hours = double.tryParse(value ?? '');
+                        return hours == null || hours <= 0
+                            ? 'أدخل عدد ساعات صحيحًا'
+                            : null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'الأولوية',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    SegmentedButton<TaskPriority>(
+                      segments: const [
+                        ButtonSegment(
+                          value: TaskPriority.low,
+                          label: Text('منخفضة'),
+                        ),
+                        ButtonSegment(
+                          value: TaskPriority.medium,
+                          label: Text('متوسطة'),
+                        ),
+                        ButtonSegment(
+                          value: TaskPriority.high,
+                          label: Text('عالية'),
+                        ),
+                      ],
+                      selected: {selectedPriority},
+                      onSelectionChanged: (selection) => setDialogState(
+                        () => selectedPriority = selection.first,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('تاريخ البداية'),
+                            subtitle: Text(
+                              intl.DateFormat(
+                                'yyyy/MM/dd',
+                              ).format(selectedStartDate),
+                            ),
+                            trailing: const Icon(Icons.play_circle_outline),
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: selectedStartDate,
+                                firstDate: DateTime.now().subtract(
+                                  const Duration(days: 3650),
+                                ),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 3650),
+                                ),
+                              );
+                              if (picked != null) {
+                                setDialogState(
+                                  () => selectedStartDate = picked,
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('تاريخ الاستحقاق'),
+                            subtitle: Text(
+                              intl.DateFormat(
+                                'yyyy/MM/dd',
+                              ).format(selectedDueDate),
+                            ),
+                            trailing: const Icon(Icons.flag_outlined),
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: selectedDueDate,
+                                firstDate: DateTime.now().subtract(
+                                  const Duration(days: 3650),
+                                ),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 3650),
+                                ),
+                              );
+                              if (picked != null) {
+                                setDialogState(() => selectedDueDate = picked);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -140,7 +240,11 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
               child: const Text('إلغاء'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(context).pop(true);
+                }
+              },
               child: const Text('حفظ'),
             ),
           ],
@@ -148,18 +252,29 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted) {
+      titleCtrl.dispose();
+      descriptionCtrl.dispose();
+      categoryCtrl.dispose();
+      plannedHoursCtrl.dispose();
+      return;
+    }
     try {
-      await context.read<TaskProvider>().updatePriorityAndDueDate(
+      await context.read<TaskProvider>().updateManagerTaskDetails(
         taskId: current.taskId,
         managerUid: managerUid,
+        title: titleCtrl.text,
+        description: descriptionCtrl.text,
+        category: categoryCtrl.text,
         priority: selectedPriority,
+        startDate: selectedStartDate,
         dueDate: selectedDueDate,
+        plannedHours: double.parse(plannedHoursCtrl.text.trim()),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم تحديث الأولوية وتاريخ الاستحقاق')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم تعديل المهمة بنجاح')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -169,6 +284,11 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
           ),
         ),
       );
+    } finally {
+      titleCtrl.dispose();
+      descriptionCtrl.dispose();
+      categoryCtrl.dispose();
+      plannedHoursCtrl.dispose();
     }
   }
 
@@ -276,13 +396,13 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('تحويل المهمة لموظف آخر'),
+          title: const Text('تحويل المهمة لموظف / فريق'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'سيتم تحويل المهمة فورًا للموظف المحدد، مع بقاء جميع تفاصيل المهمة كما هي.',
+                'اختر الموظف المسؤول. بعد التحويل تخرج المهمة من «المهام الشخصية» وتصبح ضمن مهام الفريق مع بقاء جميع تفاصيلها وتعليقاتها.',
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
@@ -425,20 +545,23 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('مراجعة المهمة'),
+        title: Text(
+          current.isPersonal ? 'تفاصيل المهمة الشخصية' : 'مراجعة المهمة',
+        ),
         actions: [
           FavoriteStarButton(userUid: managerUid, taskId: current.taskId),
-          // Part 4 — manager-only, available regardless of task status.
+          // Full manager edit, available regardless of task status.
           IconButton(
-            tooltip: 'تعديل الأولوية وتاريخ الاستحقاق',
-            icon: const Icon(Icons.edit_calendar_outlined),
-            onPressed: () => _editPriorityAndDueDate(current),
+            tooltip: 'تعديل المهمة',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => _editTaskDetails(current),
           ),
-          _TaskChatButton(
-            taskId: current.taskId,
-            managerUid: managerUid,
-            employeeUid: current.assignedTo,
-          ),
+          if (!current.isPersonal)
+            _TaskChatButton(
+              taskId: current.taskId,
+              managerUid: managerUid,
+              employeeUid: current.assignedTo,
+            ),
         ],
       ),
       body: SafeArea(
@@ -585,7 +708,8 @@ class _TaskReviewDetailScreenState extends State<TaskReviewDetailScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: current.status == TaskStatus.submitted
+      bottomNavigationBar:
+          !current.isPersonal && current.status == TaskStatus.submitted
           ? SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -687,7 +811,7 @@ class _ManagerActionsPanel extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: onTransfer,
                     icon: const Icon(Icons.swap_horiz),
-                    label: const Text('تحويل لموظف آخر'),
+                    label: const Text('تحويل لموظف / فريق'),
                   ),
                 ),
               ],

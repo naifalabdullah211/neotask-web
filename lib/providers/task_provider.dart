@@ -612,6 +612,53 @@ class TaskProvider extends ChangeNotifier {
     );
   }
 
+  /// Manager-only edit for the task's core details. Personal tasks use the
+  /// same persisted model as delegated work, so keeping this mutation in the
+  /// shared provider lets a personal task remain fully editable before or
+  /// after it is transferred to an employee.
+  Future<void> updateManagerTaskDetails({
+    required String taskId,
+    required String managerUid,
+    required String title,
+    required String description,
+    required String category,
+    required TaskPriority priority,
+    required DateTime startDate,
+    required DateTime dueDate,
+    required double plannedHours,
+  }) async {
+    final task = FirestoreService.getTask(taskId);
+    if (task == null) return;
+    final normalizedTitle = title.trim();
+    if (normalizedTitle.isEmpty) {
+      throw ArgumentError('عنوان المهمة مطلوب');
+    }
+    if (dueDate.isBefore(startDate)) {
+      throw ArgumentError('تاريخ الاستحقاق يجب أن يكون بعد تاريخ البداية');
+    }
+    if (plannedHours <= 0) {
+      throw ArgumentError('الساعات المخططة يجب أن تكون أكبر من صفر');
+    }
+
+    final updated = task.copyWith(
+      title: normalizedTitle,
+      description: description.trim(),
+      category: category.trim().isEmpty ? 'عام' : category.trim(),
+      priority: priority,
+      startDate: startDate,
+      dueDate: dueDate,
+      plannedHours: plannedHours,
+      updatedAt: DateTime.now(),
+    );
+    await FirestoreService.saveTask(updated);
+    await _logHistory(
+      taskId,
+      HistoryAction.statusChange,
+      managerUid,
+      note: 'تم تعديل بيانات المهمة',
+    );
+  }
+
   /// Employee progress is a genuine persisted planning value. It never skips
   /// the manager review step: 100% means the work is ready to submit, while
   /// `approved` remains the only completed state used by reports.
