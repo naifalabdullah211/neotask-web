@@ -573,7 +573,7 @@ class _TaskListHeader extends StatelessWidget {
         color: Colors.white,
         border: Border(bottom: BorderSide(color: AppColors.divider)),
       ),
-      child: const Row(
+      child: Row(
         textDirection: Directionality.of(context),
         children: [
           Expanded(
@@ -887,7 +887,7 @@ class _TimelineDateHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (scale == _TimelineScale.month) {
-      return _buildMonthHeader();
+      return _buildMonthHeader(context);
     }
 
     final weeks = math.max(1, (totalDays / 7).ceil()).toInt();
@@ -954,7 +954,7 @@ class _TimelineDateHeader extends StatelessWidget {
     );
   }
 
-  Widget _buildMonthHeader() {
+  Widget _buildMonthHeader(BuildContext context) {
     final segments = <_MonthHeaderSegment>[];
     var cursor = minDate;
     var offsetDays = 0;

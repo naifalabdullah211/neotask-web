@@ -39,7 +39,7 @@ class DateNavArrowButton extends StatelessWidget {
   }) {
     return DateNavArrowButton._(
       icon: Icons.chevron_right_rounded,
-      tooltip: context.tr('$periodLabel التالي'),
+      tooltip: '$periodLabel التالي',
       onTap: onTap,
     );
   }
@@ -50,7 +50,7 @@ class DateNavArrowButton extends StatelessWidget {
   }) {
     return DateNavArrowButton._(
       icon: Icons.chevron_left_rounded,
-      tooltip: context.tr('$periodLabel السابق'),
+      tooltip: '$periodLabel السابق',
       onTap: onTap,
     );
   }
@@ -61,8 +61,9 @@ class DateNavArrowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localizedTooltip = context.tr(tooltip);
     return Tooltip(
-      message: tooltip,
+      message: localizedTooltip,
       child: Material(
         color: AppColors.deepBlue.withValues(alpha: 0.08),
         shape: const CircleBorder(),
@@ -70,7 +71,7 @@ class DateNavArrowButton extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Semantics(
-            label: tooltip,
+            label: localizedTooltip,
             button: true,
             child: Padding(
               padding: const EdgeInsets.all(6),

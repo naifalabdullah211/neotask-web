@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Text;
 import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:provider/provider.dart';
+import '../../l10n/app_i18n.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/language_toggle.dart';

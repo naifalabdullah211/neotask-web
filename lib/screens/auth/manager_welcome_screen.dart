@@ -413,7 +413,7 @@ class _WelcomeCopy extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'جميع الحقوق محفوظة · NAY211@2026',
             textAlign: TextAlign.center,
             textDirection: Directionality.of(context),
