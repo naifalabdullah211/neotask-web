@@ -22,6 +22,31 @@ void main() {
     expect(url, 'https://neotask1-ff5a4.web.app/?invite=invite-token');
   });
 
+  test('official manager and owner account both have invitation access', () {
+    final now = DateTime(2026, 8, 2);
+    final officialManager = AppUser(
+      uid: 'official-manager',
+      name: 'المدير',
+      email: 'manager@neotask.local',
+      employeeNumber: '1001',
+      role: UserRole.manager,
+      accountStatus: AccountStatus.active,
+      createdAt: now,
+    );
+    final owner = AppUser(
+      uid: 'owner-400161',
+      name: 'نايف',
+      email: '400161@neotask.local',
+      employeeNumber: AppUser.fullAccessEmployeeNumber,
+      role: UserRole.designer,
+      accountStatus: AccountStatus.active,
+      createdAt: now,
+    );
+
+    expect(officialManager.hasManagerAccess, isTrue);
+    expect(owner.hasManagerAccess, isTrue);
+  });
+
   test('personal task keeps details and comments when delegated to team', () {
     final now = DateTime(2026, 8, 2, 12);
     final personal = AppTask(
