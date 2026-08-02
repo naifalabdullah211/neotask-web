@@ -79,6 +79,54 @@
 
 final result: blocked
 
+## Shared navigation drawer QA — 2026-08-02
+
+### Source evidence
+
+- User-supplied mobile screenshot: `upload/IMG_D873E2B6-0BE4-439C-9A8D-689513CE9A7B.jpeg`.
+- Observed state: authenticated Arabic RTL drawer with a large account header,
+  one undifferentiated navigation list, and account actions at the bottom.
+- Product target: preserve every route and permission while aligning the drawer
+  with the navy, gold and neutral workspace system used by Work Plan and the
+  redesigned manager workspaces.
+
+### Implementation coverage
+
+- Compact NeoTask brand row with an explicit close action.
+- Horizontal account identity block with avatar, online state, role and employee
+  number; it replaces the tall stacked header without removing information.
+- Three semantic navigation groups: Planning & Execution, Management &
+  Communication, and Knowledge & Resources.
+- Active destination uses a full navy surface, gold start indicator, white text
+  and gold icon; hover, pressed and semantic selected states remain available.
+- Settings, Help and Logout are fixed below the independently scrollable route
+  list, so short phone viewports cannot hide account actions.
+- Responsive drawer widths cover phones, tablets and desktop; long labels use
+  one-line ellipsis and all route tiles retain 47px touch height.
+- Existing manager/designer/employee visibility gates and navigation targets
+  remain unchanged.
+
+### Verification state
+
+- The supplied source image and NeoTask logo asset were inspected at original
+  resolution before implementation.
+- `git diff --check`, balanced delimiter checks and the drawer structure contract
+  pass locally.
+- Flutter is not installed in this workspace and the available browser cannot
+  reach the private authenticated drawer state, so a same-state rendered capture
+  cannot be produced locally.
+
+### Blocking finding
+
+- [P1] Same-state visual comparison remains blocked until repository CI builds
+  the Flutter app and an authenticated account opens the drawer on phone and
+  tablet widths.
+- Required follow-up: run Flutter test/build in the repository workflow, capture
+  the live authenticated drawer, and correct any P0/P1/P2 overflow or spacing
+  issue before production acceptance.
+
+final result: blocked
+
 ## Secondary manager workspaces QA — 2026-08-02
 
 ### Design target
