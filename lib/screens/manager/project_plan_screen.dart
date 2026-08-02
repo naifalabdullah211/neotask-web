@@ -11,6 +11,7 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/project_planning.dart';
+import '../../widgets/neo_app_bar_tabs.dart';
 import '../designer/designer_task_view_screen.dart';
 import 'task_review_detail_screen.dart';
 
@@ -64,11 +65,15 @@ class _ProjectPlanScreenState extends State<ProjectPlanScreen>
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('خطة العمل'),
-        bottom: TabBar(
+        bottom: NeoAppBarTabs(
           controller: _tabController,
+          maxWidth: 560,
           tabs: const [
-            Tab(icon: Icon(Icons.view_timeline_outlined), text: 'الخط الزمني'),
-            Tab(icon: Icon(Icons.groups_outlined), text: 'عبء العمل'),
+            NeoAppBarTab(
+              icon: Icons.view_timeline_outlined,
+              label: 'الخط الزمني',
+            ),
+            NeoAppBarTab(icon: Icons.groups_outlined, label: 'عبء العمل'),
           ],
         ),
       ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/poll_model.dart';
 import '../../providers/poll_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_app_bar_tabs.dart';
 import '../../widgets/poll_card.dart';
 import '../shared/create_poll_screen.dart';
 import 'manager_poll_detail_screen.dart';
@@ -57,12 +58,12 @@ class _ManagerPollsTabState extends State<ManagerPollsTab>
             },
           ),
         ],
-        bottom: TabBar(
+        bottom: NeoAppBarTabs(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'نشط'),
-            Tab(text: 'مسودة'),
-            Tab(text: 'مُلغى'),
+            NeoAppBarTab(icon: Icons.campaign_outlined, label: 'نشط'),
+            NeoAppBarTab(icon: Icons.edit_note_outlined, label: 'مسودة'),
+            NeoAppBarTab(icon: Icons.cancel_outlined, label: 'مُلغى'),
           ],
         ),
       ),
@@ -85,8 +86,7 @@ class _ManagerPollsTabState extends State<ManagerPollsTab>
             _PollList(
               polls: pollProvider.activePolls,
               readOnly: widget.readOnly,
-              emptyMessage:
-                  widget.readOnly
+              emptyMessage: widget.readOnly
                   ? 'لا توجد تصويتات نشطة حاليًا.'
                   : 'لا توجد تصويتات نشطة حاليًا. اضغط + لإنشاء تصويت جديد.',
             ),
