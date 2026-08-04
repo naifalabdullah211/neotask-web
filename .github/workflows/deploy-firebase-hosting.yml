@@ -132,6 +132,30 @@ jobs:
               scopes: ['https://www.googleapis.com/auth/cloud-platform'],
             });
             const client = await auth.getClient();
+
+            const enableResponse = await client.request({
+              url: `https://serviceusage.googleapis.com/v1/${projectName}/services/secretmanager.googleapis.com:enable`,
+              method: 'POST',
+            });
+            const operationName = enableResponse.data.name;
+            if (operationName) {
+              for (let attempt = 0; attempt < 60; attempt += 1) {
+                const operation = await client.request({
+                  url: `https://serviceusage.googleapis.com/v1/${operationName}`,
+                });
+                if (operation.data.done) {
+                  if (operation.data.error) {
+                    throw new Error(JSON.stringify(operation.data.error));
+                  }
+                  break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                if (attempt === 59) {
+                  throw new Error('Secret Manager API enablement timed out');
+                }
+              }
+            }
+
             let exists = true;
             try {
               await client.request({
