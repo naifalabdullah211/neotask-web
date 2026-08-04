@@ -161,9 +161,6 @@ jobs:
             await client.request({
               url: proofUrl,
               method: 'PATCH',
-              params: {
-                'updateMask.fieldPaths': ['proofHash', 'createdAt'],
-              },
               data: {
                 fields: {
                   proofHash: {stringValue: proofHash},
