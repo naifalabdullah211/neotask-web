@@ -65,10 +65,6 @@ test("every sensitive callable keeps its server-side rate-limit gate", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
   assert.match(
       source,
-      /exports\.bootstrapManager[\s\S]*?requireRateLimit\(request, "manager_bootstrap"/,
-  );
-  assert.match(
-      source,
       /exports\.adminResetPassword[\s\S]*?requireRateLimit\(request, "admin_reset_password"/,
   );
   assert.match(
@@ -77,10 +73,31 @@ test("every sensitive callable keeps its server-side rate-limit gate", () => {
   );
 });
 
-test("manager bootstrap is bound to Secret Manager", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
-  assert.match(
-      source,
-      /exports\.bootstrapManager\s*=\s*onCall\(\s*\{secrets:\s*\[managerSetupKey\]\}/,
+test("Spark manager bootstrap consumes a hidden proof atomically", () => {
+  const rules = fs.readFileSync(
+      path.join(__dirname, "..", "..", "firestore.rules"),
+      "utf8",
   );
+  assert.match(rules, /match \/system\/manager_bootstrap/);
+  assert.match(rules, /allow read, create, update: if false/);
+  assert.match(rules, /!existsAfter\([\s\S]*?system\/manager_bootstrap/);
+  assert.match(rules, /afterUser\.bootstrapProof == managerBootstrap\(\)\.proofHash/);
+  assert.match(rules, /afterLock\.createdBy == uid/);
+});
+
+test("production deploy stays on Spark and never deploys paid functions", () => {
+  const workflow = fs.readFileSync(
+      path.join(
+          __dirname,
+          "..",
+          "..",
+          ".github",
+          "workflows",
+          "deploy-firebase-hosting.yml",
+      ),
+      "utf8",
+  );
+  assert.doesNotMatch(workflow, /firebase deploy --only functions/);
+  assert.doesNotMatch(workflow, /secretmanager\.googleapis\.com/);
+  assert.match(workflow, /One-time manager setup proof provisioned/);
 });

@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
@@ -93,10 +96,13 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Bootstraps the single manager account through the trusted Firebase
-  /// Function. The setup secret is verified server-side and never embedded
-  /// in Flutter; the server atomically creates the profile and manager lock,
-  /// then returns a one-use Firebase custom sign-in token.
+  /// Bootstraps the single manager account on Firebase's no-cost Spark plan.
+  ///
+  /// The plaintext setup key is hashed locally and never persisted. Firestore
+  /// Rules compare the digest with a hidden, one-time bootstrap document and
+  /// require one atomic transaction to create the manager profile + lock and
+  /// consume that document. This preserves the one-time setup experience
+  /// without Cloud Functions or Secret Manager.
   Future<bool> ensureManagerExists({
     required String setupKey,
     required String name,
@@ -114,21 +120,45 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
 
+    fb_auth.UserCredential? credential;
+    var bootstrapCommitted = false;
     try {
-      final callable = FirebaseFunctions.instance.httpsCallable(
-        'bootstrapManager',
-      );
-      final result = await callable.call<Map<String, dynamic>>({
-        'setupKey': setupKey,
-        'name': name,
-        'employeeNumber': employeeNumber,
-        'password': password,
-      });
-      final customToken = result.data['customToken'];
-      if (customToken is! String || customToken.isEmpty) {
-        throw StateError('Missing manager sign-in token');
+      final normalizedName = name.trim();
+      final normalizedEmployeeNumber = employeeNumber.trim();
+      if (normalizedName.length < 2 || normalizedName.length > 120 ||
+          !RegExp(r'^[A-Za-z0-9\- ]{1,40}$').hasMatch(normalizedEmployeeNumber) ||
+          password.length < 6 || password.length > 128) {
+        _authError = 'بيانات المدير غير صالحة';
+        _isLoading = false;
+        notifyListeners();
+        return false;
       }
-      final credential = await _fbAuth.signInWithCustomToken(customToken);
+
+      final email = _syntheticEmail(normalizedEmployeeNumber);
+      final setupProof = sha256.convert(utf8.encode(setupKey)).toString();
+      credential = await _fbAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      await FirestoreService.bootstrapManagerOnSpark(
+        uid: credential.user!.uid,
+        name: normalizedName,
+        email: email,
+        employeeNumber: normalizedEmployeeNumber,
+        setupProof: setupProof,
+      );
+      bootstrapCommitted = true;
+      try {
+        await FirestoreService.clearManagerBootstrapProof(
+          credential.user!.uid,
+        );
+      } catch (error) {
+        // The proof has already been consumed and is unusable. Cleanup is
+        // privacy hygiene, not part of the successful bootstrap boundary.
+        if (kDebugMode) {
+          debugPrint('Manager bootstrap proof cleanup deferred: $error');
+        }
+      }
       await FirestoreService.initAuthenticated();
       final manager = FirestoreService.getUser(credential.user!.uid);
       if (manager == null || !manager.hasManagerAccess) {
@@ -137,31 +167,34 @@ class AuthProvider extends ChangeNotifier {
         throw StateError('Missing manager profile');
       }
       _currentUser = manager;
-    } on FirebaseFunctionsException catch (e) {
-      switch (e.code) {
-        case 'permission-denied':
-          _authError = 'مفتاح التأسيس غير صحيح';
-          break;
-        case 'already-exists':
-          _authError = 'تم إنشاء حساب المدير بالفعل من جهاز آخر';
-          break;
-        case 'invalid-argument':
-          _authError = 'بيانات المدير غير صالحة';
-          break;
-        case 'resource-exhausted':
-          _authError = 'محاولات كثيرة، انتظر قليلًا ثم أعد المحاولة';
-          break;
-        case 'not-found':
-          _authError = 'خدمة تأسيس المدير غير منشورة بعد';
-          break;
-        default:
-          _authError = 'تعذّر إنشاء الحساب، حاول مرة أخرى';
-      }
+    } on fb_auth.FirebaseAuthException catch (e) {
+      _authError = _mapAuthError(e);
+      await FirestoreService.resetAuthenticatedState();
+      await _fbAuth.signOut();
       _isLoading = false;
       notifyListeners();
       return false;
-    } catch (_) {
-      _authError = 'تعذّر إنشاء الحساب، حاول مرة أخرى';
+    } catch (error) {
+      // A wrong/expired proof must not leave an orphan Auth account that
+      // blocks the official manager from reusing their employee number.
+      if (!bootstrapCommitted) {
+        final createdUser = credential?.user;
+        if (createdUser != null) {
+          try {
+            await createdUser.delete();
+          } catch (_) {
+            // Firebase may already have invalidated the partial account.
+          }
+        }
+        await FirestoreService.resetAuthenticatedState();
+        await _fbAuth.signOut();
+        final text = error.toString();
+        _authError = text.contains('permission-denied')
+            ? 'مفتاح التأسيس غير صحيح أو تم استخدامه سابقًا'
+            : 'تعذّر إنشاء الحساب، حاول مرة أخرى';
+      } else {
+        _authError = 'تم إنشاء حساب المدير، أعد تحميل الصفحة للدخول';
+      }
       _isLoading = false;
       notifyListeners();
       return false;

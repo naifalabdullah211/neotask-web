@@ -87,7 +87,14 @@ jobs:
           set -o pipefail
           npm install --global firebase-tools google-auth-library 2>&1 | tee -a deploy-error.log
 
-      - name: Provision encrypted manager setup secret
+      - name: Test Firestore manager bootstrap rules
+        run: |
+          set -o pipefail
+          firebase emulators:exec --only firestore \
+            "npm run test:rules --prefix functions" \
+            --project neotask1-ff5a4 2>&1 | tee -a deploy-error.log
+
+      - name: Provision one-time manager setup proof
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
@@ -120,72 +127,50 @@ jobs:
           export NODE_PATH="$(npm root -g)"
           MANAGER_SETUP_KEY_FILE="$plaintext_file" node <<'NODE'
           const fs = require('fs');
+          const crypto = require('crypto');
           const {GoogleAuth} = require('google-auth-library');
 
-          async function provisionSecret() {
+          async function provisionProof() {
             const projectId = 'neotask1-ff5a4';
-            const secretId = 'MANAGER_SETUP_KEY';
             const projectName = `projects/${projectId}`;
-            const secretName = `${projectName}/secrets/${secretId}`;
+            const databaseRoot = `${projectName}/databases/(default)/documents`;
+            const lockUrl = `https://firestore.googleapis.com/v1/${databaseRoot}/system/manager_lock`;
+            const proofUrl = `https://firestore.googleapis.com/v1/${databaseRoot}/system/manager_bootstrap`;
             const auth = new GoogleAuth({
               keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
               scopes: ['https://www.googleapis.com/auth/cloud-platform'],
             });
             const client = await auth.getClient();
 
-            const enableResponse = await client.request({
-              url: `https://serviceusage.googleapis.com/v1/${projectName}/services/secretmanager.googleapis.com:enable`,
-              method: 'POST',
-            });
-            const operationName = enableResponse.data.name;
-            if (operationName) {
-              for (let attempt = 0; attempt < 60; attempt += 1) {
-                const operation = await client.request({
-                  url: `https://serviceusage.googleapis.com/v1/${operationName}`,
-                });
-                if (operation.data.done) {
-                  if (operation.data.error) {
-                    throw new Error(JSON.stringify(operation.data.error));
-                  }
-                  break;
-                }
-                await new Promise((resolve) => setTimeout(resolve, 3000));
-                if (attempt === 59) {
-                  throw new Error('Secret Manager API enablement timed out');
-                }
-              }
-            }
-
-            let exists = true;
             try {
-              await client.request({
-                url: `https://secretmanager.googleapis.com/v1/${secretName}`,
-              });
+              await client.request({url: lockUrl});
+              console.log('Manager already exists; setup proof not provisioned');
+              return;
             } catch (error) {
               if (error.response?.status !== 404) throw error;
-              exists = false;
             }
-            if (!exists) {
-              await client.request({
-                url: `https://secretmanager.googleapis.com/v1/${projectName}/secrets`,
-                method: 'POST',
-                params: {secretId},
-                data: {replication: {automatic: {}}},
-              });
-            }
+
             const value = fs.readFileSync(process.env.MANAGER_SETUP_KEY_FILE);
-            const response = await client.request({
-              url: `https://secretmanager.googleapis.com/v1/${secretName}:addVersion`,
-              method: 'POST',
-              data: {payload: {data: value.toString('base64')}},
+            const proofHash = crypto.createHash('sha256').update(value).digest('hex');
+            await client.request({
+              url: proofUrl,
+              method: 'PATCH',
+              params: {
+                'updateMask.fieldPaths': ['proofHash', 'createdAt'],
+              },
+              data: {
+                fields: {
+                  proofHash: {stringValue: proofHash},
+                  createdAt: {timestampValue: new Date().toISOString()},
+                },
+              },
             });
-            const version = String(response.data.name || '').split('/').pop();
-            console.log(`Manager setup secret provisioned (version ${version || 'created'})`);
+            console.log('One-time manager setup proof provisioned');
           }
 
-          provisionSecret().catch((error) => {
+          provisionProof().catch((error) => {
             const details = error.response?.data || error.message || error;
-            console.error('Manager setup secret provisioning failed:', JSON.stringify(details));
+            console.error('Manager setup proof provisioning failed:', JSON.stringify(details));
             process.exit(1);
           });
           NODE
@@ -197,13 +182,6 @@ jobs:
           set -euo pipefail
           firebase hosting:sites:list --project neotask1-ff5a4 --json > hosting-sites.txt
           cat hosting-sites.txt
-
-      - name: Deploy Cloud Functions before dependent client code
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-        run: |
-          set -o pipefail
-          firebase deploy --only functions --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
 
       - name: Deploy Firestore rules
         env:

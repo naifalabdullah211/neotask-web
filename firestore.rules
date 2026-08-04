@@ -74,24 +74,65 @@ service cloud.firestore {
         user.employeeNumber != '400161';
     }
 
+    // Spark-plan manager bootstrap capability. The plaintext key never
+    // reaches Firestore: CI stores only its SHA-256 digest in this hidden,
+    // one-time document. Client writes must consume it in the same atomic
+    // transaction that creates both the manager profile and manager lock.
+    function managerBootstrap() {
+      return get(
+        /databases/$(database)/documents/system/manager_bootstrap
+      ).data;
+    }
+
+    function validManagerBootstrap(uid) {
+      let afterUser = getAfter(
+        /databases/$(database)/documents/users/$(uid)
+      ).data;
+      let afterLock = getAfter(
+        /databases/$(database)/documents/system/manager_lock
+      ).data;
+      return isOwner(uid) &&
+        exists(/databases/$(database)/documents/system/manager_bootstrap) &&
+        !exists(/databases/$(database)/documents/system/manager_lock) &&
+        !existsAfter(
+          /databases/$(database)/documents/system/manager_bootstrap
+        ) &&
+        afterUser.uid == uid &&
+        afterUser.role == 'manager' &&
+        afterUser.accountStatus == 'active' &&
+        afterUser.bootstrapProof == managerBootstrap().proofHash &&
+        afterLock.createdBy == uid;
+    }
+
     // ---- system/manager_lock sentinel ----
     // Public-read is intentional: SplashRouter must decide "show
     // ManagerSetupScreen vs. LoginScreen" BEFORE anyone is signed in, and
     // this tiny sentinel doc (no PII, just createdAt/createdBy) is how that
     // decision is made without exposing the `users` collection itself.
-    // Creation is server-only through bootstrapManager. Admin SDK writes
-    // bypass Rules; every client write is denied here.
+    // Creation is allowed only by the atomic, one-time Spark bootstrap below
+    // or as an idempotent repair by an already-authenticated manager.
     match /system/manager_lock {
       allow read: if true;
-      allow create, update, delete: if false;
+      allow create: if validManagerBootstrap(request.auth.uid) ||
+        (isManager() && request.resource.data.createdBy == request.auth.uid);
+      allow update, delete: if false;
+    }
+
+    // Never expose the stored digest to a client. It is provisioned by the
+    // authenticated deployment workflow and consumed only by the atomic
+    // first-manager transaction validated above.
+    match /system/manager_bootstrap {
+      allow read, create, update: if false;
+      allow delete: if isSignedIn() && validManagerBootstrap(request.auth.uid);
     }
 
     // ---- users ----
     match /users/{uid} {
       allow read: if isSignedIn();
 
-      // Manager bootstrap is NEVER a client write: bootstrapManager verifies
-      // the Secret Manager value, rate-limits attempts, and uses Admin SDK.
+      // First-manager bootstrap is a client transaction on the Spark plan,
+      // but validManagerBootstrap() binds it to the hidden one-time digest,
+      // manager lock creation, and digest consumption in the same request.
       // The remaining client creation path is employee self-registration via
       // invite — the invite-token
       //      validity itself is enforced by the `invitations` update rule
@@ -109,7 +150,7 @@ service cloud.firestore {
       //      it does NOT grant elevated role or bypass manager approval —
       //      but it is a real, unaddressed gap in the "invite-only
       //      registration" design and must be explicitly acknowledged.
-      allow create: if
+      allow create: if validManagerBootstrap(uid) ||
         (isOwner(uid) &&
          request.resource.data.uid == uid &&
          request.resource.data.role == 'employee' &&
@@ -149,7 +190,15 @@ service cloud.firestore {
            request.resource.data.managerWelcomeVersion == 1)) &&
          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['profilePhotoUrl']) ||
           (request.resource.data.profilePhotoUrl is string &&
-           request.resource.data.profilePhotoUrl.matches('https://res[.]cloudinary[.]com/unofnu8o/.*'))));
+           request.resource.data.profilePhotoUrl.matches('https://res[.]cloudinary[.]com/unofnu8o/.*')))) ||
+        // After a successful one-time bootstrap, the manager may remove only
+        // the consumed proof field from their own profile.
+        (isOwner(uid) &&
+         resource.data.role == 'manager' &&
+         resource.data.keys().hasAny(['bootstrapProof']) &&
+         !request.resource.data.keys().hasAny(['bootstrapProof']) &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['bootstrapProof']));
 
       allow delete: if false; // soft-delete only, via accountStatus field
     }

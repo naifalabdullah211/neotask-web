@@ -117,8 +117,8 @@ class FirestoreService {
   // need to know whether a manager account exists at all *before* anyone is
   // signed in (to decide: show ManagerSetupScreen vs. LoginScreen). This is
   // answered by the tiny public `system/manager_lock` sentinel document.
-  // The server-only `bootstrapManager` function creates it atomically with
-  // the manager profile; no Flutter client can create either manager record.
+  // The one-time Spark bootstrap transaction creates it atomically with the
+  // manager profile and consumes the hidden setup proof.
   // Fail closed: until Firestore positively confirms that the lock is
   // absent, signed-out users are routed to LoginScreen rather than being
   // offered manager bootstrap.
@@ -176,6 +176,62 @@ class FirestoreService {
       });
     });
     _managerLockExists = true;
+  }
+
+  /// Creates the first manager without a paid server runtime.
+  ///
+  /// Firestore Rules, not this client method, are the security boundary:
+  /// they compare [setupProof] with the hidden one-time bootstrap document
+  /// and require these three writes to succeed atomically.
+  static Future<void> bootstrapManagerOnSpark({
+    required String uid,
+    required String name,
+    required String email,
+    required String employeeNumber,
+    required String setupProof,
+  }) async {
+    final userRef = _db.collection('users').doc(uid);
+    final lockRef = _db.collection('system').doc('manager_lock');
+    final bootstrapRef = _db.collection('system').doc('manager_bootstrap');
+    final now = DateTime.now().toIso8601String();
+
+    await _db.runTransaction((transaction) async {
+      final lock = await transaction.get(lockRef);
+      if (lock.exists) {
+        throw StateError('Manager already exists');
+      }
+
+      transaction.set(userRef, {
+        'uid': uid,
+        'name': name,
+        'email': email,
+        'employeeNumber': employeeNumber,
+        'role': 'manager',
+        'accountStatus': 'active',
+        'createdAt': now,
+        'soundMessagesEnabled': true,
+        'soundTasksEnabled': true,
+        'remindersEnabled': true,
+        'weeklyCapacityHours': 40,
+        'managerWelcomeVersion': 0,
+        'bootstrapProof': setupProof,
+      });
+      transaction.set(lockRef, {
+        'createdAt': now,
+        'createdBy': uid,
+      });
+      transaction.delete(bootstrapRef);
+    });
+    _managerLockExists = true;
+  }
+
+  /// Removes the consumed capability digest from the manager profile after
+  /// the atomic bootstrap transaction. The matching Firestore rule permits
+  /// only this single-field deletion by that manager.
+  static Future<void> clearManagerBootstrapProof(String uid) async {
+    await _db.collection('users').doc(uid).update({
+      'bootstrapProof': FieldValue.delete(),
+    });
   }
 
   /// Sets up ONLY the listeners that are safe to run before any user is
