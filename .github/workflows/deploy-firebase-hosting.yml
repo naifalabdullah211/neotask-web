@@ -82,6 +82,12 @@ jobs:
           PY
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
 
+      - name: Set up Java 21 for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Install Firebase deployment tools
         run: |
           set -o pipefail
