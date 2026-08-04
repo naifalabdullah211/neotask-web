@@ -9,6 +9,7 @@ import '../../providers/locale_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_selection_field.dart';
 import '../../widgets/user_avatar.dart';
 
 /// "الإعدادات" (Settings) — previously a completely empty placeholder
@@ -198,26 +199,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: AppSpacing.sm),
             _SettingsCard(
               children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'ar', label: Text('العربية')),
-                      ButtonSegment(value: 'en', label: Text('English')),
-                    ],
-                    selected: {appLocale.languageCode},
-                    showSelectedIcon: true,
-                    onSelectionChanged: (selection) {
-                      appLocale.setLanguage(selection.first);
-                    },
+                NeoSelectionField<String>(
+                  label: context.tr('لغة الواجهة'),
+                  value: appLocale.languageCode,
+                  sheetTitle: context.tr('لغة الواجهة'),
+                  leadingIcon: Icons.translate_rounded,
+                  helperText: context.tr(
+                    appLocale.isArabic
+                        ? 'واجهة عربية واتجاه من اليمين إلى اليسار'
+                        : 'English interface with left-to-right layout',
                   ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  appLocale.isArabic
-                      ? 'واجهة عربية واتجاه من اليمين إلى اليسار'
-                      : 'English interface with left-to-right layout',
-                  style: AppTextStyles.bodySecondary,
+                  options: const [
+                    NeoSelectionOption(
+                      value: 'ar',
+                      label: 'العربية',
+                      icon: Icons.format_textdirection_r_to_l_rounded,
+                    ),
+                    NeoSelectionOption(
+                      value: 'en',
+                      label: 'English',
+                      icon: Icons.format_textdirection_l_to_r_rounded,
+                    ),
+                  ],
+                  onChanged: (languageCode) {
+                    appLocale.setLanguage(languageCode);
+                  },
                 ),
               ],
             ),

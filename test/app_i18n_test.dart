@@ -69,5 +69,7 @@ void main() {
     expect(login, contains('LanguageToggle'));
     expect(drawer, contains('LanguageToggle'));
     expect(settings, contains("title: 'لغة الواجهة'"));
+    expect(settings, contains('NeoSelectionField<String>'));
+    expect(settings, isNot(contains('SegmentedButton<String>')));
   });
 }
