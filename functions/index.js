@@ -9,16 +9,24 @@
  */
 
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {defineSecret} = require("firebase-functions/params");
 const {
   onDocumentCreated,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
+const {
+  enforceRateLimit,
+  normalizeEmployeeNumber,
+  requirePlainText,
+  secretsEqual,
+} = require("./security");
 
 admin.initializeApp();
 
 const db = admin.firestore();
+const managerSetupKey = defineSecret("MANAGER_SETUP_KEY");
 
 const FULL_ACCESS_EMPLOYEE_NUMBER = "400161";
 
@@ -39,6 +47,141 @@ async function requireActiveManager(auth) {
   }
   return user;
 }
+
+function callerIdentifier(request) {
+  if (request.auth && request.auth.uid) return `uid:${request.auth.uid}`;
+  const rawRequest = request.rawRequest;
+  const address = rawRequest &&
+    (rawRequest.ip || (rawRequest.socket && rawRequest.socket.remoteAddress));
+  return `ip:${address || "unknown"}`;
+}
+
+async function requireRateLimit(request, scope, {limit, windowMs}) {
+  const result = await enforceRateLimit({
+    db,
+    scope,
+    identifier: callerIdentifier(request),
+    limit,
+    windowMs,
+  });
+  if (!result.allowed) {
+    throw new HttpsError(
+        "resource-exhausted",
+        "محاولات كثيرة، انتظر قليلًا ثم أعد المحاولة",
+    );
+  }
+}
+
+/**
+ * Creates the one and only official manager account.
+ *
+ * The setup key is a Firebase Secret and never ships in Flutter/Hosting.
+ * The unauthenticated endpoint is intentionally narrow, rate-limited by
+ * source address, and becomes permanently inert after manager_lock exists.
+ */
+exports.bootstrapManager = onCall(
+    {secrets: [managerSetupKey]},
+    async (request) => {
+      await requireRateLimit(request, "manager_bootstrap", {
+        limit: 5,
+        windowMs: 15 * 60 * 1000,
+      });
+
+      const data = request.data || {};
+      const expectedKey = managerSetupKey.value();
+      if (!expectedKey || !secretsEqual(data.setupKey, expectedKey)) {
+        throw new HttpsError(
+            "permission-denied",
+            "مفتاح التأسيس غير صحيح",
+        );
+      }
+
+      let name;
+      let employee;
+      try {
+        name = requirePlainText(data.name, "name", {
+          minLength: 2,
+          maxLength: 120,
+        });
+        employee = normalizeEmployeeNumber(data.employeeNumber);
+      } catch (_) {
+        throw new HttpsError("invalid-argument", "بيانات المدير غير صالحة");
+      }
+      const password = data.password;
+      if (typeof password !== "string" ||
+          password.length < 6 || password.length > 128) {
+        throw new HttpsError(
+            "invalid-argument",
+            "الرقم السري يجب أن يكون بين 6 و128 حرفًا",
+        );
+      }
+
+      const lockRef = db.collection("system").doc("manager_lock");
+      const existingLock = await lockRef.get();
+      if (existingLock.exists) {
+        throw new HttpsError(
+            "already-exists",
+            "تم إنشاء حساب المدير بالفعل",
+        );
+      }
+
+      let authUser;
+      try {
+        const email = `${employee.compact}@neotask.local`;
+        authUser = await admin.auth().createUser({
+          email,
+          password,
+          displayName: name,
+        });
+        const now = new Date().toISOString();
+        await db.runTransaction(async (transaction) => {
+          const lock = await transaction.get(lockRef);
+          if (lock.exists) {
+            throw new HttpsError(
+                "already-exists",
+                "تم إنشاء حساب المدير بالفعل",
+            );
+          }
+          transaction.create(db.collection("users").doc(authUser.uid), {
+            uid: authUser.uid,
+            name,
+            email,
+            employeeNumber: employee.display,
+            role: "manager",
+            accountStatus: "active",
+            createdAt: now,
+            soundMessagesEnabled: true,
+            soundTasksEnabled: true,
+            remindersEnabled: true,
+            weeklyCapacityHours: 40,
+            managerWelcomeVersion: 0,
+          });
+          transaction.create(lockRef, {
+            createdAt: now,
+            createdBy: authUser.uid,
+          });
+        });
+        await admin.auth().setCustomUserClaims(authUser.uid, {role: "manager"});
+        const customToken = await admin.auth().createCustomToken(authUser.uid);
+        return {customToken};
+      } catch (error) {
+        if (authUser) {
+          await admin.auth().deleteUser(authUser.uid).catch(() => null);
+        }
+        if (error instanceof HttpsError) throw error;
+        if (error && error.code === "auth/email-already-exists") {
+          throw new HttpsError(
+              "already-exists",
+              "هذا الرقم الوظيفي مسجل بالفعل",
+          );
+        }
+        console.error("Manager bootstrap failed", {
+          code: error && error.code ? error.code : "unknown",
+        });
+        throw new HttpsError("internal", "تعذّر إنشاء حساب المدير");
+      }
+    },
+);
 
 /**
  * adminResetPassword — manager-driven password change for ANOTHER user.
@@ -77,40 +220,31 @@ exports.adminResetPassword = onCall(async (request) => {
     );
   }
 
+  await requireActiveManager(auth);
+  await requireRateLimit(request, "admin_reset_password", {
+    limit: 10,
+    windowMs: 10 * 60 * 1000,
+  });
+
   const {userId, newPassword} = data || {};
 
   // 2) Basic input validation.
-  if (typeof userId !== "string" || userId.trim().length === 0) {
+  if (typeof userId !== "string" || userId.trim().length === 0 ||
+      userId.length > 128) {
     throw new HttpsError(
         "invalid-argument",
         "معرّف المستخدم المستهدف غير صالح",
     );
   }
-  if (typeof newPassword !== "string" || newPassword.length < 6) {
+  if (typeof newPassword !== "string" || newPassword.length < 6 ||
+      newPassword.length > 128) {
     throw new HttpsError(
         "invalid-argument",
         "كلمة المرور الجديدة يجب أن تتكون من 6 أحرف على الأقل",
     );
   }
 
-  // 3) Server-side manager-role verification via Firestore lookup.
-  const db = admin.firestore();
-  const callerSnap = await db.collection("users").doc(auth.uid).get();
-  if (!callerSnap.exists) {
-    throw new HttpsError(
-        "permission-denied",
-        "لا يمكن التحقق من صلاحياتك",
-    );
-  }
-  const callerData = callerSnap.data();
-  if (!hasManagerAccess(callerData)) {
-    throw new HttpsError(
-        "permission-denied",
-        "ليس لديك صلاحية تغيير كلمات مرور الموظفين",
-    );
-  }
-
-  // 4) Target user must exist.
+  // 3) Target user must exist.
   const targetSnap = await db.collection("users").doc(userId).get();
   if (!targetSnap.exists) {
     throw new HttpsError(
@@ -119,7 +253,7 @@ exports.adminResetPassword = onCall(async (request) => {
     );
   }
 
-  // 5) Perform the privileged password update via the Admin SDK.
+  // 4) Perform the privileged password update via the Admin SDK.
   try {
     await admin.auth().updateUser(userId, {password: newPassword});
   } catch (err) {
@@ -129,10 +263,10 @@ exports.adminResetPassword = onCall(async (request) => {
           "حساب المصادقة لهذا المستخدم غير موجود",
       );
     }
-    throw new HttpsError(
-        "internal",
-        "تعذّر تغيير كلمة المرور: " + (err && err.message ? err.message : "خطأ غير معروف"),
-    );
+    console.error("Password reset failed", {
+      code: err && err.code ? err.code : "unknown",
+    });
+    throw new HttpsError("internal", "تعذّر تغيير كلمة المرور");
   }
 
   return {success: true};
@@ -145,6 +279,10 @@ exports.adminResetPassword = onCall(async (request) => {
  */
 exports.bulkImportEmployees = onCall(async (request) => {
   const manager = await requireActiveManager(request.auth);
+  await requireRateLimit(request, "bulk_import_employees", {
+    limit: 3,
+    windowMs: 15 * 60 * 1000,
+  });
   const rows = request.data && request.data.employees;
   if (!Array.isArray(rows) || rows.length === 0 || rows.length > 200) {
     throw new HttpsError(
@@ -157,12 +295,22 @@ exports.bulkImportEmployees = onCall(async (request) => {
   const seen = new Set();
   for (let index = 0; index < rows.length; index++) {
     const row = rows[index] || {};
-    const name = typeof row.name === "string" ? row.name.trim() : "";
-    const employeeNumber = typeof row.employeeNumber === "string" ?
-      row.employeeNumber.trim() : "";
+    let name;
+    let employee;
+    try {
+      name = requirePlainText(row.name, "name", {
+        minLength: 2,
+        maxLength: 120,
+      });
+      employee = normalizeEmployeeNumber(row.employeeNumber);
+    } catch (_) {
+      results.push({index, success: false, error: "بيانات الصف غير صالحة"});
+      continue;
+    }
+    const employeeNumber = employee.display;
     const password = typeof row.password === "string" ? row.password : "";
-    const compact = employeeNumber.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!name || !compact || password.length < 6) {
+    const compact = employee.compact;
+    if (password.length < 6 || password.length > 128) {
       results.push({index, success: false, error: "بيانات الصف غير مكتملة"});
       continue;
     }

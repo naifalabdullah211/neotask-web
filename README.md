@@ -1,16 +1,22 @@
-# neotask_pro
+# NeoTask
 
-A new Flutter project.
+Flutter client and Firebase backend for NeoTask.
 
-## Getting Started
+## Security-sensitive deployment
 
-This project is a starting point for a Flutter application.
+The first manager is created by the `bootstrapManager` Cloud Function. Its
+setup key must exist in Firebase Secret Manager and must never be stored in
+Flutter, Hosting, Git, workflow variables, or a service-account file:
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+firebase functions:secrets:set MANAGER_SETUP_KEY --project neotask1-ff5a4
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+The production workflow intentionally deploys in this order:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1. Cloud Functions
+2. Firestore Rules
+3. Firebase Hosting
+
+If the secret or Functions deployment is unavailable, the workflow stops
+before publishing client code that depends on it.

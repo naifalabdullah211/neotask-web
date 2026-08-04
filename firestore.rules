@@ -79,48 +79,21 @@ service cloud.firestore {
     // ManagerSetupScreen vs. LoginScreen" BEFORE anyone is signed in, and
     // this tiny sentinel doc (no PII, just createdAt/createdBy) is how that
     // decision is made without exposing the `users` collection itself.
-    // Creation is guarded by BOTH this rule AND the atomic Firestore
-    // transaction in `createManagerProfile()` (see firestore_service.dart)
-    // that writes this doc in the SAME transaction as the manager's
-    // `users/{uid}` doc — this is what makes the single-manager invariant
-    // race-safe under concurrent bootstrap attempts.
+    // Creation is server-only through bootstrapManager. Admin SDK writes
+    // bypass Rules; every client write is denied here.
     match /system/manager_lock {
       allow read: if true;
-      allow create: if isSignedIn() &&
-        !exists(/databases/$(database)/documents/system/manager_lock) &&
-        request.resource.data.createdBy == request.auth.uid &&
-        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager' &&
-        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus == 'active';
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
     // ---- users ----
     match /users/{uid} {
       allow read: if isSignedIn();
 
-      // Two creation paths, both keyed by the Firebase Auth uid of the
-      // caller (i.e. you can only ever create YOUR OWN profile doc — the
-      // Auth account itself was already created by the time this write
-      // happens, per AuthProvider.ensureManagerExists/registerViaInvite):
-      //
-      //   1) Manager bootstrap. CRITICAL: it is NOT enough to check
-      //      `!exists(manager_lock)` — that only proves the lock doesn't
-      //      exist YET, it does NOT force the caller to actually create it.
-      //      A client could create this users/{uid} doc with role=manager
-      //      WITHOUT ever writing manager_lock, and repeat that indefinitely
-      //      (every future check would still see !exists(manager_lock)),
-      //      producing unlimited fraudulent managers. This was empirically
-      //      verified against production during rules testing (2026-07-10)
-      //      before this fix was added — see incident notes.
-      //      FIX: use getAfter() to require that, within this SAME atomic
-      //      transaction/batch, system/manager_lock is ALSO created and
-      //      its createdBy field equals this uid. This matches exactly
-      //      what FirestoreService.createManagerProfile()'s transaction
-      //      does — so the legitimate app flow is unaffected, but any
-      //      write that creates a manager-role user doc WITHOUT also
-      //      atomically creating the lock (pointing at the same uid) is
-      //      now rejected at the rules layer, not just by app discipline.
-      //   2) Employee self-registration via invite — the invite-token
+      // Manager bootstrap is NEVER a client write: bootstrapManager verifies
+      // the Secret Manager value, rate-limits attempts, and uses Admin SDK.
+      // The remaining client creation path is employee self-registration via
+      // invite — the invite-token
       //      validity itself is enforced by the `invitations` update rule
       //      below (same transaction, same request.auth).
       //      RESIDUAL LIMITATION (flagged, NOT fixed in this pass): unlike
@@ -139,15 +112,8 @@ service cloud.firestore {
       allow create: if
         (isOwner(uid) &&
          request.resource.data.uid == uid &&
-         (
-          (request.resource.data.role == 'manager' &&
-           request.resource.data.accountStatus == 'active' &&
-           !exists(/databases/$(database)/documents/system/manager_lock) &&
-           getAfter(/databases/$(database)/documents/system/manager_lock).data.createdBy == uid)
-          ||
-          (request.resource.data.role == 'employee' &&
-           request.resource.data.accountStatus == 'pendingApproval')
-         ))
+         request.resource.data.role == 'employee' &&
+         request.resource.data.accountStatus == 'pendingApproval')
         ||
         (isManager() &&
          request.resource.data.uid == uid &&

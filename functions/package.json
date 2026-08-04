@@ -6,6 +6,7 @@
   },
   "main": "index.js",
   "scripts": {
+    "test": "node --test test/*.test.js",
     "lint": "eslint .",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log"

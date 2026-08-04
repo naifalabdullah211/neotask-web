@@ -93,16 +93,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Bootstraps the single manager account if none exists yet — SELF-
-  /// SERVICE, typed directly by the manager on first launch (name +
-  /// employeeNumber + password, no email — see [_syntheticEmail]).
-  ///
-  /// Creates the Firebase Auth account first (credential storage), then the
-  /// Firestore profile document via [FirestoreService.createManagerProfile]
-  /// (the atomic lock+profile transaction). If the Firestore write fails
-  /// after the Auth account was created, the Auth account is rolled back to
-  /// avoid an orphaned credential with no profile.
+  /// Bootstraps the single manager account through the trusted Firebase
+  /// Function. The setup secret is verified server-side and never embedded
+  /// in Flutter; the server atomically creates the profile and manager lock,
+  /// then returns a one-use Firebase custom sign-in token.
   Future<bool> ensureManagerExists({
+    required String setupKey,
     required String name,
     required String employeeNumber,
     String password = '',
@@ -118,65 +114,59 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
 
-    final syntheticEmail = _syntheticEmail(employeeNumber);
-
-    fb_auth.UserCredential cred;
     try {
-      cred = await _fbAuth.createUserWithEmailAndPassword(
-        email: syntheticEmail,
-        password: password,
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'bootstrapManager',
       );
-    } on fb_auth.FirebaseAuthException catch (e) {
-      _authError = _mapAuthError(e);
+      final result = await callable.call<Map<String, dynamic>>({
+        'setupKey': setupKey,
+        'name': name,
+        'employeeNumber': employeeNumber,
+        'password': password,
+      });
+      final customToken = result.data['customToken'];
+      if (customToken is! String || customToken.isEmpty) {
+        throw StateError('Missing manager sign-in token');
+      }
+      final credential = await _fbAuth.signInWithCustomToken(customToken);
+      await FirestoreService.initAuthenticated();
+      final manager = FirestoreService.getUser(credential.user!.uid);
+      if (manager == null || !manager.hasManagerAccess) {
+        await FirestoreService.resetAuthenticatedState();
+        await _fbAuth.signOut();
+        throw StateError('Missing manager profile');
+      }
+      _currentUser = manager;
+    } on FirebaseFunctionsException catch (e) {
+      switch (e.code) {
+        case 'permission-denied':
+          _authError = 'مفتاح التأسيس غير صحيح';
+          break;
+        case 'already-exists':
+          _authError = 'تم إنشاء حساب المدير بالفعل من جهاز آخر';
+          break;
+        case 'invalid-argument':
+          _authError = 'بيانات المدير غير صالحة';
+          break;
+        case 'resource-exhausted':
+          _authError = 'محاولات كثيرة، انتظر قليلًا ثم أعد المحاولة';
+          break;
+        case 'not-found':
+          _authError = 'خدمة تأسيس المدير غير منشورة بعد';
+          break;
+        default:
+          _authError = 'تعذّر إنشاء الحساب، حاول مرة أخرى';
+      }
       _isLoading = false;
       notifyListeners();
       return false;
-    }
-
-    final fbUid = cred.user!.uid;
-    final manager = AppUser(
-      uid: fbUid,
-      name: name,
-      email: syntheticEmail,
-      employeeNumber: employeeNumber,
-      role: UserRole.manager,
-      accountStatus: AccountStatus.active,
-      createdAt: DateTime.now(),
-    );
-
-    // The `system/manager_lock` sentinel + `users/{uid}` doc are created in
-    // one atomic transaction (see createManagerProfile) which requires the
-    // caller to already be signed in as `manager.uid` — start the
-    // authenticated listeners now so subsequent `getManager()`/cache reads
-    // (e.g. from the immediately-following `login()` call) work correctly.
-    await FirestoreService.initAuthenticated();
-
-    bool created;
-    try {
-      created = await FirestoreService.createManagerProfile(manager);
     } catch (_) {
-      await FirestoreService.resetAuthenticatedState();
-      await cred.user!.delete();
       _authError = 'تعذّر إنشاء الحساب، حاول مرة أخرى';
       _isLoading = false;
       notifyListeners();
       return false;
     }
 
-    if (!created) {
-      // Another manager-bootstrap request won the race (or the security
-      // rules already reject this write) — roll back the orphaned Auth
-      // account so the employee number is not left stuck on an unusable
-      // credential.
-      await FirestoreService.resetAuthenticatedState();
-      await cred.user!.delete();
-      _authError = 'تم إنشاء حساب المدير بالفعل من جهاز آخر';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-
-    _currentUser = manager;
     _isLoading = false;
     notifyListeners();
     return true;

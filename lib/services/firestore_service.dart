@@ -116,9 +116,9 @@ class FirestoreService {
   // requires `request.auth != null` to read — but SplashRouter/AuthProvider
   // need to know whether a manager account exists at all *before* anyone is
   // signed in (to decide: show ManagerSetupScreen vs. LoginScreen). This is
-  // answered by the tiny public `system/manager_lock` sentinel document
-  // (created atomically alongside the manager's `users` doc — see
-  // `createManagerProfile` below) instead of querying `users` directly.
+  // answered by the tiny public `system/manager_lock` sentinel document.
+  // The server-only `bootstrapManager` function creates it atomically with
+  // the manager profile; no Flutter client can create either manager record.
   // Fail closed: until Firestore positively confirms that the lock is
   // absent, signed-out users are routed to LoginScreen rather than being
   // offered manager bootstrap.
@@ -643,34 +643,6 @@ class FirestoreService {
       'changedForUid': changedForUid,
       'changedForName': changedForName,
       'timestamp': FieldValue.serverTimestamp(),
-    });
-  }
-
-  /// Atomically creates the single manager profile document together with
-  /// the `system/manager_lock` sentinel document, in the SAME Firestore
-  /// transaction. This mirrors `consumeInviteAndRegister`'s
-  /// read-then-write-atomically pattern and is what makes the Firestore
-  /// security rule `!exists(/system/manager_lock)` gate on manager-role
-  /// user-doc creation actually race-safe: two concurrent manager-bootstrap
-  /// attempts cannot both succeed, because the second transaction's read of
-  /// `system/manager_lock` will see the first transaction's write once it
-  /// has committed (Firestore transactions guarantee serializability).
-  ///
-  /// Returns `true` if the manager profile was created, `false` if a
-  /// manager (lock) already existed — in which case the caller MUST roll
-  /// back the just-created Firebase Auth credential.
-  static Future<bool> createManagerProfile(AppUser manager) async {
-    return _db.runTransaction<bool>((tx) async {
-      final lockRef = _db.collection('system').doc('manager_lock');
-      final lockSnap = await tx.get(lockRef);
-      if (lockSnap.exists) return false;
-
-      tx.set(_db.collection('users').doc(manager.uid), manager.toMap());
-      tx.set(lockRef, {
-        'createdAt': DateTime.now().toIso8601String(),
-        'createdBy': manager.uid,
-      });
-      return true;
     });
   }
 

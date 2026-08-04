@@ -25,6 +25,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check for embedded secrets and executable HTML sinks
+        run: node scripts/security_check.js
+
+      - name: Test Cloud Functions security controls
+        run: |
+          set -euo pipefail
+          npm ci --prefix functions
+          node --check functions/index.js
+          npm test --prefix functions
+
       - name: Prepare deployment log
         run: |
           : > deploy-error.log
@@ -77,6 +87,85 @@ jobs:
           set -o pipefail
           npm install --global firebase-tools google-auth-library 2>&1 | tee -a deploy-error.log
 
+      - name: Provision encrypted manager setup secret
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          set -euo pipefail
+          private_key_file="$RUNNER_TEMP/firebase-service-account-private-key.pem"
+          cipher_file="$RUNNER_TEMP/manager-setup-key.bin"
+          plaintext_file="$RUNNER_TEMP/manager-setup-key.txt"
+          trap 'rm -f "$private_key_file" "$cipher_file" "$plaintext_file"' EXIT
+
+          python - <<'PY'
+          import json, os
+          source = os.path.join(os.environ['RUNNER_TEMP'], 'firebase-service-account.json')
+          target = os.path.join(os.environ['RUNNER_TEMP'], 'firebase-service-account-private-key.pem')
+          with open(source, encoding='utf-8') as f:
+              credential = json.load(f)
+          with open(target, 'w', encoding='utf-8') as f:
+              f.write(credential['private_key'])
+          os.chmod(target, 0o600)
+          PY
+
+          base64 --decode .github/manager-setup-key.enc > "$cipher_file"
+          openssl pkeyutl -decrypt \
+            -inkey "$private_key_file" \
+            -in "$cipher_file" \
+            -out "$plaintext_file" \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256
+          chmod 600 "$plaintext_file"
+
+          export NODE_PATH="$(npm root -g)"
+          MANAGER_SETUP_KEY_FILE="$plaintext_file" node <<'NODE'
+          const fs = require('fs');
+          const {GoogleAuth} = require('google-auth-library');
+
+          async function provisionSecret() {
+            const projectId = 'neotask1-ff5a4';
+            const secretId = 'MANAGER_SETUP_KEY';
+            const projectName = `projects/${projectId}`;
+            const secretName = `${projectName}/secrets/${secretId}`;
+            const auth = new GoogleAuth({
+              keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+              scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+            });
+            const client = await auth.getClient();
+            let exists = true;
+            try {
+              await client.request({
+                url: `https://secretmanager.googleapis.com/v1/${secretName}`,
+              });
+            } catch (error) {
+              if (error.response?.status !== 404) throw error;
+              exists = false;
+            }
+            if (!exists) {
+              await client.request({
+                url: `https://secretmanager.googleapis.com/v1/${projectName}/secrets`,
+                method: 'POST',
+                params: {secretId},
+                data: {replication: {automatic: {}}},
+              });
+            }
+            const value = fs.readFileSync(process.env.MANAGER_SETUP_KEY_FILE);
+            const response = await client.request({
+              url: `https://secretmanager.googleapis.com/v1/${secretName}:addVersion`,
+              method: 'POST',
+              data: {payload: {data: value.toString('base64')}},
+            });
+            const version = String(response.data.name || '').split('/').pop();
+            console.log(`Manager setup secret provisioned (version ${version || 'created'})`);
+          }
+
+          provisionSecret().catch((error) => {
+            const details = error.response?.data || error.message || error;
+            console.error('Manager setup secret provisioning failed:', JSON.stringify(details));
+            process.exit(1);
+          });
+          NODE
+
       - name: List actual Firebase Hosting sites
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
@@ -84,6 +173,13 @@ jobs:
           set -euo pipefail
           firebase hosting:sites:list --project neotask1-ff5a4 --json > hosting-sites.txt
           cat hosting-sites.txt
+
+      - name: Deploy Cloud Functions before dependent client code
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          set -o pipefail
+          firebase deploy --only functions --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
 
       - name: Deploy Firestore rules
         env:

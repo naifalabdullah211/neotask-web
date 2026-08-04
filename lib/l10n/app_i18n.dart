@@ -283,6 +283,7 @@ class AppI18n {
     'إنشاء الحساب': 'Create account',
     'إنشاء حساب موظف': 'Create employee account',
     'مفتاح التأسيس': 'Setup key',
+    'أدخل مفتاح التأسيس': 'Enter the setup key',
     'الاسم الكامل': 'Full name',
     'تأكيد الرقم السري': 'Confirm password',
     'إرسال طلب الانضمام': 'Submit join request',

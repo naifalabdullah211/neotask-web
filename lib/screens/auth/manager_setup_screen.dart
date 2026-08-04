@@ -20,8 +20,6 @@ class ManagerSetupScreen extends StatefulWidget {
 }
 
 class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
-  static const _setupKey = 'NAIFALABDULLAH211@';
-
   final _formKey = GlobalKey<FormState>();
   final _setupKeyCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
@@ -46,6 +44,7 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
     setState(() => _submitting = true);
     final auth = context.read<AuthProvider>();
     final ok = await auth.ensureManagerExists(
+      setupKey: _setupKeyCtrl.text,
       name: _nameCtrl.text.trim(),
       employeeNumber: _employeeNumberCtrl.text.trim(),
       password: _passwordCtrl.text,
@@ -135,9 +134,10 @@ class _ManagerSetupScreenState extends State<ManagerSetupScreen> {
                                   labelText: context.tr('مفتاح التأسيس'),
                                   prefixIcon: Icon(Icons.key_outlined),
                                 ),
-                                validator: (v) => v == _setupKey
-                                    ? null
-                                    : context.tr('مفتاح التأسيس غير صحيح'),
+                                validator: (v) =>
+                                    (v == null || v.isEmpty)
+                                    ? context.tr('أدخل مفتاح التأسيس')
+                                    : null,
                               ),
                               const SizedBox(height: 14),
                               TextFormField(
