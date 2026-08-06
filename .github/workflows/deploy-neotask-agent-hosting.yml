@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore:
       - 'agent-hosting-success.txt'
+      - 'agent-hosting-error.txt'
       - 'deploy-error.log'
       - 'build-success.txt'
   workflow_dispatch:
@@ -23,6 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare Hosting log
+        run: |
+          printf 'Commit: %s\nStarted: %s\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > agent-hosting-error.txt
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.35.4'
@@ -31,32 +36,52 @@ jobs:
 
       - name: Build Flutter web
         run: |
-          set -euo pipefail
-          flutter pub get
-          flutter test test/workflow_features_test.dart
-          flutter build web --release --pwa-strategy=none
+          set -o pipefail
+          flutter pub get 2>&1 | tee -a agent-hosting-error.txt
+          flutter test test/workflow_features_test.dart 2>&1 | tee -a agent-hosting-error.txt
+          flutter build web --release --pwa-strategy=none 2>&1 | tee -a agent-hosting-error.txt
 
       - name: Decode Firebase credential
         env:
           FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
         run: |
-          set -euo pipefail
+          set -o pipefail
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          python - <<'PY' 2>&1 | tee -a agent-hosting-error.txt
+          import json, os
+          path = os.path.join(os.environ['RUNNER_TEMP'], 'firebase-service-account.json')
+          with open(path, encoding='utf-8') as file:
+              data = json.load(file)
+          if data.get('project_id') != 'neotask1-ff5a4':
+              raise SystemExit('Firebase project mismatch')
+          print('Firebase credential validated')
+          PY
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
 
       - name: Deploy production Hosting
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
-          set -euo pipefail
-          npm install --global firebase-tools
-          firebase deploy --only hosting --project neotask1-ff5a4 --non-interactive
+          set -o pipefail
+          npm install --global firebase-tools 2>&1 | tee -a agent-hosting-error.txt
+          firebase deploy --only hosting --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a agent-hosting-error.txt
 
       - name: Record Hosting success
+        if: success()
         run: |
           printf 'Commit: %s\nDeployed: %s\nSite: https://neotask1-ff5a4.web.app\nStatus: success\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > agent-hosting-success.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f agent-hosting-success.txt
           git commit -m "chore: confirm NeoTask Agent Hosting deployment [skip ci]" || true
+          git push || true
+
+      - name: Record Hosting failure
+        if: failure()
+        run: |
+          printf '\nFailed: %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> agent-hosting-error.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f agent-hosting-error.txt
+          git commit -m "chore: record NeoTask Agent Hosting failure [skip ci]" || true
           git push || true
