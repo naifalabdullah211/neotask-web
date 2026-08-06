@@ -1,0 +1,127 @@
+import 'dart:convert';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+
+class ManagerAiAction {
+  const ManagerAiAction({
+    required this.type,
+    required this.title,
+    required this.payload,
+    required this.requiresApproval,
+  });
+
+  final String type;
+  final String title;
+  final String payload;
+  final bool requiresApproval;
+
+  factory ManagerAiAction.fromMap(Map<String, dynamic> map) {
+    return ManagerAiAction(
+      type: map['type']?.toString() ?? '',
+      title: map['title']?.toString() ?? '',
+      payload: map['payload']?.toString() ?? '',
+      requiresApproval: map['requiresApproval'] != false,
+    );
+  }
+}
+
+class ManagerAiResult {
+  const ManagerAiResult({
+    required this.reply,
+    this.action,
+    this.requestId,
+  });
+
+  final String reply;
+  final ManagerAiAction? action;
+  final String? requestId;
+}
+
+class ManagerAiService {
+  static const String _endpoint = String.fromEnvironment(
+    'NEOTASK_AI_API_URL',
+    defaultValue: 'https://project-0wvza.vercel.app/api/agent',
+  );
+
+  static Future<ManagerAiResult> send({
+    required String message,
+    required List<Map<String, String>> history,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw const ManagerAiException('يجب تسجيل الدخول أولًا');
+    }
+
+    final token = await user.getIdToken(true);
+    if (token == null || token.isEmpty) {
+      throw const ManagerAiException('تعذر التحقق من جلسة المستخدم');
+    }
+
+    final response = await http
+        .post(
+          Uri.parse(_endpoint),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'message': message,
+            'history': history,
+          }),
+        )
+        .timeout(const Duration(seconds: 35));
+
+    Map<String, dynamic> body;
+    try {
+      body = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      throw const ManagerAiException('وصل رد غير صالح من خدمة المساعد');
+    }
+
+    if (response.statusCode != 200) {
+      final code = body['error']?.toString() ?? '';
+      throw ManagerAiException(_messageForCode(code));
+    }
+
+    final rawAction = body['action'];
+    return ManagerAiResult(
+      reply: body['reply']?.toString().trim().isNotEmpty == true
+          ? body['reply'].toString().trim()
+          : 'تم تحليل طلبك.',
+      action: rawAction is Map<String, dynamic>
+          ? ManagerAiAction.fromMap(rawAction)
+          : null,
+      requestId: body['requestId']?.toString(),
+    );
+  }
+
+  static String _messageForCode(String code) {
+    switch (code) {
+      case 'manager-only':
+        return 'هذه الميزة متاحة للمدير فقط';
+      case 'rate-limit':
+        return 'تم إرسال طلبات كثيرة. حاول بعد دقيقة';
+      case 'agent-not-configured':
+        return 'خدمة المساعد لم تكتمل تهيئتها بعد';
+      case 'agent-provider-error':
+        return 'تعذر الحصول على رد من محرك الذكاء الاصطناعي';
+      case 'invalid-message':
+        return 'الطلب فارغ أو طويل جدًا';
+      case 'missing-token':
+      case 'invalid-token':
+        return 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى';
+      default:
+        return 'تعذر الاتصال بمساعد المدير الآن';
+    }
+  }
+}
+
+class ManagerAiException implements Exception {
+  const ManagerAiException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
