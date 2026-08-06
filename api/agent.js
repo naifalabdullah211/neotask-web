@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
 
 const FIREBASE_PROJECT_ID = 'neotask1-ff5a4';
+const FIREBASE_ISSUER = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
+const FIREBASE_CERTS_URL =
+  'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
 const ALLOWED_ORIGINS = new Set([
   'https://neotask1-ff5a4.web.app',
@@ -8,7 +11,12 @@ const ALLOWED_ORIGINS = new Set([
   'http://localhost:5000',
   'http://localhost:3000',
 ]);
+
 const requestWindows = new Map();
+let firebaseCertCache = {
+  certs: null,
+  expiresAt: 0,
+};
 
 function setCors(req, res) {
   const origin = req.headers.origin;
@@ -30,37 +38,105 @@ function bearerToken(req) {
   return value.startsWith('Bearer ') ? value.slice(7).trim() : '';
 }
 
-function decodeFirebaseIdentity(token) {
-  if (!token) throw new Error('missing-token');
+function decodeJwtJson(part) {
+  try {
+    return JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
+  } catch {
+    throw new Error('invalid-token');
+  }
+}
+
+async function getFirebasePublicCerts() {
+  const now = Date.now();
+  if (firebaseCertCache.certs && firebaseCertCache.expiresAt > now) {
+    return firebaseCertCache.certs;
+  }
+
+  const response = await fetch(FIREBASE_CERTS_URL, {
+    headers: {'Cache-Control': 'no-cache'},
+  });
+  if (!response.ok) throw new Error('token-verification-unavailable');
+
+  const certs = await response.json();
+  if (!certs || typeof certs !== 'object') {
+    throw new Error('token-verification-unavailable');
+  }
+
+  const cacheControl = response.headers.get('cache-control') || '';
+  const maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
+  const maxAgeSeconds = maxAgeMatch ? Number(maxAgeMatch[1]) : 3600;
+  firebaseCertCache = {
+    certs,
+    expiresAt: now + Math.max(300, maxAgeSeconds) * 1000,
+  };
+  return certs;
+}
+
+async function verifyFirebaseIdentity(token) {
+  if (!token || token.length > 8192) throw new Error('missing-token');
+
   const parts = token.split('.');
   if (parts.length !== 3) throw new Error('invalid-token');
 
-  let claims;
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+  const header = decodeJwtJson(encodedHeader);
+  const claims = decodeJwtJson(encodedPayload);
+
+  if (header.alg !== 'RS256' || typeof header.kid !== 'string' || !header.kid) {
+    throw new Error('invalid-token');
+  }
+
+  const certs = await getFirebasePublicCerts();
+  const certificate = certs[header.kid];
+  if (typeof certificate !== 'string' || !certificate) {
+    throw new Error('invalid-token');
+  }
+
+  let signature;
   try {
-    claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    signature = Buffer.from(encodedSignature, 'base64url');
   } catch {
     throw new Error('invalid-token');
   }
 
-  const issuer = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
+  const signingInput = Buffer.from(`${encodedHeader}.${encodedPayload}`, 'utf8');
+  const signatureValid = crypto.verify(
+    'RSA-SHA256',
+    signingInput,
+    certificate,
+    signature,
+  );
+  if (!signatureValid) throw new Error('invalid-token');
+
   const now = Math.floor(Date.now() / 1000);
+  const subject = typeof claims.sub === 'string' ? claims.sub : '';
   if (
     claims.aud !== FIREBASE_PROJECT_ID ||
-    claims.iss !== issuer ||
-    !claims.sub ||
+    claims.iss !== FIREBASE_ISSUER ||
+    !subject ||
+    subject.length > 128 ||
     typeof claims.exp !== 'number' ||
-    claims.exp <= now
+    claims.exp <= now ||
+    typeof claims.iat !== 'number' ||
+    claims.iat > now + 300 ||
+    typeof claims.auth_time !== 'number' ||
+    claims.auth_time > now + 300
   ) {
     throw new Error('invalid-token');
   }
 
-  return {uid: claims.sub, email: claims.email || ''};
+  return {uid: subject, email: claims.email || ''};
 }
 
 async function loadNeoTaskUser(token, uid) {
-  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}` +
+    `/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
   const response = await fetch(url, {
-    headers: {Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store'},
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Cache-Control': 'no-store',
+    },
   });
 
   if (response.status === 401 || response.status === 403) {
@@ -156,14 +232,16 @@ function parseAgentResult(text) {
 export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return json(res, 405, {error: 'method-not-allowed'});
+  if (req.method !== 'POST') {
+    return json(res, 405, {error: 'method-not-allowed'});
+  }
   if (!process.env.OPENAI_API_KEY) {
     return json(res, 503, {error: 'agent-not-configured'});
   }
 
   try {
     const token = bearerToken(req);
-    const identity = decodeFirebaseIdentity(token);
+    const identity = await verifyFirebaseIdentity(token);
     const user = await loadNeoTaskUser(token, identity.uid);
     enforceManager(user);
     enforceRateLimit(user.uid);
@@ -190,7 +268,10 @@ export default async function handler(req, res) {
 
     const input = [
       ...history.map((item) => ({role: item.role, content: item.content})),
-      {role: 'user', content: `اسم المدير: ${user.name || 'المدير'}\nطلبه: ${prompt}`},
+      {
+        role: 'user',
+        content: `اسم المدير: ${user.name || 'المدير'}\nطلبه: ${prompt}`,
+      },
     ];
 
     const openaiResponse = await fetch('https://api.openai.com/v1/responses', {
@@ -227,8 +308,9 @@ export default async function handler(req, res) {
       : code === 'rate-limit' ? 429
       : ['missing-token', 'invalid-token'].includes(code) ? 401
       : code === 'profile-unavailable' ? 403
+      : code === 'token-verification-unavailable' ? 503
       : 500;
-    if (status === 500) console.error('NeoTask agent error', {code});
+    if (status >= 500) console.error('NeoTask agent error', {code});
     return json(res, status, {error: code});
   }
 }
