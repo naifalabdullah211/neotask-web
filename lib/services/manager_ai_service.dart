@@ -41,7 +41,7 @@ class ManagerAiResult {
 class ManagerAiService {
   static const String _endpoint = String.fromEnvironment(
     'NEOTASK_AI_API_URL',
-    defaultValue: 'https://project-0wvza.vercel.app/api/agent',
+    defaultValue: 'https://neotask-web.vercel.app/api/agent',
   );
 
   static Future<ManagerAiResult> send({
