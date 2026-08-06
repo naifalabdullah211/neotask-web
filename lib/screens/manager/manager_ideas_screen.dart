@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart' hide Text;
-import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:flutter/material.dart';
 
 import '../../models/manager_idea_model.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
+import '../../services/manager_ai_service.dart';
 import '../../theme/app_theme.dart';
 
 class ManagerIdeasScreen extends StatefulWidget {
@@ -23,17 +23,17 @@ class ManagerIdeasScreen extends StatefulWidget {
 class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
-  final List<_AgentMessage> _messages = [];
-  _PendingAction? _pending;
+  final List<_ChatMessage> _messages = [];
+  ManagerAiAction? _pendingAction;
   bool _working = false;
 
   @override
   void initState() {
     super.initState();
     _messages.add(
-      _AgentMessage.agent(
+      _ChatMessage.agent(
         'حياك الله ${widget.manager.name}. أنا مساعد المدير الذكي. '
-        'أحوّل أفكارك إلى مبادرات وأعرض أي إجراء قبل اعتماده.',
+        'اطلب مني إنشاء مبادرة، تجهيز مهمة، تلخيص أداء الفريق، أو تعديل قواعد المساعد.',
       ),
     );
   }
@@ -45,90 +45,122 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
     super.dispose();
   }
 
-  Future<void> _send() async {
-    final input = _controller.text.trim();
+  Future<void> _send([String? suggested]) async {
+    final input = (suggested ?? _controller.text).trim();
     if (input.isEmpty || _working || widget.readOnly) return;
 
     setState(() {
       _working = true;
-      _messages.add(_AgentMessage.user(input));
+      _pendingAction = null;
+      _messages.add(_ChatMessage.user(input));
       _controller.clear();
     });
-    _scrollDown();
+    _scrollToBottom();
 
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    final result = _AgentInterpreter.interpret(input);
-    if (!mounted) return;
-
-    setState(() {
-      _messages.add(_AgentMessage.agent(result.reply));
-      _pending = result.action;
-      _working = false;
-    });
-    _scrollDown();
+    try {
+      final result = await ManagerAiService.send(
+        message: input,
+        history: _messages
+            .take(_messages.length - 1)
+            .map((message) => {
+                  'role': message.fromAgent ? 'assistant' : 'user',
+                  'content': message.text,
+                })
+            .toList(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages.add(_ChatMessage.agent(result.reply));
+        _pendingAction = result.action;
+      });
+    } on ManagerAiException catch (error) {
+      if (!mounted) return;
+      setState(() => _messages.add(_ChatMessage.error(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _messages.add(
+          _ChatMessage.error('تعذر الاتصال بالمساعد. حاول مرة أخرى.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _working = false);
+      _scrollToBottom();
+    }
   }
 
-  Future<void> _approve() async {
-    final action = _pending;
+  Future<void> _approveAction() async {
+    final action = _pendingAction;
     if (action == null || _working || widget.readOnly) return;
 
     setState(() => _working = true);
     try {
-      if (action.kind == _ActionKind.initiative) {
-        await FirestoreService.addManagerIdea(
-          content: action.payload,
-          manager: widget.manager,
+      final prefix = switch (action.type) {
+        'create_task_draft' => 'مسودة مهمة',
+        'update_agent_rule' => 'قاعدة للمساعد',
+        'team_summary' => 'ملخص فريق',
+        _ => 'مبادرة',
+      };
+      await FirestoreService.addManagerIdea(
+        content: '$prefix: ${action.title}\n${action.payload}',
+        manager: widget.manager,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          _ChatMessage.agent(
+            action.type == 'create_task_draft'
+                ? 'تم اعتماد مسودة المهمة وحفظها في سجل المساعد. يمكنك مراجعتها وتحويلها إلى مهمة نهائية.'
+                : 'تم اعتماد الإجراء وحفظه في سجل المساعد.',
+          ),
         );
-        if (!mounted) return;
-        setState(() {
-          _messages.add(
-            const _AgentMessage.agent(
-              'تم اعتماد المبادرة وحفظها في سجل المساعد بنجاح.',
-            ),
-          );
-          _pending = null;
-        });
-      } else {
-        if (!mounted) return;
-        setState(() {
-          _messages.add(
-            const _AgentMessage.agent(
-              'تم حفظ الطلب كمسودة تنفيذ آمنة. تنفيذ تعديل المهام مباشرة '
-              'سيُفعّل عند ربط نقطة خلفية محمية دون كشف مفاتيح الذكاء الاصطناعي.',
-            ),
-          );
-          _pending = null;
-        });
-      }
+        _pendingAction = null;
+      });
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر تنفيذ الإجراء الآن')),
-        );
-      }
+      if (!mounted) return;
+      setState(
+        () => _messages.add(
+          _ChatMessage.error('تعذر حفظ الإجراء المعتمد.'),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _working = false);
-      _scrollDown();
+      _scrollToBottom();
     }
   }
 
-  void _cancel() {
+  void _cancelAction() {
     setState(() {
-      _pending = null;
-      _messages.add(
-        const _AgentMessage.agent('تم إلغاء الإجراء ولم يتغير شيء.'),
-      );
+      _pendingAction = null;
+      _messages.add(_ChatMessage.agent('تم إلغاء الإجراء ولم يُحفظ أي تغيير.'));
     });
-    _scrollDown();
+    _scrollToBottom();
   }
 
-  void _usePrompt(String prompt) {
-    if (widget.readOnly) return;
-    _controller.text = prompt;
-    _controller.selection = TextSelection.collapsed(offset: prompt.length);
+  Future<void> _deleteIdea(ManagerIdea idea) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف السجل؟'),
+        content: const Text('سيتم حذف هذا العنصر نهائيًا من سجل المساعد.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await FirestoreService.deleteManagerIdea(idea.ideaId);
+    }
   }
 
-  void _scrollDown() {
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
@@ -142,31 +174,33 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: const Color(0xFFF4F7FB),
       appBar: AppBar(
         title: const Text('مساعد المدير الذكي'),
-        backgroundColor: AppColors.navy,
+        backgroundColor: const Color(0xFF071D3B),
         foregroundColor: Colors.white,
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final desktop = constraints.maxWidth >= 980;
+          final chat = _buildChatPanel();
+          final history = _buildHistoryPanel();
           return Padding(
             padding: EdgeInsets.all(desktop ? 22 : 12),
             child: desktop
                 ? Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(flex: 7, child: _chatPanel()),
+                      Expanded(flex: 7, child: chat),
                       const SizedBox(width: 16),
-                      Expanded(flex: 3, child: _historyPanel()),
+                      Expanded(flex: 4, child: history),
                     ],
                   )
                 : Column(
                     children: [
-                      Expanded(child: _chatPanel()),
+                      Expanded(flex: 7, child: chat),
                       const SizedBox(height: 12),
-                      SizedBox(height: 220, child: _historyPanel()),
+                      SizedBox(height: 260, child: history),
                     ],
                   ),
           );
@@ -175,63 +209,61 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
     );
   }
 
-  Widget _chatPanel() {
+  Widget _buildChatPanel() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFDCE4EE)),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: AppColors.navy.withValues(alpha: 0.07),
+            color: Color(0x12071D3B),
             blurRadius: 18,
-            offset: const Offset(0, 8),
+            offset: Offset(0, 7),
           ),
         ],
       ),
       child: Column(
         children: [
           const _AgentHeader(),
-          const Divider(height: 1),
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
-              itemBuilder: (_, index) => _MessageBubble(
+              itemBuilder: (context, index) => _MessageBubble(
                 message: _messages[index],
               ),
             ),
           ),
-          if (_pending != null)
-            _ActionPreview(
-              action: _pending!,
-              busy: _working,
-              onApprove: _approve,
-              onCancel: _cancel,
+          if (_pendingAction != null)
+            _ApprovalCard(
+              action: _pendingAction!,
+              working: _working,
+              onApprove: _approveAction,
+              onCancel: _cancelAction,
             ),
-          if (widget.readOnly)
+          if (!widget.readOnly) ...[
+            _Suggestions(onSelected: _send),
+            _Composer(
+              controller: _controller,
+              working: _working,
+              onSend: _send,
+            ),
+          ] else
             const Padding(
               padding: EdgeInsets.all(16),
               child: Text(
                 'وضع العرض فقط',
-                style: TextStyle(color: Color(0xFF6F7C8F)),
+                style: TextStyle(color: Color(0xFF758195)),
               ),
-            )
-          else ...[
-            _QuickPrompts(onSelected: _usePrompt),
-            _Composer(
-              controller: _controller,
-              busy: _working,
-              onSend: _send,
             ),
-          ],
         ],
       ),
     );
   }
 
-  Widget _historyPanel() {
+  Widget _buildHistoryPanel() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -239,19 +271,20 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
         border: Border.all(color: const Color(0xFFDCE4EE)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Padding(
-            padding: EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Row(
               children: [
-                Icon(Icons.history_rounded, color: AppColors.navy),
+                Icon(Icons.history, color: AppColors.navy),
                 SizedBox(width: 8),
                 Text(
-                  'المبادرات المحفوظة',
+                  'سجل المساعد',
                   style: TextStyle(
                     color: AppColors.navy,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
@@ -261,29 +294,63 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
           Expanded(
             child: StreamBuilder<List<ManagerIdea>>(
               stream: FirestoreService.watchManagerIdeas(),
-              builder: (_, snapshot) {
+              builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting &&
                     !snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
+                if (snapshot.hasError) {
+                  return const _EmptyHistory('تعذر تحميل سجل المساعد');
+                }
                 final ideas = snapshot.data ?? const <ManagerIdea>[];
                 if (ideas.isEmpty) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text(
-                        'لا توجد مبادرات محفوظة حتى الآن',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xFF7D899A)),
-                      ),
-                    ),
-                  );
+                  return const _EmptyHistory('لا توجد إجراءات محفوظة');
                 }
                 return ListView.separated(
                   padding: const EdgeInsets.all(12),
                   itemCount: ideas.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, index) => _InitiativeTile(idea: ideas[index]),
+                  itemBuilder: (context, index) {
+                    final idea = ideas[index];
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF7F9FC),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.auto_awesome_outlined,
+                            color: Color(0xFF138B68),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              idea.content,
+                              maxLines: 5,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF26364A),
+                                height: 1.45,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (!widget.readOnly)
+                            IconButton(
+                              tooltip: 'حذف',
+                              onPressed: () => _deleteIdea(idea),
+                              icon: const Icon(Icons.delete_outline, size: 20),
+                              color: AppColors.statusRejected,
+                            ),
+                        ],
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -302,17 +369,15 @@ class _AgentHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF102B52), Color(0xFF1B3A6B)],
-        ),
+        color: Color(0xFF071D3B),
         borderRadius: BorderRadius.vertical(top: Radius.circular(19)),
       ),
       child: const Row(
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: Color(0x2633D6A6),
-            child: Icon(Icons.auto_awesome, color: AppColors.mintAccent),
+            backgroundColor: Color(0x2233D6A6),
+            child: Icon(Icons.auto_awesome, color: Color(0xFF33D6A6)),
           ),
           SizedBox(width: 12),
           Expanded(
@@ -320,7 +385,7 @@ class _AgentHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Manager AI Agent',
+                  'Executive AI Agent',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 19,
@@ -329,40 +394,41 @@ class _AgentHeader extends StatelessWidget {
                 ),
                 SizedBox(height: 3),
                 Text(
-                  'يفهم الطلب ويعرض الإجراء قبل التنفيذ',
-                  style: TextStyle(color: Color(0xFFC9D6E6), fontSize: 12),
+                  'يحلل الطلب ويعرض الإجراء قبل التنفيذ',
+                  style: TextStyle(color: Color(0xFFB9C7D9)),
                 ),
               ],
             ),
           ),
-          _StatusBadge(),
+          _OnlineBadge(),
         ],
       ),
     );
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge();
+class _OnlineBadge extends StatelessWidget {
+  const _OnlineBadge();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.mintAccent.withValues(alpha: 0.13),
+        color: const Color(0x2233D6A6),
         borderRadius: BorderRadius.circular(99),
       ),
       child: const Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(radius: 4, backgroundColor: AppColors.mintAccent),
+          CircleAvatar(radius: 4, backgroundColor: Color(0xFF33D6A6)),
           SizedBox(width: 6),
           Text(
-            'جاهز',
+            'متصل',
             style: TextStyle(
-              color: AppColors.mintAccent,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
+              color: Color(0xFF8EF0D1),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -374,84 +440,111 @@ class _StatusBadge extends StatelessWidget {
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({required this.message});
 
-  final _AgentMessage message;
+  final _ChatMessage message;
 
   @override
   Widget build(BuildContext context) {
-    final isUser = message.role == _Role.user;
+    final alignment = message.fromAgent
+        ? AlignmentDirectional.centerStart
+        : AlignmentDirectional.centerEnd;
+    final background = message.isError
+        ? const Color(0xFFFFEEEE)
+        : message.fromAgent
+            ? const Color(0xFFF0F5FA)
+            : AppColors.navy;
+    final foreground = message.isError
+        ? AppColors.statusRejected
+        : message.fromAgent
+            ? const Color(0xFF26364A)
+            : Colors.white;
+
     return Align(
-      alignment: isUser
-          ? AlignmentDirectional.centerEnd
-          : AlignmentDirectional.centerStart,
+      alignment: alignment,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 620),
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
-          color: isUser ? AppColors.navy : const Color(0xFFF0F4F8),
+          color: background,
           borderRadius: BorderRadius.circular(15),
         ),
         child: Text(
-          message.content,
-          style: TextStyle(
-            color: isUser ? Colors.white : const Color(0xFF26364A),
-            height: 1.55,
-            fontWeight: FontWeight.w600,
-          ),
+          message.text,
+          style: TextStyle(color: foreground, height: 1.5),
         ),
       ),
     );
   }
 }
 
-class _ActionPreview extends StatelessWidget {
-  const _ActionPreview({
+class _ApprovalCard extends StatelessWidget {
+  const _ApprovalCard({
     required this.action,
-    required this.busy,
+    required this.working,
     required this.onApprove,
     required this.onCancel,
   });
 
-  final _PendingAction action;
-  final bool busy;
+  final ManagerAiAction action;
+  final bool working;
   final VoidCallback onApprove;
   final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF9EC),
-        borderRadius: BorderRadius.circular(14),
+        color: const Color(0xFFFFFAEC),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(color: const Color(0xFFE8B84B)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'معاينة الإجراء قبل التنفيذ',
-            style: TextStyle(
-              color: Color(0xFF74510B),
-              fontWeight: FontWeight.w900,
+          const Row(
+            children: [
+              Icon(Icons.verified_user_outlined, color: Color(0xFF9A6810)),
+              SizedBox(width: 8),
+              Text(
+                'بانتظار اعتماد المدير',
+                style: TextStyle(
+                  color: Color(0xFF7B560F),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            action.title,
+            style: const TextStyle(
+              color: AppColors.navy,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 7),
-          Text(action.summary, style: const TextStyle(height: 1.45)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 5),
+          Text(
+            action.payload,
+            maxLines: 5,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFF536174), height: 1.45),
+          ),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               TextButton(
-                onPressed: busy ? null : onCancel,
+                onPressed: working ? null : onCancel,
                 child: const Text('إلغاء'),
               ),
               const SizedBox(width: 8),
               FilledButton.icon(
-                onPressed: busy ? null : onApprove,
-                icon: const Icon(Icons.verified_outlined, size: 18),
-                label: const Text('اعتماد'),
+                onPressed: working ? null : onApprove,
+                icon: const Icon(Icons.check_circle_outline),
+                label: Text(working ? 'جارٍ الاعتماد' : 'اعتماد'),
               ),
             ],
           ),
@@ -461,31 +554,32 @@ class _ActionPreview extends StatelessWidget {
   }
 }
 
-class _QuickPrompts extends StatelessWidget {
-  const _QuickPrompts({required this.onSelected});
+class _Suggestions extends StatelessWidget {
+  const _Suggestions({required this.onSelected});
 
   final ValueChanged<String> onSelected;
 
+  static const items = [
+    'أنشئ مبادرة لتحسين متابعة المهام المتأخرة',
+    'جهز مسودة مهمة لفريق الجودة لمدة أسبوع',
+    'اقترح قاعدة تنبيه للمهام المتأخرة',
+  ];
+
   @override
   Widget build(BuildContext context) {
-    const prompts = [
-      'حوّل هذه الفكرة إلى مبادرة',
-      'لخص لي المهام المتأخرة',
-      'اقترح توزيع المهام على الفريق',
-    ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
         children: [
-          for (final prompt in prompts) ...[
-            ActionChip(
-              avatar: const Icon(Icons.bolt_outlined, size: 16),
-              label: Text(prompt),
-              onPressed: () => onSelected(prompt),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: ActionChip(
+                label: Text(item),
+                onPressed: () => onSelected(item),
+              ),
             ),
-            const SizedBox(width: 8),
-          ],
         ],
       ),
     );
@@ -495,21 +589,18 @@ class _QuickPrompts extends StatelessWidget {
 class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
-    required this.busy,
+    required this.working,
     required this.onSend,
   });
 
   final TextEditingController controller;
-  final bool busy;
+  final bool working;
   final VoidCallback onSend;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Padding(
       padding: const EdgeInsets.all(14),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFFE1E7EF))),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -517,30 +608,30 @@ class _Composer extends StatelessWidget {
             child: TextField(
               controller: controller,
               minLines: 1,
-              maxLines: 4,
+              maxLines: 5,
               onSubmitted: (_) => onSend(),
               decoration: InputDecoration(
-                hintText: 'اكتب طلبك للمساعد…',
+                hintText: 'اكتب طلبك لمساعد المدير...',
                 filled: true,
-                fillColor: const Color(0xFFF5F7FA),
+                fillColor: const Color(0xFFF7F9FC),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
+                  borderSide: const BorderSide(color: Color(0xFFDCE4EE)),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 9),
           IconButton.filled(
-            onPressed: busy ? null : onSend,
+            onPressed: working ? null : onSend,
             style: IconButton.styleFrom(
               backgroundColor: AppColors.navy,
               foregroundColor: Colors.white,
-              minimumSize: const Size(48, 48),
+              minimumSize: const Size(50, 50),
             ),
-            icon: busy
+            icon: working
                 ? const SizedBox.square(
-                    dimension: 18,
+                    dimension: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: Colors.white,
@@ -554,116 +645,43 @@ class _Composer extends StatelessWidget {
   }
 }
 
-class _InitiativeTile extends StatelessWidget {
-  const _InitiativeTile({required this.idea});
+class _EmptyHistory extends StatelessWidget {
+  const _EmptyHistory(this.message);
 
-  final ManagerIdea idea;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F9FC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE0E6EE)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.tips_and_updates_outlined,
-            color: Color(0xFFE8B84B),
-            size: 20,
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              idea.content,
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF33445A),
-                height: 1.45,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Color(0xFF758195)),
+        ),
       ),
     );
   }
 }
 
-enum _Role { user, agent }
-
-class _AgentMessage {
-  const _AgentMessage(this.role, this.content);
-  const _AgentMessage.user(String content) : this(_Role.user, content);
-  const _AgentMessage.agent(String content) : this(_Role.agent, content);
-
-  final _Role role;
-  final String content;
-}
-
-enum _ActionKind { initiative, staged }
-
-class _PendingAction {
-  const _PendingAction({
-    required this.kind,
-    required this.summary,
-    required this.payload,
+class _ChatMessage {
+  const _ChatMessage({
+    required this.text,
+    required this.fromAgent,
+    this.isError = false,
   });
 
-  final _ActionKind kind;
-  final String summary;
-  final String payload;
-}
+  final String text;
+  final bool fromAgent;
+  final bool isError;
 
-class _Interpretation {
-  const _Interpretation({required this.reply, this.action});
+  factory _ChatMessage.agent(String text) =>
+      _ChatMessage(text: text, fromAgent: true);
 
-  final String reply;
-  final _PendingAction? action;
-}
+  factory _ChatMessage.user(String text) =>
+      _ChatMessage(text: text, fromAgent: false);
 
-class _AgentInterpreter {
-  static _Interpretation interpret(String input) {
-    final value = input.toLowerCase();
-
-    if (value.contains('فكرة') ||
-        value.contains('مبادرة') ||
-        value.contains('اقتراح')) {
-      return _Interpretation(
-        reply: 'فهمت. سأحوّل الطلب إلى مبادرة محفوظة، ولن أغيّر أي بيانات '
-            'أخرى قبل اعتمادك.',
-        action: _PendingAction(
-          kind: _ActionKind.initiative,
-          summary: 'إنشاء مبادرة جديدة بالنص التالي:\n$input',
-          payload: input,
-        ),
-      );
-    }
-
-    if (value.contains('مهمة') ||
-        value.contains('الموظف') ||
-        value.contains('الفريق') ||
-        value.contains('متأخر')) {
-      return _Interpretation(
-        reply: 'جهزت طلبًا تشغيليًا للمعاينة. تعديل المهام مباشرة سيظل '
-            'موقوفًا حتى يتوفر اتصال خلفي محمي.',
-        action: _PendingAction(
-          kind: _ActionKind.staged,
-          summary: 'طلب تشغيلي مقترح:\n$input',
-          payload: input,
-        ),
-      );
-    }
-
-    return const _Interpretation(
-      reply: 'اكتب هدفك مباشرة، مثل: حوّل هذه الفكرة إلى مبادرة، '
-          'لخص المهام المتأخرة، أو اقترح توزيع العمل.',
-    );
-  }
+  factory _ChatMessage.error(String text) =>
+      _ChatMessage(text: text, fromAgent: true, isError: true);
 }
