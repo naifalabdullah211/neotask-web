@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
 const FIREBASE_PROJECT_ID = 'neotask1-ff5a4';
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
 const ALLOWED_ORIGINS = new Set([
   'https://neotask1-ff5a4.web.app',
   'https://neotask1-ff5a4.firebaseapp.com',
@@ -30,17 +30,30 @@ function bearerToken(req) {
   return value.startsWith('Bearer ') ? value.slice(7).trim() : '';
 }
 
-async function verifyFirebaseIdentity(token) {
+function decodeFirebaseIdentity(token) {
   if (!token) throw new Error('missing-token');
-  const url = new URL('https://oauth2.googleapis.com/tokeninfo');
-  url.searchParams.set('id_token', token);
-  const response = await fetch(url, {headers: {'Cache-Control': 'no-store'}});
-  if (!response.ok) throw new Error('invalid-token');
-  const claims = await response.json();
-  const issuer = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
-  if (claims.aud !== FIREBASE_PROJECT_ID || claims.iss !== issuer || !claims.sub) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('invalid-token');
+
+  let claims;
+  try {
+    claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  } catch {
     throw new Error('invalid-token');
   }
+
+  const issuer = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    claims.aud !== FIREBASE_PROJECT_ID ||
+    claims.iss !== issuer ||
+    !claims.sub ||
+    typeof claims.exp !== 'number' ||
+    claims.exp <= now
+  ) {
+    throw new Error('invalid-token');
+  }
+
   return {uid: claims.sub, email: claims.email || ''};
 }
 
@@ -49,7 +62,12 @@ async function loadNeoTaskUser(token, uid) {
   const response = await fetch(url, {
     headers: {Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store'},
   });
+
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('invalid-token');
+  }
   if (!response.ok) throw new Error('profile-unavailable');
+
   const document = await response.json();
   const fields = document.fields || {};
   const stringValue = (name) => fields[name]?.stringValue || '';
@@ -83,10 +101,13 @@ function enforceRateLimit(uid) {
 
 function sanitizeMessages(value) {
   if (!Array.isArray(value)) return [];
-  return value.slice(-10).map((item) => ({
-    role: item?.role === 'assistant' ? 'assistant' : 'user',
-    content: String(item?.content || '').trim().slice(0, 3000),
-  })).filter((item) => item.content);
+  return value
+    .slice(-10)
+    .map((item) => ({
+      role: item?.role === 'assistant' ? 'assistant' : 'user',
+      content: String(item?.content || '').trim().slice(0, 3000),
+    }))
+    .filter((item) => item.content);
 }
 
 function extractOutputText(response) {
@@ -110,6 +131,7 @@ function parseAgentResult(text) {
   } catch {
     return {reply: text.trim() || 'تعذر تحليل الرد.', action: null};
   }
+
   const allowedTypes = new Set([
     'create_initiative',
     'create_task_draft',
@@ -124,6 +146,7 @@ function parseAgentResult(text) {
         requiresApproval: true,
       }
     : null;
+
   return {
     reply: String(parsed.reply || 'تم تحليل طلبك.').slice(0, 4000),
     action,
@@ -134,11 +157,13 @@ export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return json(res, 405, {error: 'method-not-allowed'});
-  if (!process.env.OPENAI_API_KEY) return json(res, 503, {error: 'agent-not-configured'});
+  if (!process.env.OPENAI_API_KEY) {
+    return json(res, 503, {error: 'agent-not-configured'});
+  }
 
   try {
     const token = bearerToken(req);
-    const identity = await verifyFirebaseIdentity(token);
+    const identity = decodeFirebaseIdentity(token);
     const user = await loadNeoTaskUser(token, identity.uid);
     enforceManager(user);
     enforceRateLimit(user.uid);
@@ -147,6 +172,7 @@ export default async function handler(req, res) {
     if (!prompt || prompt.length > 4000) {
       return json(res, 400, {error: 'invalid-message'});
     }
+
     const history = sanitizeMessages(req.body?.history);
     const safetyIdentifier = crypto
       .createHash('sha256')
