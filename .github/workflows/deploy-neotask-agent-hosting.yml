@@ -1,0 +1,62 @@
+name: Deploy NeoTask Agent Hosting
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'agent-hosting-success.txt'
+      - 'deploy-error.log'
+      - 'build-success.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: neotask-agent-hosting
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.4'
+          channel: stable
+          cache: true
+
+      - name: Build Flutter web
+        run: |
+          set -euo pipefail
+          flutter pub get
+          flutter test test/workflow_features_test.dart
+          flutter build web --release --pwa-strategy=none
+
+      - name: Decode Firebase credential
+        env:
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Deploy production Hosting
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          set -euo pipefail
+          npm install --global firebase-tools
+          firebase deploy --only hosting --project neotask1-ff5a4 --non-interactive
+
+      - name: Record Hosting success
+        run: |
+          printf 'Commit: %s\nDeployed: %s\nSite: https://neotask1-ff5a4.web.app\nStatus: success\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > agent-hosting-success.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f agent-hosting-success.txt
+          git commit -m "chore: confirm NeoTask Agent Hosting deployment [skip ci]" || true
+          git push || true
