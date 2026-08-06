@@ -1,0 +1,67 @@
+name: Diagnose NeoTask Build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'deploy-error.log'
+      - 'hosting-sites.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: neotask-build-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare current diagnostic
+        run: |
+          : > deploy-error.log
+          echo "NeoTask current build diagnostic" >> deploy-error.log
+          echo "Commit: $GITHUB_SHA" >> deploy-error.log
+          echo "Started: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> deploy-error.log
+
+      - name: Security checks
+        run: |
+          set -o pipefail
+          node scripts/security_check.js 2>&1 | tee -a deploy-error.log
+
+      - name: Function checks
+        run: |
+          set -o pipefail
+          npm ci --prefix functions 2>&1 | tee -a deploy-error.log
+          node --check functions/index.js 2>&1 | tee -a deploy-error.log
+          npm test --prefix functions 2>&1 | tee -a deploy-error.log
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.4'
+          channel: stable
+          cache: true
+
+      - name: Flutter checks
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee -a deploy-error.log
+          flutter test test/workflow_features_test.dart 2>&1 | tee -a deploy-error.log
+          flutter build web --release --pwa-strategy=none 2>&1 | tee -a deploy-error.log
+
+      - name: Save failure diagnostic
+        if: failure()
+        run: |
+          echo "Failed: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> deploy-error.log
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f deploy-error.log
+          git commit -m "chore: save current NeoTask build diagnostic [skip ci]" || true
+          git push || true
