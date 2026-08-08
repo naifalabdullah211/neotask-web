@@ -11,6 +11,10 @@ import '../../theme/app_theme.dart';
 import '../designer/designer_task_view_screen.dart';
 import 'task_review_detail_screen.dart';
 
+enum _HistoryFilter { all, rules, tasks, initiatives, analyses }
+
+enum _RuleDeleteChoice { recordOnly, ruleAndRecord }
+
 class ManagerIdeasScreen extends StatefulWidget {
   const ManagerIdeasScreen({
     super.key,
@@ -32,6 +36,7 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   ManagerAiAction? _pendingAction;
   bool _working = false;
   bool? _agentOnline;
+  _HistoryFilter _historyFilter = _HistoryFilter.all;
 
   @override
   void initState() {
@@ -239,33 +244,38 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
         );
         return 'تم إنشاء المهمة والتحقق منها في Firestore. رقم المهمة: '
             '${task.taskId} — المسؤول: ${selectedAssignee.name} '
-            '(${selectedAssignee.employeeNumber}). يمكنك فتحها وتعديلها من سجل المساعد.';
+            '(${selectedAssignee.employeeNumber}). يمكنك فتحها وتعديلها من سجل عمليات المساعد.';
 
       case 'update_agent_rule':
-        await FirestoreService.addManagerAgentRule(
+        await FirestoreService.saveManagerAgentRuleBundle(
           instruction: action.payload,
+          title: action.title,
           manager: widget.manager,
         );
-        await _archiveAction(action, 'قاعدة دائمة للوكيل');
         return 'تم حفظ القاعدة واعتمادها. سيطبقها الوكيل في الطلبات التالية.';
 
       case 'team_summary':
-        await _archiveAction(action, 'ملخص فريق');
-        return 'تم اعتماد التحليل وحفظه في سجل المساعد.';
+        await _archiveAction(action, recordType: 'analysis');
+        return 'تم اعتماد التحليل وحفظه في سجل عمليات المساعد.';
 
       default:
         throw ArgumentError('نوع الإجراء غير قابل للتنفيذ.');
     }
   }
 
-  Future<void> _archiveAction(ManagerAiAction action, String prefix) {
-    final fullContent = '$prefix: ${action.title}\n${action.payload}';
-    final content = fullContent.length <= 1000
-        ? fullContent
-        : fullContent.substring(0, 1000);
+  Future<void> _archiveAction(
+    ManagerAiAction action, {
+    required String recordType,
+  }) {
+    final content = action.payload.length <= 1000
+        ? action.payload
+        : action.payload.substring(0, 1000);
     return FirestoreService.addManagerIdea(
       content: content,
       manager: widget.manager,
+      recordType: recordType,
+      actionType: action.type,
+      recordTitle: action.title,
     );
   }
 
@@ -278,6 +288,62 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   }
 
   Future<void> _deleteIdea(ManagerIdea idea) async {
+    if (idea.hasLinkedRule) {
+      final choice = await showDialog<_RuleDeleteChoice>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('حذف قاعدة الوكيل'),
+          content: const Text(
+            'هذه قاعدة فعّالة تؤثر على طلبات الوكيل القادمة. حذف السجل فقط '
+            'يبقي القاعدة فعّالة، أما حذف القاعدة والسجل فيوقف تطبيقها نهائيًا.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(
+                context,
+                _RuleDeleteChoice.recordOnly,
+              ),
+              child: const Text('حذف السجل فقط'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.statusRejected,
+              ),
+              onPressed: () => Navigator.pop(
+                context,
+                _RuleDeleteChoice.ruleAndRecord,
+              ),
+              child: const Text('حذف القاعدة والسجل'),
+            ),
+          ],
+        ),
+      );
+      if (choice == null) return;
+      if (choice == _RuleDeleteChoice.ruleAndRecord) {
+        await FirestoreService.deleteManagerIdeaAndRule(
+          ideaId: idea.ideaId,
+          ruleId: idea.ruleId!,
+        );
+      } else {
+        await FirestoreService.deleteManagerIdea(idea.ideaId);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            choice == _RuleDeleteChoice.ruleAndRecord
+                ? 'تم حذف القاعدة وإيقاف تطبيقها، وحُذف سجلها.'
+                : 'تم حذف السجل فقط، والقاعدة ما زالت فعّالة.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -285,6 +351,9 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
         content: Text(
           idea.isTaskRecord
               ? 'سيُحذف سجل المساعد فقط. المهمة الأصلية لن تُحذف.'
+              : idea.isRuleRecord
+                  ? 'هذا سجل قاعدة قديم وغير مرتبط تقنيًا بالقاعدة الفعّالة. '
+                      'حذف البطاقة لن يوقف القاعدة.'
               : 'سيتم حذف هذا العنصر نهائيًا من سجل المساعد.',
         ),
         actions: [
@@ -301,6 +370,18 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
     );
     if (confirmed == true) {
       await FirestoreService.deleteManagerIdea(idea.ideaId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            idea.isTaskRecord
+                ? 'تم حذف سجل العملية فقط، والمهمة الأصلية ما زالت موجودة.'
+                : idea.isRuleRecord
+                    ? 'تم حذف بطاقة السجل فقط، ولم تتغير القاعدة الفعّالة.'
+                    : 'تم حذف سجل العملية.',
+          ),
+        ),
+      );
     }
   }
 
@@ -354,7 +435,7 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
                     children: [
                       Expanded(flex: 7, child: chat),
                       const SizedBox(height: 12),
-                      SizedBox(height: 260, child: history),
+                      SizedBox(height: 340, child: history),
                     ],
                   ),
           );
@@ -430,15 +511,32 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.history, color: AppColors.navy),
                 SizedBox(width: 8),
-                Text(
-                  'سجل المساعد',
-                  style: TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'سجل عمليات المساعد',
+                        style: TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'دليل لما حفظه أو أنشأه الوكيل فعليًا',
+                        style: TextStyle(
+                          color: Color(0xFF758195),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -454,58 +552,96 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return const _EmptyHistory('تعذر تحميل سجل المساعد');
+                  return const _EmptyHistory('تعذر تحميل سجل عمليات المساعد');
                 }
                 final ideas = snapshot.data ?? const <ManagerIdea>[];
                 if (ideas.isEmpty) {
                   return const _EmptyHistory('لا توجد إجراءات محفوظة');
                 }
-                return ListView.separated(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: ideas.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final idea = ideas[index];
-                    if (idea.isTaskRecord) {
-                      return StreamBuilder<AppTask?>(
-                        stream: FirestoreService.watchTask(idea.taskId!),
-                        builder: (context, taskSnapshot) {
-                          final linkedTask = taskSnapshot.data;
-                          final verifying = taskSnapshot.connectionState ==
-                                  ConnectionState.waiting &&
-                              !taskSnapshot.hasData;
-                          return _HistoryRecordCard(
-                            idea: idea,
-                            linkedTask: linkedTask,
-                            verifying: verifying,
-                            readOnly: widget.readOnly,
-                            onOpen: linkedTask == null
-                                ? null
-                                : () => _openTask(linkedTask),
-                            onDelete: widget.readOnly
-                                ? null
-                                : () => _deleteIdea(idea),
-                          );
-                        },
-                      );
-                    }
-                    return _HistoryRecordCard(
-                      idea: idea,
-                      linkedTask: null,
-                      verifying: false,
-                      readOnly: widget.readOnly,
-                      onOpen: null,
-                      onDelete: widget.readOnly
-                          ? null
-                          : () => _deleteIdea(idea),
-                    );
-                  },
+                final filteredIdeas = ideas
+                    .where((idea) => _historyFilter.matches(idea))
+                    .toList(growable: false);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _HistoryFilters(
+                      selected: _historyFilter,
+                      ideas: ideas,
+                      onSelected: (filter) {
+                        setState(() => _historyFilter = filter);
+                      },
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: filteredIdeas.isEmpty
+                          ? const _EmptyHistory(
+                              'لا توجد عمليات في هذا التصنيف',
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.all(12),
+                              itemCount: filteredIdeas.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 8),
+                              itemBuilder: (context, index) =>
+                                  _buildHistoryRecord(filteredIdeas[index]),
+                            ),
+                    ),
+                  ],
                 );
               },
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHistoryRecord(ManagerIdea idea) {
+    final onDelete =
+        widget.readOnly ? null : () => _deleteIdea(idea);
+    if (idea.isTaskRecord) {
+      return StreamBuilder<AppTask?>(
+        stream: FirestoreService.watchTask(idea.taskId!),
+        builder: (context, taskSnapshot) {
+          final linkedTask = taskSnapshot.data;
+          final verifying = taskSnapshot.connectionState ==
+                  ConnectionState.waiting &&
+              !taskSnapshot.hasData;
+          return _HistoryRecordCard(
+            idea: idea,
+            linkedTask: linkedTask,
+            verifying: verifying,
+            readOnly: widget.readOnly,
+            onOpen: linkedTask == null ? null : () => _openTask(linkedTask),
+            onDelete: onDelete,
+          );
+        },
+      );
+    }
+    if (idea.hasLinkedRule) {
+      return StreamBuilder<bool>(
+        stream: FirestoreService.watchManagerAgentRule(idea.ruleId!),
+        builder: (context, ruleSnapshot) => _HistoryRecordCard(
+          idea: idea,
+          linkedTask: null,
+          verifying: false,
+          ruleActive: ruleSnapshot.data,
+          verifyingRule: ruleSnapshot.connectionState ==
+                  ConnectionState.waiting &&
+              !ruleSnapshot.hasData,
+          readOnly: widget.readOnly,
+          onOpen: null,
+          onDelete: onDelete,
+        ),
+      );
+    }
+    return _HistoryRecordCard(
+      idea: idea,
+      linkedTask: null,
+      verifying: false,
+      readOnly: widget.readOnly,
+      onOpen: null,
+      onDelete: onDelete,
     );
   }
 }
@@ -753,6 +889,77 @@ class _ApprovalCard extends StatelessWidget {
   }
 }
 
+extension on _HistoryFilter {
+  String get label => switch (this) {
+        _HistoryFilter.all => 'الكل',
+        _HistoryFilter.rules => 'قواعد المدير',
+        _HistoryFilter.tasks => 'المهام',
+        _HistoryFilter.initiatives => 'المبادرات',
+        _HistoryFilter.analyses => 'التحليلات',
+      };
+
+  IconData get icon => switch (this) {
+        _HistoryFilter.all => Icons.view_list_outlined,
+        _HistoryFilter.rules => Icons.rule_folder_outlined,
+        _HistoryFilter.tasks => Icons.task_alt_outlined,
+        _HistoryFilter.initiatives => Icons.rocket_launch_outlined,
+        _HistoryFilter.analyses => Icons.analytics_outlined,
+      };
+
+  bool matches(ManagerIdea idea) => switch (this) {
+        _HistoryFilter.all => true,
+        _HistoryFilter.rules => idea.isRuleRecord,
+        _HistoryFilter.tasks =>
+          idea.isTaskRecord && !idea.isInitiativeRecord,
+        _HistoryFilter.initiatives => idea.isInitiativeRecord,
+        _HistoryFilter.analyses => idea.isAnalysisRecord,
+      };
+}
+
+class _HistoryFilters extends StatelessWidget {
+  const _HistoryFilters({
+    required this.selected,
+    required this.ideas,
+    required this.onSelected,
+  });
+
+  final _HistoryFilter selected;
+  final List<ManagerIdea> ideas;
+  final ValueChanged<_HistoryFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          for (final filter in _HistoryFilter.values)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 7),
+              child: FilterChip(
+                selected: selected == filter,
+                avatar: Icon(filter.icon, size: 16),
+                label: Text(
+                  '${filter.label} (${ideas.where(filter.matches).length})',
+                ),
+                onSelected: (_) => onSelected(filter),
+                selectedColor: const Color(0x1F1B3A6B),
+                checkmarkColor: AppColors.navy,
+                labelStyle: const TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HistoryRecordCard extends StatelessWidget {
   const _HistoryRecordCard({
     required this.idea,
@@ -761,6 +968,8 @@ class _HistoryRecordCard extends StatelessWidget {
     required this.readOnly,
     required this.onOpen,
     required this.onDelete,
+    this.ruleActive,
+    this.verifyingRule = false,
   });
 
   final ManagerIdea idea;
@@ -769,6 +978,8 @@ class _HistoryRecordCard extends StatelessWidget {
   final bool readOnly;
   final VoidCallback? onOpen;
   final VoidCallback? onDelete;
+  final bool? ruleActive;
+  final bool verifyingRule;
 
   String _dateTime(DateTime value) {
     String two(int value) => value.toString().padLeft(2, '0');
@@ -794,6 +1005,34 @@ class _HistoryRecordCard extends StatelessWidget {
     final dueDate = linkedTask?.dueDate ?? idea.dueDate;
     final assignee = idea.assigneeName ?? 'غير محدد';
     final employeeNumber = idea.employeeNumber ?? '';
+    final details = idea.displayDetails;
+    final typeLabel = idea.isInitiativeRecord
+        ? 'مبادرة منشأة'
+        : idea.isTaskRecord
+            ? 'مهمة منشأة'
+            : idea.isRuleRecord
+                ? 'قاعدة مدير'
+                : idea.isAnalysisRecord
+                    ? 'تحليل محفوظ'
+                    : 'سجل عام';
+    final typeIcon = idea.isInitiativeRecord
+        ? Icons.rocket_launch_outlined
+        : idea.isTaskRecord
+            ? Icons.task_alt_rounded
+            : idea.isRuleRecord
+                ? Icons.rule_folder_outlined
+                : idea.isAnalysisRecord
+                    ? Icons.analytics_outlined
+                    : Icons.notes_outlined;
+    final accent = idea.isInitiativeRecord
+        ? const Color(0xFF7656A7)
+        : idea.isTaskRecord
+            ? const Color(0xFF138B68)
+            : idea.isRuleRecord
+                ? const Color(0xFF9A6810)
+                : idea.isAnalysisRecord
+                    ? const Color(0xFF376AA3)
+                    : const Color(0xFF6C7788);
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -801,9 +1040,7 @@ class _HistoryRecordCard extends StatelessWidget {
         color: const Color(0xFFF7F9FC),
         borderRadius: BorderRadius.circular(13),
         border: Border.all(
-          color: idea.isTaskRecord
-              ? const Color(0x5533D6A6)
-              : const Color(0xFFE2E8F0),
+          color: accent.withValues(alpha: 0.28),
         ),
       ),
       child: Column(
@@ -813,12 +1050,8 @@ class _HistoryRecordCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                idea.isTaskRecord
-                    ? Icons.task_alt_rounded
-                    : Icons.auto_awesome_outlined,
-                color: taskExists
-                    ? const Color(0xFF138B68)
-                    : const Color(0xFF8A94A3),
+                typeIcon,
+                color: accent,
                 size: 20,
               ),
               const SizedBox(width: 9),
@@ -826,8 +1059,10 @@ class _HistoryRecordCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _HistoryTypeBadge(label: typeLabel, color: accent),
+                    const SizedBox(height: 5),
                     Text(
-                      idea.taskTitle ?? idea.content,
+                      idea.displayTitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -846,12 +1081,28 @@ class _HistoryRecordCard extends StatelessWidget {
                         ),
                       ),
                     ],
+                    if (details.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        details,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF536174),
+                          height: 1.4,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
               if (onDelete != null)
                 IconButton(
-                  tooltip: 'حذف السجل',
+                  tooltip: idea.isRuleRecord
+                      ? 'خيارات حذف القاعدة والسجل'
+                      : 'حذف سجل العملية',
                   onPressed: onDelete,
                   icon: const Icon(Icons.delete_outline, size: 20),
                   color: AppColors.statusRejected,
@@ -907,19 +1158,78 @@ class _HistoryRecordCard extends StatelessWidget {
               ),
             ),
           ] else ...[
-            const SizedBox(height: 5),
-            Text(
-              idea.content,
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF536174),
-                height: 1.45,
-                fontWeight: FontWeight.w600,
-              ),
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                if (idea.isRuleRecord)
+                  _HistoryFact(
+                    icon: verifyingRule
+                        ? Icons.hourglass_top_rounded
+                        : ruleActive == true
+                            ? Icons.check_circle_outline
+                            : idea.hasLinkedRule
+                                ? Icons.block_outlined
+                                : Icons.info_outline,
+                    text: verifyingRule
+                        ? 'جارٍ التحقق من القاعدة'
+                        : ruleActive == true
+                            ? 'قاعدة فعّالة'
+                            : idea.hasLinkedRule
+                                ? 'القاعدة غير فعّالة'
+                                : 'سجل قديم غير مرتبط',
+                    danger: idea.hasLinkedRule &&
+                        !verifyingRule &&
+                        ruleActive == false,
+                  ),
+                _HistoryFact(
+                  icon: Icons.schedule_outlined,
+                  text: _dateTime(idea.createdAt),
+                ),
+              ],
             ),
+            if (idea.isRuleRecord) ...[
+              const SizedBox(height: 8),
+              Text(
+                idea.hasLinkedRule
+                    ? 'هذه القاعدة تؤثر على طلبات الوكيل القادمة.'
+                    : 'حذف هذا السجل القديم لا يضمن إيقاف القاعدة.',
+                style: const TextStyle(
+                  color: Color(0xFF7A6540),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _HistoryTypeBadge extends StatelessWidget {
+  const _HistoryTypeBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }

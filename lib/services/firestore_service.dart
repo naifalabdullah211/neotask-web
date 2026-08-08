@@ -650,7 +650,11 @@ class FirestoreService {
   static Future<void> addManagerIdea({
     required String content,
     required AppUser manager,
+    String recordType = 'note',
+    String? actionType,
+    String? recordTitle,
   }) async {
+    final normalizedTitle = recordTitle?.trim();
     final document = _db.collection('manager_ideas').doc();
     final idea = ManagerIdea(
       ideaId: document.id,
@@ -658,6 +662,13 @@ class FirestoreService {
       authorUid: manager.uid,
       authorName: manager.name,
       createdAt: DateTime.now(),
+      recordType: recordType,
+      actionType: actionType,
+      recordTitle: normalizedTitle == null
+          ? null
+          : normalizedTitle.length > 200
+              ? normalizedTitle.substring(0, 200)
+              : normalizedTitle,
     );
     await document.set(idea.toMap());
   }
@@ -706,27 +717,69 @@ class FirestoreService {
     await _db.collection('manager_ideas').doc(ideaId).delete();
   }
 
-  /// Stores a manager-approved instruction that is supplied to the AI agent
-  /// on later requests. These rules are intentionally separate from the
-  /// human-readable action history so deleting a history row cannot silently
-  /// change the agent's behaviour.
-  static Future<void> addManagerAgentRule({
+  static Stream<bool> watchManagerAgentRule(String ruleId) {
+    return _db
+        .collection('manager_agent_rules')
+        .doc(ruleId)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.exists && snapshot.data()?['active'] == true);
+  }
+
+  static Future<void> deleteManagerIdeaAndRule({
+    required String ideaId,
+    required String ruleId,
+  }) async {
+    final batch = _db.batch();
+    batch.delete(_db.collection('manager_ideas').doc(ideaId));
+    batch.delete(_db.collection('manager_agent_rules').doc(ruleId));
+    await batch.commit();
+  }
+
+  /// Saves the active rule and its human-readable audit record atomically.
+  /// The history can therefore prove which active rule it represents and the
+  /// manager can intentionally remove either the record alone or both items.
+  static Future<void> saveManagerAgentRuleBundle({
     required String instruction,
+    required String title,
     required AppUser manager,
   }) async {
     final normalized = instruction.trim();
     if (normalized.length < 3 || normalized.length > 500) {
       throw ArgumentError('تعليمات الوكيل غير صالحة');
     }
-    final document = _db.collection('manager_agent_rules').doc();
-    await document.set({
-      'ruleId': document.id,
+    final titleText = title.trim();
+    final normalizedTitle = titleText.isEmpty
+        ? normalized.length > 80
+            ? normalized.substring(0, 80)
+            : normalized
+        : titleText.length > 200
+            ? titleText.substring(0, 200)
+            : titleText;
+    final ruleDocument = _db.collection('manager_agent_rules').doc();
+    final recordDocument = _db.collection('manager_ideas').doc();
+    final record = ManagerIdea(
+      ideaId: recordDocument.id,
+      content: normalized,
+      authorUid: manager.uid,
+      authorName: manager.name,
+      createdAt: DateTime.now(),
+      recordType: 'rule',
+      actionType: 'update_agent_rule',
+      recordTitle: normalizedTitle,
+      ruleId: ruleDocument.id,
+    );
+    final batch = _db.batch();
+    batch.set(ruleDocument, {
+      'ruleId': ruleDocument.id,
       'instruction': normalized,
       'createdBy': manager.uid,
       'createdByName': manager.name,
       'createdAt': FieldValue.serverTimestamp(),
       'active': true,
     });
+    batch.set(recordDocument, record.toMap());
+    await batch.commit();
   }
 
   static Future<List<String>> loadManagerAgentRules() async {

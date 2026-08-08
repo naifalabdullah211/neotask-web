@@ -11,6 +11,8 @@ class ManagerIdea {
     this.status = 'new',
     this.recordType = 'note',
     this.actionType,
+    this.recordTitle,
+    this.ruleId,
     this.taskId,
     this.taskTitle,
     this.assigneeUid,
@@ -29,6 +31,8 @@ class ManagerIdea {
   final String status;
   final String recordType;
   final String? actionType;
+  final String? recordTitle;
+  final String? ruleId;
   final String? taskId;
   final String? taskTitle;
   final String? assigneeUid;
@@ -40,6 +44,57 @@ class ManagerIdea {
 
   bool get isTaskRecord => recordType == 'task' && taskId?.isNotEmpty == true;
 
+  bool get isInitiativeRecord =>
+      isTaskRecord && actionType == 'create_initiative';
+
+  bool get isRuleRecord =>
+      recordType == 'rule' ||
+      actionType == 'update_agent_rule' ||
+      content.trimLeft().startsWith('قاعدة دائمة للوكيل:');
+
+  bool get isAnalysisRecord =>
+      recordType == 'analysis' ||
+      actionType == 'team_summary' ||
+      content.trimLeft().startsWith('ملخص فريق:');
+
+  bool get hasLinkedRule => isRuleRecord && ruleId?.isNotEmpty == true;
+
+  String get displayTitle {
+    final explicitTitle = recordTitle?.trim() ?? '';
+    if (explicitTitle.isNotEmpty) return explicitTitle;
+
+    final taskRecordTitle = taskTitle?.trim() ?? '';
+    if (taskRecordTitle.isNotEmpty) return taskRecordTitle;
+
+    final firstLine = content.trim().split('\n').first.trim();
+    for (final prefix in const [
+      'قاعدة دائمة للوكيل:',
+      'ملخص فريق:',
+    ]) {
+      if (firstLine.startsWith(prefix)) {
+        final withoutPrefix = firstLine.substring(prefix.length).trim();
+        if (withoutPrefix.isNotEmpty) return withoutPrefix;
+      }
+    }
+    return firstLine;
+  }
+
+  String get displayDetails {
+    final lines = content
+        .trim()
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    if (lines.isEmpty) return '';
+
+    final hasLegacyHeading = lines.first.startsWith('قاعدة دائمة للوكيل:') ||
+        lines.first.startsWith('ملخص فريق:');
+    final detail = (hasLegacyHeading ? lines.skip(1) : lines).join('\n').trim();
+    if (detail == displayTitle.trim()) return '';
+    return detail;
+  }
+
   Map<String, dynamic> toMap() => {
         'ideaId': ideaId,
         'content': content,
@@ -49,6 +104,8 @@ class ManagerIdea {
         'status': status,
         'recordType': recordType,
         if (actionType != null) 'actionType': actionType,
+        if (recordTitle != null) 'recordTitle': recordTitle,
+        if (ruleId != null) 'ruleId': ruleId,
         if (taskId != null) 'taskId': taskId,
         if (taskTitle != null) 'taskTitle': taskTitle,
         if (assigneeUid != null) 'assigneeUid': assigneeUid,
@@ -73,6 +130,8 @@ class ManagerIdea {
       status: map['status'] as String? ?? 'new',
       recordType: map['recordType'] as String? ?? 'note',
       actionType: map['actionType'] as String?,
+      recordTitle: map['recordTitle'] as String?,
+      ruleId: map['ruleId'] as String?,
       taskId: map['taskId'] as String?,
       taskTitle: map['taskTitle'] as String?,
       assigneeUid: map['assigneeUid'] as String?,
