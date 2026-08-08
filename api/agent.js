@@ -183,17 +183,32 @@ export function buildLocalFallback({prompt, teamContext, today}) {
   }
 
   if (hasAny(['مبادره', 'مبادرة', 'فكره', 'فكرة', 'مشروع'])) {
+    const employee = matchingEmployee(prompt, teamContext);
+    if (!employee) {
+      return {
+        reply: 'حتى تصبح المبادرة قابلة للتنفيذ والمتابعة، حدد اسم الموظف المسؤول أو رقمه الوظيفي.',
+        action: null,
+      };
+    }
+    const dueDate = requestedDueDate(prompt, today);
+    if (!dueDate) {
+      return {
+        reply: `حدد موعد استحقاق المبادرة المسندة إلى ${employee.name}، مثل غدًا أو 2026-08-15.`,
+        action: null,
+      };
+    }
+    const highPriority = hasAny(['عاجل', 'عاليه', 'عالية', 'ضروري']);
     return {
-      reply: 'جهزت الفكرة كمبادرة. راجعها ثم اعتمدها لإضافتها إلى سجل المساعد.',
+      reply: `جهزت المبادرة لـ ${employee.name}. اعتمادها سينشئ مهمة فعلية قابلة للفتح والتعديل.`,
       action: {
         type: 'create_initiative',
         title: String(prompt).trim().slice(0, 160),
         payload: String(prompt).trim().slice(0, 3000),
-        employeeUid: '',
-        employeeNumber: '',
-        employeeName: '',
-        dueDate: '',
-        priority: 'medium',
+        employeeUid: employee.uid,
+        employeeNumber: employee.employeeNumber,
+        employeeName: employee.name,
+        dueDate,
+        priority: highPriority ? 'high' : 'medium',
         plannedHours: 1,
         category: 'عام',
         requiresApproval: true,
@@ -432,9 +447,10 @@ function parseAgentResult(text) {
       }
     : null;
 
-  if (action?.type === 'create_task_draft') {
+  if (action?.type === 'create_task_draft' || action?.type === 'create_initiative') {
     const validDate = /^\d{4}-\d{2}-\d{2}$/.test(action.dueDate);
-    if (!action.title || !action.payload || !action.employeeUid || !validDate) {
+    if (!action.title || !action.payload || !action.employeeUid ||
+        !action.employeeName || !action.employeeNumber || !validDate) {
       action = null;
     }
   }
@@ -488,7 +504,7 @@ export default async function handler(req, res) {
 {"reply":"رد عربي واضح","action":null}\n
 أو:\n
 {"reply":"شرح ما فهمته وما سيحدث بعد الاعتماد","action":{"type":"create_initiative|create_task_draft|team_summary|update_agent_rule","title":"عنوان قصير","payload":"تفاصيل كاملة قابلة للحفظ","employeeUid":"uid من بيانات الفريق","employeeNumber":"الرقم الوظيفي","employeeName":"اسم الموظف","dueDate":"YYYY-MM-DD","priority":"low|medium|high","plannedHours":1,"category":"عام"}}\n
-استخدم create_initiative للأفكار والمبادرات. استخدم create_task_draft عند طلب إنشاء أو توزيع مهمة، وانسخ employeeUid والرقم والاسم حرفيًا من بيانات الفريق، وحدد تاريخًا مستقبليًا واضحًا. إذا لم يحدد المدير الموظف أو الموعد ولم يمكن استنتاجهما بأمان، اسأله عنهما وأعد action:null. استخدم team_summary عند طلب تلخيص أو تحليل أداء. استخدم update_agent_rule عند طلب تغيير سلوك المساعد أو قواعد التنبيه، واجعل payload نص القاعدة الدائمة نفسها. لا تُخرج Markdown أو نصًا خارج JSON.`;
+استخدم create_initiative للأفكار والمبادرات، واعلم أن اعتمادها ينشئ مهمة NeoTask فعلية وليس سجلًا نصيًا. استخدم create_task_draft عند طلب إنشاء أو توزيع مهمة. في كلا النوعين انسخ employeeUid والرقم والاسم حرفيًا من بيانات الفريق وحدد تاريخًا مستقبليًا واضحًا. إذا لم يحدد المدير الموظف أو الموعد ولم يمكن استنتاجهما بأمان، اسأله عنهما وأعد action:null. استخدم team_summary عند طلب تلخيص أو تحليل أداء. استخدم update_agent_rule عند طلب تغيير سلوك المساعد أو قواعد التنبيه، واجعل payload نص القاعدة الدائمة نفسها. لا تُخرج Markdown أو نصًا خارج JSON.`;
 
     const input = [
       ...history.map((item) => ({role: item.role, content: item.content})),

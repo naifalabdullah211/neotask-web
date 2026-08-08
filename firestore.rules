@@ -1026,7 +1026,17 @@ service cloud.firestore {
           'authorUid',
           'authorName',
           'createdAt',
-          'status'
+          'status',
+          'recordType',
+          'actionType',
+          'taskId',
+          'taskTitle',
+          'assigneeUid',
+          'assigneeName',
+          'employeeNumber',
+          'dueDate',
+          'priority',
+          'plannedHours'
         ]) &&
         request.resource.data.ideaId == ideaId &&
         request.resource.data.authorUid == request.auth.uid &&
@@ -1037,7 +1047,49 @@ service cloud.firestore {
         request.resource.data.authorName.size() >= 1 &&
         request.resource.data.authorName.size() <= 120 &&
         request.resource.data.createdAt is timestamp &&
-        request.resource.data.status == 'new';
+        (!request.resource.data.keys().hasAny(['recordType']) ||
+         request.resource.data.recordType in ['note', 'task']) &&
+        (((!request.resource.data.keys().hasAny(['recordType']) ||
+           request.resource.data.recordType == 'note') &&
+          request.resource.data.status == 'new') ||
+         (request.resource.data.recordType == 'task' &&
+          request.resource.data.status == 'linked' &&
+          request.resource.data.keys().hasAll([
+            'actionType',
+            'taskId',
+            'taskTitle',
+            'assigneeUid',
+            'assigneeName',
+            'employeeNumber',
+            'dueDate',
+            'priority',
+            'plannedHours'
+          ]) &&
+          request.resource.data.actionType in [
+            'create_task_draft',
+            'create_initiative'
+          ] &&
+          request.resource.data.taskId is string &&
+          request.resource.data.taskId.size() >= 1 &&
+          request.resource.data.taskTitle is string &&
+          request.resource.data.taskTitle.size() >= 1 &&
+          request.resource.data.assigneeUid is string &&
+          request.resource.data.assigneeUid.size() >= 1 &&
+          request.resource.data.assigneeName is string &&
+          request.resource.data.employeeNumber is string &&
+          request.resource.data.dueDate is timestamp &&
+          request.resource.data.priority in ['low', 'medium', 'high'] &&
+          request.resource.data.plannedHours is number &&
+          request.resource.data.plannedHours > 0 &&
+          existsAfter(
+            /databases/$(database)/documents/tasks/$(request.resource.data.taskId)
+          ) &&
+          getAfter(
+            /databases/$(database)/documents/tasks/$(request.resource.data.taskId)
+          ).data.assignedTo == request.resource.data.assigneeUid &&
+          getAfter(
+            /databases/$(database)/documents/tasks/$(request.resource.data.taskId)
+          ).data.assignedBy == request.auth.uid));
 
       allow update: if false;
 

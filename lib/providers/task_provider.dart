@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/notification_model.dart';
+import '../models/manager_idea_model.dart';
 import '../models/task_model.dart';
 import '../models/task_history_model.dart';
 import '../services/firestore_service.dart';
@@ -350,6 +351,7 @@ class TaskProvider extends ChangeNotifier {
     WeekOrdinal? recurrenceWeekOrdinal,
     Weekday? recurrenceWeekday,
     DateTime? recurrenceEndDate,
+    ManagerIdea Function(AppTask task)? managerAgentRecordBuilder,
   }) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -392,13 +394,34 @@ class TaskProvider extends ChangeNotifier {
       createdAt: now,
       updatedAt: now,
     );
-    await FirestoreService.saveTask(task);
-    await _logHistory(
-      task.taskId,
-      HistoryAction.statusChange,
-      assignedBy,
-      note: 'تم إنشاء المهمة وإسنادها',
-    );
+    final managerAgentRecord = managerAgentRecordBuilder?.call(task);
+    if (managerAgentRecord != null) {
+      final history = TaskHistoryEntry(
+        historyId: _uuid.v4(),
+        taskId: task.taskId,
+        action: HistoryAction.statusChange,
+        actorUid: assignedBy,
+        note: 'تم إنشاء المهمة وإسنادها بواسطة مساعد المدير',
+        timestamp: now,
+      );
+      await FirestoreService.saveAgentTaskBundle(
+        task: task,
+        history: history,
+        record: managerAgentRecord,
+      );
+      final verified = await FirestoreService.fetchTaskFromServer(task.taskId);
+      if (verified == null || verified.taskId != task.taskId) {
+        throw StateError('لم يؤكد Firestore إنشاء المهمة');
+      }
+    } else {
+      await FirestoreService.saveTask(task);
+      await _logHistory(
+        task.taskId,
+        HistoryAction.statusChange,
+        assignedBy,
+        note: 'تم إنشاء المهمة وإسنادها',
+      );
+    }
     return task;
   }
 
