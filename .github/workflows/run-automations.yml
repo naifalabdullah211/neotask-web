@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'scripts/run_automations.js'
+      - 'scripts/run_automations.cjs'
       - '.github/workflows/run-automations.yml'
   schedule:
     - cron: '*/15 * * * *'
@@ -48,4 +48,4 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           NODE_PATH: ${{ github.workspace }}/functions/node_modules
-        run: node scripts/run_automations.js
+        run: node scripts/run_automations.cjs
