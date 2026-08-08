@@ -561,7 +561,7 @@ class _OnlineBadge extends StatelessWidget {
           CircleAvatar(radius: 4, backgroundColor: dotColor),
           const SizedBox(width: 6),
           Text(
-            checking ? 'جارٍ الفحص' : available ? 'متصل' : 'غير متصل',
+            checking ? 'جارٍ الفحص' : available ? 'جاهز' : 'غير متصل',
             style: TextStyle(
               color: foreground,
               fontSize: 12,
