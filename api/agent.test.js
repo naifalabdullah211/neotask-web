@@ -5,8 +5,8 @@ import {normalizeProviderKey} from './agent.js';
 
 test('normalizeProviderKey removes embedded whitespace', () => {
   assert.equal(
-    normalizeProviderKey('  sk-test-part-one\npart-two\r\n  '),
-    'sk-test-part-onepart-two',
+    normalizeProviderKey('  example-key-part-one\npart-two\r\n  '),
+    'example-key-part-onepart-two',
   );
 });
 
