@@ -4,7 +4,9 @@ const FIREBASE_PROJECT_ID = 'neotask1-ff5a4';
 const FIREBASE_ISSUER = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
 const FIREBASE_CERTS_URL =
   'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
+const GATEWAY_BASE_URL = 'https://ai-gateway.vercel.sh/v1';
+const GATEWAY_MODEL = process.env.AI_GATEWAY_MODEL ||
+  'google/gemini-3.5-flash-lite';
 const ALLOWED_ORIGINS = new Set([
   'https://neotask1-ff5a4.web.app',
   'https://neotask1-ff5a4.firebaseapp.com',
@@ -34,18 +36,28 @@ export function normalizeProviderKey(value) {
   return String(value || '').replace(/\s+/g, '');
 }
 
-async function providerIsReady(apiKey) {
+export function resolveGatewayCredential(env = process.env) {
+  // Vercel injects a short-lived OIDC token into every deployment. Prefer it
+  // over manually managed keys so NeoTask cannot be broken by a copied,
+  // malformed, expired, or leaked provider key again.
+  return normalizeProviderKey(env.VERCEL_OIDC_TOKEN) ||
+    normalizeProviderKey(env.AI_GATEWAY_API_KEY);
+}
+
+async function providerIsReady(credential) {
   const now = Date.now();
   if (providerHealthCache.expiresAt > now) return providerHealthCache.ready;
 
+  if (!credential) {
+    providerHealthCache = {ready: false, expiresAt: now + 15_000};
+    return false;
+  }
+
   try {
-    const response = await fetch(
-      `https://api.openai.com/v1/models/${encodeURIComponent(OPENAI_MODEL)}`,
-      {
-        headers: {Authorization: `Bearer ${apiKey}`},
-        signal: AbortSignal.timeout(8000),
-      },
-    );
+    const response = await fetch(`${GATEWAY_BASE_URL}/models`, {
+      headers: {Authorization: `Bearer ${credential}`},
+      signal: AbortSignal.timeout(8000),
+    });
     providerHealthCache = {
       ready: response.ok,
       expiresAt: now + (response.ok ? 60_000 : 15_000),
@@ -54,6 +66,145 @@ async function providerIsReady(apiKey) {
     providerHealthCache = {ready: false, expiresAt: now + 15_000};
   }
   return providerHealthCache.ready;
+}
+
+function normalizeArabicText(value) {
+  const digits = '٠١٢٣٤٥٦٧٨٩';
+  return String(value || '')
+    .replace(/[٠-٩]/g, (digit) => String(digits.indexOf(digit)))
+    .replace(/[ًٌٍَُِّْـ]/g, '')
+    .replace(/[إأآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .toLowerCase();
+}
+
+function addDays(isoDate, days) {
+  const date = new Date(`${isoDate}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function requestedDueDate(prompt, today) {
+  const normalized = normalizeArabicText(prompt);
+  const explicit = normalized.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  if (explicit) return explicit[1];
+  if (/(غدا|غد|بكره|بكرة)/.test(normalized)) return addDays(today, 1);
+  const relative = normalized.match(/بعد\s+(\d{1,3})\s+(?:يوم|ايام)/);
+  if (relative) return addDays(today, Math.max(1, Number(relative[1])));
+  return '';
+}
+
+function matchingEmployee(prompt, teamContext) {
+  const normalized = normalizeArabicText(prompt);
+  return [...teamContext]
+    .sort((a, b) => b.name.length - a.name.length)
+    .find((employee) => {
+      const employeeNumber = normalizeArabicText(employee.employeeNumber);
+      const employeeName = normalizeArabicText(employee.name).trim();
+      return (employeeNumber && normalized.includes(employeeNumber)) ||
+        (employeeName.length >= 2 && normalized.includes(employeeName));
+    }) || null;
+}
+
+export function buildLocalFallback({prompt, teamContext, today}) {
+  const normalized = normalizeArabicText(prompt);
+  const hasAny = (words) => words.some((word) => normalized.includes(word));
+
+  if (hasAny(['لخص', 'ملخص', 'حلل', 'اداء الفريق'])) {
+    const activeTasks = teamContext.reduce(
+      (sum, employee) => sum + employee.activeTasks,
+      0,
+    );
+    const overdueTasks = teamContext.reduce(
+      (sum, employee) => sum + employee.overdueTasks,
+      0,
+    );
+    const plannedHours = teamContext.reduce(
+      (sum, employee) => sum + employee.plannedHours,
+      0,
+    );
+    const busiest = [...teamContext].sort(
+      (a, b) => b.plannedHours - a.plannedHours,
+    )[0];
+    return {
+      reply: teamContext.length
+        ? `الفريق يضم ${teamContext.length} موظفًا نشطًا، ولديه ${activeTasks} مهمة نشطة منها ${overdueTasks} متأخرة بإجمالي ${plannedHours.toFixed(1)} ساعة مخططة.` +
+          (busiest ? ` أعلى حمل حاليًا لدى ${busiest.name} (${busiest.plannedHours.toFixed(1)} ساعة).` : '')
+        : 'لا توجد بيانات موظفين نشطين متاحة للتحليل الآن.',
+      action: null,
+    };
+  }
+
+  if (hasAny(['قاعده', 'قاعدة', 'دائما', 'من الان', 'تذكر'])) {
+    return {
+      reply: 'فهمت القاعدة. سأعرضها لك للاعتماد قبل حفظها ضمن تعليمات الوكيل الدائمة.',
+      action: {
+        type: 'update_agent_rule',
+        title: 'قاعدة دائمة للوكيل',
+        payload: String(prompt).trim().slice(0, 500),
+        employeeUid: '',
+        employeeNumber: '',
+        employeeName: '',
+        dueDate: '',
+        priority: 'medium',
+        plannedHours: 1,
+        category: 'عام',
+        requiresApproval: true,
+      },
+    };
+  }
+
+  if (hasAny(['مهمه', 'مهمة', 'كلف', 'اسند', 'حوّل', 'حول'])) {
+    const employee = matchingEmployee(prompt, teamContext);
+    if (!employee) {
+      return {reply: 'حدد اسم الموظف أو رقمه الوظيفي حتى أجهز المهمة بدقة.', action: null};
+    }
+    const dueDate = requestedDueDate(prompt, today);
+    if (!dueDate) {
+      return {reply: `حدد موعد الاستحقاق لمهمة ${employee.name}، مثل غدًا أو 2026-08-15.`, action: null};
+    }
+    const highPriority = hasAny(['عاجل', 'عاليه', 'عالية', 'ضروري']);
+    return {
+      reply: `جهزت المهمة لـ ${employee.name}. راجع التفاصيل ثم اضغط اعتماد لإنشائها فعليًا.`,
+      action: {
+        type: 'create_task_draft',
+        title: String(prompt).trim().slice(0, 160),
+        payload: String(prompt).trim().slice(0, 3000),
+        employeeUid: employee.uid,
+        employeeNumber: employee.employeeNumber,
+        employeeName: employee.name,
+        dueDate,
+        priority: highPriority ? 'high' : 'medium',
+        plannedHours: 1,
+        category: 'عام',
+        requiresApproval: true,
+      },
+    };
+  }
+
+  if (hasAny(['مبادره', 'مبادرة', 'فكره', 'فكرة', 'مشروع'])) {
+    return {
+      reply: 'جهزت الفكرة كمبادرة. راجعها ثم اعتمدها لإضافتها إلى سجل المساعد.',
+      action: {
+        type: 'create_initiative',
+        title: String(prompt).trim().slice(0, 160),
+        payload: String(prompt).trim().slice(0, 3000),
+        employeeUid: '',
+        employeeNumber: '',
+        employeeName: '',
+        dueDate: '',
+        priority: 'medium',
+        plannedHours: 1,
+        category: 'عام',
+        requiresApproval: true,
+      },
+    };
+  }
+
+  return {
+    reply: 'أنا جاهز. اطلب مني إنشاء مهمة باسم الموظف وموعدها، أو تلخيص أداء الفريق، أو حفظ قاعدة دائمة، أو تجهيز مبادرة.',
+    action: null,
+  };
 }
 
 function json(res, status, body) {
@@ -297,23 +448,17 @@ function parseAgentResult(text) {
 export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
-  const providerKey = normalizeProviderKey(process.env.OPENAI_API_KEY);
+  const gatewayCredential = resolveGatewayCredential();
   if (req.method === 'GET') {
-    if (!providerKey) {
-      return json(res, 503, {status: 'not-configured'});
-    }
-    const ready = await providerIsReady(providerKey);
-    return json(res, ready ? 200 : 503, {
-      status: ready ? 'ready' : 'provider-unavailable',
+    const providerReady = await providerIsReady(gatewayCredential);
+    return json(res, 200, {
+      status: 'ready',
+      mode: providerReady ? 'ai-gateway' : 'resilient-local',
     });
   }
   if (req.method !== 'POST') {
     return json(res, 405, {error: 'method-not-allowed'});
   }
-  if (!providerKey) {
-    return json(res, 503, {error: 'agent-not-configured'});
-  }
-
   try {
     const token = bearerToken(req);
     const identity = await verifyFirebaseIdentity(token);
@@ -329,12 +474,6 @@ export default async function handler(req, res) {
     const history = sanitizeMessages(req.body?.history);
     const teamContext = sanitizeTeamContext(req.body?.teamContext);
     const agentRules = sanitizeAgentRules(req.body?.agentRules);
-    const safetyIdentifier = crypto
-      .createHash('sha256')
-      .update(`neotask:${user.uid}`)
-      .digest('hex')
-      .slice(0, 32);
-
     const todayInRiyadh = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Riyadh',
       year: 'numeric',
@@ -362,34 +501,58 @@ export default async function handler(req, res) {
       },
     ];
 
-    const openaiResponse = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${providerKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        instructions,
-        input,
-        reasoning: {effort: 'low'},
-        text: {verbosity: 'low'},
-        max_output_tokens: 1200,
-        safety_identifier: safetyIdentifier,
-      }),
-    });
+    if (gatewayCredential) {
+      try {
+        const gatewayResponse = await fetch(`${GATEWAY_BASE_URL}/responses`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${gatewayCredential}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(25_000),
+          body: JSON.stringify({
+            model: GATEWAY_MODEL,
+            instructions,
+            input,
+            max_output_tokens: 1200,
+            providerOptions: {
+              gateway: {
+                models: [GATEWAY_MODEL, 'openai/gpt-5.6-sol'],
+              },
+            },
+          }),
+        });
 
-    const responseBody = await openaiResponse.json();
-    if (!openaiResponse.ok) {
-      console.error('OpenAI request failed', {
-        status: openaiResponse.status,
-        code: responseBody?.error?.code || 'unknown',
-      });
-      return json(res, 502, {error: 'agent-provider-error'});
+        const responseBody = await gatewayResponse.json();
+        if (gatewayResponse.ok) {
+          const result = parseAgentResult(extractOutputText(responseBody));
+          return json(res, 200, {
+            ...result,
+            requestId: responseBody.id || null,
+            mode: 'ai-gateway',
+          });
+        }
+        console.error('AI Gateway request failed', {
+          status: gatewayResponse.status,
+          code: responseBody?.error?.code || 'unknown',
+        });
+      } catch (error) {
+        console.error('AI Gateway unavailable', {
+          code: error?.name === 'TimeoutError' ? 'timeout' : 'network',
+        });
+      }
     }
 
-    const result = parseAgentResult(extractOutputText(responseBody));
-    return json(res, 200, {...result, requestId: responseBody.id || null});
+    const fallback = buildLocalFallback({
+      prompt,
+      teamContext,
+      today: todayInRiyadh,
+    });
+    return json(res, 200, {
+      ...fallback,
+      requestId: null,
+      mode: 'resilient-local',
+    });
   } catch (error) {
     const knownCodes = new Set([
       'manager-only',
