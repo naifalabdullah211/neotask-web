@@ -13,6 +13,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const requestWindows = new Map();
+let providerHealthCache = {ready: false, expiresAt: 0};
 let firebaseCertCache = {
   certs: null,
   expiresAt: 0,
@@ -24,9 +25,35 @@ function setCors(req, res) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization,Content-Type');
   res.setHeader('Cache-Control', 'no-store');
+}
+
+export function normalizeProviderKey(value) {
+  return String(value || '').replace(/\s+/g, '');
+}
+
+async function providerIsReady(apiKey) {
+  const now = Date.now();
+  if (providerHealthCache.expiresAt > now) return providerHealthCache.ready;
+
+  try {
+    const response = await fetch(
+      `https://api.openai.com/v1/models/${encodeURIComponent(OPENAI_MODEL)}`,
+      {
+        headers: {Authorization: `Bearer ${apiKey}`},
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    providerHealthCache = {
+      ready: response.ok,
+      expiresAt: now + (response.ok ? 60_000 : 15_000),
+    };
+  } catch {
+    providerHealthCache = {ready: false, expiresAt: now + 15_000};
+  }
+  return providerHealthCache.ready;
 }
 
 function json(res, status, body) {
@@ -270,10 +297,20 @@ function parseAgentResult(text) {
 export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
+  const providerKey = normalizeProviderKey(process.env.OPENAI_API_KEY);
+  if (req.method === 'GET') {
+    if (!providerKey) {
+      return json(res, 503, {status: 'not-configured'});
+    }
+    const ready = await providerIsReady(providerKey);
+    return json(res, ready ? 200 : 503, {
+      status: ready ? 'ready' : 'provider-unavailable',
+    });
+  }
   if (req.method !== 'POST') {
     return json(res, 405, {error: 'method-not-allowed'});
   }
-  if (!process.env.OPENAI_API_KEY) {
+  if (!providerKey) {
     return json(res, 503, {error: 'agent-not-configured'});
   }
 
@@ -328,7 +365,7 @@ export default async function handler(req, res) {
     const openaiResponse = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${providerKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -354,7 +391,16 @@ export default async function handler(req, res) {
     const result = parseAgentResult(extractOutputText(responseBody));
     return json(res, 200, {...result, requestId: responseBody.id || null});
   } catch (error) {
-    const code = error?.message || 'internal';
+    const knownCodes = new Set([
+      'manager-only',
+      'rate-limit',
+      'missing-token',
+      'invalid-token',
+      'profile-unavailable',
+      'token-verification-unavailable',
+    ]);
+    const rawCode = error?.message || '';
+    const code = knownCodes.has(rawCode) ? rawCode : 'internal';
     const status = code === 'manager-only' ? 403
       : code === 'rate-limit' ? 429
       : ['missing-token', 'invalid-token'].includes(code) ? 401

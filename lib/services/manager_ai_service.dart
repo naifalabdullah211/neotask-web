@@ -65,6 +65,19 @@ class ManagerAiService {
     defaultValue: 'https://project-0wvza.vercel.app/api/agent',
   );
 
+  static Future<bool> isAvailable() async {
+    try {
+      final response = await http
+          .get(Uri.parse(_endpoint))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return false;
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return body['status'] == 'ready';
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<ManagerAiResult> send({
     required String message,
     required List<Map<String, String>> history,

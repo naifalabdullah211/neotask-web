@@ -29,6 +29,7 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   final List<_ChatMessage> _messages = [];
   ManagerAiAction? _pendingAction;
   bool _working = false;
+  bool? _agentOnline;
 
   @override
   void initState() {
@@ -39,6 +40,13 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
         'اطلب مني إنشاء مبادرة، تجهيز مهمة، تلخيص أداء الفريق، أو تعديل قواعد المساعد.',
       ),
     );
+    _checkAgentStatus();
+  }
+
+  Future<void> _checkAgentStatus() async {
+    final online = await ManagerAiService.isAvailable();
+    if (!mounted) return;
+    setState(() => _agentOnline = online);
   }
 
   @override
@@ -75,18 +83,25 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
       );
       if (!mounted) return;
       setState(() {
+        _agentOnline = true;
         _messages.add(_ChatMessage.agent(result.reply));
         _pendingAction = result.action;
       });
     } on ManagerAiException catch (error) {
       if (!mounted) return;
-      setState(() => _messages.add(_ChatMessage.error(error.message)));
+      setState(() {
+        _agentOnline = false;
+        _messages.add(_ChatMessage.error(error.message));
+      });
     } catch (_) {
       if (!mounted) return;
       setState(
-        () => _messages.add(
-          _ChatMessage.error('تعذر الاتصال بالمساعد. حاول مرة أخرى.'),
-        ),
+        () {
+          _agentOnline = false;
+          _messages.add(
+            _ChatMessage.error('تعذر الاتصال بالمساعد. حاول مرة أخرى.'),
+          );
+        },
       );
     } finally {
       if (mounted) setState(() => _working = false);
@@ -331,7 +346,7 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
       ),
       child: Column(
         children: [
-          const _AgentHeader(),
+          _AgentHeader(online: _agentOnline),
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -468,7 +483,9 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
 }
 
 class _AgentHeader extends StatelessWidget {
-  const _AgentHeader();
+  const _AgentHeader({required this.online});
+
+  final bool? online;
 
   @override
   Widget build(BuildContext context) {
@@ -478,15 +495,15 @@ class _AgentHeader extends StatelessWidget {
         color: Color(0xFF071D3B),
         borderRadius: BorderRadius.vertical(top: Radius.circular(19)),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          CircleAvatar(
+          const CircleAvatar(
             radius: 24,
             backgroundColor: Color(0x2233D6A6),
             child: Icon(Icons.auto_awesome, color: Color(0xFF33D6A6)),
           ),
-          SizedBox(width: 12),
-          Expanded(
+          const SizedBox(width: 12),
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -506,7 +523,7 @@ class _AgentHeader extends StatelessWidget {
               ],
             ),
           ),
-          _OnlineBadge(),
+          _OnlineBadge(online: online),
         ],
       ),
     );
@@ -514,25 +531,39 @@ class _AgentHeader extends StatelessWidget {
 }
 
 class _OnlineBadge extends StatelessWidget {
-  const _OnlineBadge();
+  const _OnlineBadge({required this.online});
+
+  final bool? online;
 
   @override
   Widget build(BuildContext context) {
+    final checking = online == null;
+    final available = online == true;
+    final dotColor = checking
+        ? const Color(0xFFE8B84B)
+        : available
+            ? const Color(0xFF33D6A6)
+            : const Color(0xFFFF8A80);
+    final foreground = checking
+        ? const Color(0xFFFFD77A)
+        : available
+            ? const Color(0xFF8EF0D1)
+            : const Color(0xFFFFB4AE);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0x2233D6A6),
         borderRadius: BorderRadius.circular(99),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(radius: 4, backgroundColor: Color(0xFF33D6A6)),
-          SizedBox(width: 6),
+          CircleAvatar(radius: 4, backgroundColor: dotColor),
+          const SizedBox(width: 6),
           Text(
-            'متصل',
+            checking ? 'جارٍ الفحص' : available ? 'متصل' : 'غير متصل',
             style: TextStyle(
-              color: Color(0xFF8EF0D1),
+              color: foreground,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
