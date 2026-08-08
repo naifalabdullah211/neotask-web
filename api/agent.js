@@ -186,6 +186,27 @@ function sanitizeMessages(value) {
     .filter((item) => item.content);
 }
 
+function sanitizeTeamContext(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 80).map((item) => ({
+    uid: String(item?.uid || '').slice(0, 128),
+    name: String(item?.name || '').slice(0, 120),
+    employeeNumber: String(item?.employeeNumber || '').slice(0, 40),
+    weeklyCapacityHours: Number(item?.weeklyCapacityHours || 0),
+    activeTasks: Number(item?.activeTasks || 0),
+    overdueTasks: Number(item?.overdueTasks || 0),
+    plannedHours: Number(item?.plannedHours || 0),
+  })).filter((item) => item.uid && item.name);
+}
+
+function sanitizeAgentRules(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, 20)
+    .map((item) => String(item || '').trim().slice(0, 500))
+    .filter(Boolean);
+}
+
 function extractOutputText(response) {
   if (typeof response.output_text === 'string') return response.output_text;
   for (const item of response.output || []) {
@@ -214,14 +235,31 @@ function parseAgentResult(text) {
     'team_summary',
     'update_agent_rule',
   ]);
-  const action = parsed.action && allowedTypes.has(parsed.action.type)
+  const rawAction = parsed.action;
+  let action = rawAction && allowedTypes.has(rawAction.type)
     ? {
-        type: parsed.action.type,
-        title: String(parsed.action.title || '').slice(0, 160),
-        payload: String(parsed.action.payload || '').slice(0, 3000),
+        type: rawAction.type,
+        title: String(rawAction.title || '').trim().slice(0, 160),
+        payload: String(rawAction.payload || '').trim().slice(0, 3000),
+        employeeUid: String(rawAction.employeeUid || '').trim().slice(0, 128),
+        employeeNumber: String(rawAction.employeeNumber || '').trim().slice(0, 40),
+        employeeName: String(rawAction.employeeName || '').trim().slice(0, 120),
+        dueDate: String(rawAction.dueDate || '').trim().slice(0, 10),
+        priority: ['low', 'medium', 'high'].includes(rawAction.priority)
+          ? rawAction.priority
+          : 'medium',
+        plannedHours: Math.min(168, Math.max(0.25, Number(rawAction.plannedHours) || 1)),
+        category: String(rawAction.category || 'عام').trim().slice(0, 80),
         requiresApproval: true,
       }
     : null;
+
+  if (action?.type === 'create_task_draft') {
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(action.dueDate);
+    if (!action.title || !action.payload || !action.employeeUid || !validDate) {
+      action = null;
+    }
+  }
 
   return {
     reply: String(parsed.reply || 'تم تحليل طلبك.').slice(0, 4000),
@@ -252,25 +290,38 @@ export default async function handler(req, res) {
     }
 
     const history = sanitizeMessages(req.body?.history);
+    const teamContext = sanitizeTeamContext(req.body?.teamContext);
+    const agentRules = sanitizeAgentRules(req.body?.agentRules);
     const safetyIdentifier = crypto
       .createHash('sha256')
       .update(`neotask:${user.uid}`)
       .digest('hex')
       .slice(0, 32);
 
+    const todayInRiyadh = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Riyadh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+
     const instructions = `أنت Executive AI Agent داخل NeoTask. تخاطب مديرًا عربيًا بوضوح واختصار.\n
 مهمتك تحليل طلب المدير وتحويله إلى رد عملي أو إجراء مقترح. لا تدّعِ تنفيذ أي إجراء. كل تغيير خارجي يحتاج موافقة صريحة داخل التطبيق.\n
+التاريخ الحالي في السعودية: ${todayInRiyadh}. التزم بقواعد المدير الدائمة الواردة في السياق ما لم يتعارض طلبه الحالي معها. عند تحليل الفريق اعتمد حصريًا على بيانات NeoTask الحية الواردة في السياق ولا تخترع بيانات.\n
 أعد JSON فقط بالشكل التالي:\n
 {"reply":"رد عربي واضح","action":null}\n
 أو:\n
-{"reply":"شرح ما فهمته وما سيحدث بعد الاعتماد","action":{"type":"create_initiative|create_task_draft|team_summary|update_agent_rule","title":"عنوان قصير","payload":"تفاصيل كاملة قابلة للحفظ"}}\n
-استخدم create_initiative للأفكار والمبادرات. استخدم create_task_draft عند طلب إنشاء أو توزيع مهمة. استخدم team_summary عند طلب تلخيص أو تحليل أداء. استخدم update_agent_rule عند طلب تغيير سلوك المساعد أو قواعد التنبيه. لا تُخرج Markdown أو نصًا خارج JSON.`;
+{"reply":"شرح ما فهمته وما سيحدث بعد الاعتماد","action":{"type":"create_initiative|create_task_draft|team_summary|update_agent_rule","title":"عنوان قصير","payload":"تفاصيل كاملة قابلة للحفظ","employeeUid":"uid من بيانات الفريق","employeeNumber":"الرقم الوظيفي","employeeName":"اسم الموظف","dueDate":"YYYY-MM-DD","priority":"low|medium|high","plannedHours":1,"category":"عام"}}\n
+استخدم create_initiative للأفكار والمبادرات. استخدم create_task_draft عند طلب إنشاء أو توزيع مهمة، وانسخ employeeUid والرقم والاسم حرفيًا من بيانات الفريق، وحدد تاريخًا مستقبليًا واضحًا. إذا لم يحدد المدير الموظف أو الموعد ولم يمكن استنتاجهما بأمان، اسأله عنهما وأعد action:null. استخدم team_summary عند طلب تلخيص أو تحليل أداء. استخدم update_agent_rule عند طلب تغيير سلوك المساعد أو قواعد التنبيه، واجعل payload نص القاعدة الدائمة نفسها. لا تُخرج Markdown أو نصًا خارج JSON.`;
 
     const input = [
       ...history.map((item) => ({role: item.role, content: item.content})),
       {
         role: 'user',
-        content: `اسم المدير: ${user.name || 'المدير'}\nطلبه: ${prompt}`,
+        content: `اسم المدير: ${user.name || 'المدير'}\n` +
+          `قواعد المدير الدائمة: ${agentRules.length ? JSON.stringify(agentRules) : 'لا توجد'}\n` +
+          `بيانات الفريق الحية: ${teamContext.length ? JSON.stringify(teamContext) : 'لا يوجد موظفون نشطون'}\n` +
+          `طلبه: ${prompt}`,
       },
     ];
 

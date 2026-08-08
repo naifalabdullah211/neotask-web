@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../models/manager_idea_model.dart';
+import '../../models/task_model.dart';
 import '../../models/user_model.dart';
+import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/manager_ai_service.dart';
 import '../../theme/app_theme.dart';
@@ -67,6 +70,8 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
                   'content': message.text,
                 })
             .toList(),
+        teamContext: _buildTeamContext(),
+        agentRules: await FirestoreService.loadManagerAgentRules(),
       );
       if (!mounted) return;
       setState(() {
@@ -95,38 +100,139 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
 
     setState(() => _working = true);
     try {
-      final prefix = switch (action.type) {
-        'create_task_draft' => 'مسودة مهمة',
-        'update_agent_rule' => 'قاعدة للمساعد',
-        'team_summary' => 'ملخص فريق',
-        _ => 'مبادرة',
-      };
-      await FirestoreService.addManagerIdea(
-        content: '$prefix: ${action.title}\n${action.payload}',
-        manager: widget.manager,
-      );
+      final confirmation = await _executeApprovedAction(action);
       if (!mounted) return;
       setState(() {
-        _messages.add(
-          _ChatMessage.agent(
-            action.type == 'create_task_draft'
-                ? 'تم اعتماد مسودة المهمة وحفظها في سجل المساعد. يمكنك مراجعتها وتحويلها إلى مهمة نهائية.'
-                : 'تم اعتماد الإجراء وحفظه في سجل المساعد.',
-          ),
-        );
+        _messages.add(_ChatMessage.agent(confirmation));
         _pendingAction = null;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(
         () => _messages.add(
-          _ChatMessage.error('تعذر حفظ الإجراء المعتمد.'),
+          _ChatMessage.error(
+            error is ArgumentError
+                ? error.message.toString()
+                : 'تعذر تنفيذ الإجراء المعتمد.',
+          ),
         ),
       );
     } finally {
       if (mounted) setState(() => _working = false);
       _scrollToBottom();
     }
+  }
+
+  List<Map<String, dynamic>> _buildTeamContext() {
+    final employees = FirestoreService.getAllEmployees()
+        .where((employee) => employee.accountStatus == AccountStatus.active)
+        .toList();
+    final tasks = FirestoreService.getAllTasks();
+    final now = DateTime.now();
+
+    return employees.map((employee) {
+      final employeeTasks = tasks
+          .where((task) => task.assignedTo == employee.uid && !task.isPersonal)
+          .toList();
+      final activeTasks = employeeTasks
+          .where((task) => task.status != TaskStatus.approved)
+          .toList();
+      return {
+        'uid': employee.uid,
+        'name': employee.name,
+        'employeeNumber': employee.employeeNumber,
+        'weeklyCapacityHours': employee.weeklyCapacityHours,
+        'activeTasks': activeTasks.length,
+        'overdueTasks': activeTasks
+            .where((task) => task.dueDate.isBefore(now))
+            .length,
+        'plannedHours': activeTasks.fold<double>(
+          0,
+          (sum, task) => sum + task.plannedHours,
+        ),
+      };
+    }).toList(growable: false);
+  }
+
+  Future<String> _executeApprovedAction(ManagerAiAction action) async {
+    switch (action.type) {
+      case 'create_task_draft':
+        final employees = FirestoreService.getAllEmployees().where(
+          (employee) => employee.accountStatus == AccountStatus.active,
+        );
+        AppUser? assignee;
+        for (final employee in employees) {
+          if (employee.uid == action.employeeUid) {
+            assignee = employee;
+            break;
+          }
+        }
+        if (assignee == null) {
+          throw ArgumentError(
+            'لم يتم العثور على الموظف المحدد. اطلب من الوكيل تجهيز المهمة من جديد.',
+          );
+        }
+
+        final dueDate = DateTime.tryParse(action.dueDate);
+        final today = DateTime.now();
+        final todayOnly = DateTime(today.year, today.month, today.day);
+        if (dueDate == null || dueDate.isBefore(todayOnly)) {
+          throw ArgumentError(
+            'موعد الاستحقاق غير صالح. اطلب من الوكيل تحديد موعد جديد.',
+          );
+        }
+
+        final priority = switch (action.priority) {
+          'low' => TaskPriority.low,
+          'high' => TaskPriority.high,
+          _ => TaskPriority.medium,
+        };
+        await context.read<TaskProvider>().createTask(
+          title: action.title,
+          description: action.payload,
+          assignedTo: assignee.uid,
+          assignedBy: widget.manager.uid,
+          dueDate: dueDate,
+          plannedHours: action.plannedHours,
+          priority: priority,
+          category: action.category.isEmpty ? 'عام' : action.category,
+        );
+        try {
+          await _archiveAction(action, 'مهمة منفذة');
+        } catch (_) {
+          // The task is already committed. A history-panel outage must never
+          // report the task itself as failed and tempt the manager to create
+          // a duplicate by approving again.
+        }
+        return 'تم إنشاء المهمة فعليًا وإسنادها إلى ${assignee.name} (${assignee.employeeNumber}).';
+
+      case 'update_agent_rule':
+        await FirestoreService.addManagerAgentRule(
+          instruction: action.payload,
+          manager: widget.manager,
+        );
+        await _archiveAction(action, 'قاعدة دائمة للوكيل');
+        return 'تم حفظ القاعدة واعتمادها. سيطبقها الوكيل في الطلبات التالية.';
+
+      case 'team_summary':
+        await _archiveAction(action, 'ملخص فريق');
+        return 'تم اعتماد التحليل وحفظه في سجل المساعد.';
+
+      default:
+        await _archiveAction(action, 'مبادرة');
+        return 'تم اعتماد المبادرة وحفظها في سجل المساعد.';
+    }
+  }
+
+  Future<void> _archiveAction(ManagerAiAction action, String prefix) {
+    final fullContent = '$prefix: ${action.title}\n${action.payload}';
+    final content = fullContent.length <= 1000
+        ? fullContent
+        : fullContent.substring(0, 1000);
+    return FirestoreService.addManagerIdea(
+      content: content,
+      manager: widget.manager,
+    );
   }
 
   void _cancelAction() {
@@ -528,10 +634,41 @@ class _ApprovalCard extends StatelessWidget {
           const SizedBox(height: 5),
           Text(
             action.payload,
-            maxLines: 5,
+            maxLines: action.type == 'create_task_draft' ? 3 : 5,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Color(0xFF536174), height: 1.45),
           ),
+          if (action.type == 'create_task_draft') ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _ActionDetailChip(
+                  icon: Icons.badge_outlined,
+                  label: action.employeeName.isEmpty
+                      ? 'موظف غير محدد'
+                      : '${action.employeeName} (${action.employeeNumber})',
+                ),
+                _ActionDetailChip(
+                  icon: Icons.event_outlined,
+                  label: action.dueDate,
+                ),
+                _ActionDetailChip(
+                  icon: Icons.flag_outlined,
+                  label: switch (action.priority) {
+                    'high' => 'أولوية مرتفعة',
+                    'low' => 'أولوية منخفضة',
+                    _ => 'أولوية متوسطة',
+                  },
+                ),
+                _ActionDetailChip(
+                  icon: Icons.schedule_outlined,
+                  label: '${action.plannedHours.toStringAsFixed(action.plannedHours % 1 == 0 ? 0 : 1)} ساعة',
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -547,6 +684,40 @@ class _ApprovalCard extends StatelessWidget {
                 label: Text(working ? 'جارٍ الاعتماد' : 'اعتماد'),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionDetailChip extends StatelessWidget {
+  const _ActionDetailChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0x33E8B84B)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF8B6418)),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF5F4819),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

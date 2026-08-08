@@ -666,6 +666,41 @@ class FirestoreService {
     await _db.collection('manager_ideas').doc(ideaId).delete();
   }
 
+  /// Stores a manager-approved instruction that is supplied to the AI agent
+  /// on later requests. These rules are intentionally separate from the
+  /// human-readable action history so deleting a history row cannot silently
+  /// change the agent's behaviour.
+  static Future<void> addManagerAgentRule({
+    required String instruction,
+    required AppUser manager,
+  }) async {
+    final normalized = instruction.trim();
+    if (normalized.length < 3 || normalized.length > 500) {
+      throw ArgumentError('تعليمات الوكيل غير صالحة');
+    }
+    final document = _db.collection('manager_agent_rules').doc();
+    await document.set({
+      'ruleId': document.id,
+      'instruction': normalized,
+      'createdBy': manager.uid,
+      'createdByName': manager.name,
+      'createdAt': FieldValue.serverTimestamp(),
+      'active': true,
+    });
+  }
+
+  static Future<List<String>> loadManagerAgentRules() async {
+    final snapshot = await _db
+        .collection('manager_agent_rules')
+        .where('active', isEqualTo: true)
+        .limit(20)
+        .get();
+    return snapshot.docs
+        .map((document) => document.data()['instruction']?.toString().trim() ?? '')
+        .where((instruction) => instruction.isNotEmpty)
+        .toList(growable: false);
+  }
+
   // ---------------- USERS ----------------
   static Future<void> saveUser(AppUser user) async {
     await _db.collection('users').doc(user.uid).set(user.toMap());

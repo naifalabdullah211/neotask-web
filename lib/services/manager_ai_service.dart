@@ -9,12 +9,26 @@ class ManagerAiAction {
     required this.title,
     required this.payload,
     required this.requiresApproval,
+    required this.employeeUid,
+    required this.employeeNumber,
+    required this.employeeName,
+    required this.dueDate,
+    required this.priority,
+    required this.plannedHours,
+    required this.category,
   });
 
   final String type;
   final String title;
   final String payload;
   final bool requiresApproval;
+  final String employeeUid;
+  final String employeeNumber;
+  final String employeeName;
+  final String dueDate;
+  final String priority;
+  final double plannedHours;
+  final String category;
 
   factory ManagerAiAction.fromMap(Map<String, dynamic> map) {
     return ManagerAiAction(
@@ -22,6 +36,13 @@ class ManagerAiAction {
       title: map['title']?.toString() ?? '',
       payload: map['payload']?.toString() ?? '',
       requiresApproval: map['requiresApproval'] != false,
+      employeeUid: map['employeeUid']?.toString() ?? '',
+      employeeNumber: map['employeeNumber']?.toString() ?? '',
+      employeeName: map['employeeName']?.toString() ?? '',
+      dueDate: map['dueDate']?.toString() ?? '',
+      priority: map['priority']?.toString() ?? 'medium',
+      plannedHours: (map['plannedHours'] as num?)?.toDouble() ?? 1,
+      category: map['category']?.toString() ?? 'عام',
     );
   }
 }
@@ -47,6 +68,8 @@ class ManagerAiService {
   static Future<ManagerAiResult> send({
     required String message,
     required List<Map<String, String>> history,
+    required List<Map<String, dynamic>> teamContext,
+    required List<String> agentRules,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -68,6 +91,8 @@ class ManagerAiService {
           body: jsonEncode({
             'message': message,
             'history': history,
+            'teamContext': teamContext,
+            'agentRules': agentRules,
           }),
         )
         .timeout(const Duration(seconds: 35));

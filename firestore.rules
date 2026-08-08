@@ -1044,6 +1044,33 @@ service cloud.firestore {
       allow delete: if isManager();
     }
 
+    // Manager-approved persistent instructions for the Executive AI Agent.
+    // Employees cannot read or change them; the designer may inspect them in
+    // read-only mode, consistent with the existing manager_ideas archive.
+    match /manager_agent_rules/{ruleId} {
+      allow read: if isManager() || isDesigner();
+      allow create: if isManager() &&
+        request.resource.data.keys().hasOnly([
+          'ruleId',
+          'instruction',
+          'createdBy',
+          'createdByName',
+          'createdAt',
+          'active'
+        ]) &&
+        request.resource.data.ruleId == ruleId &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.instruction is string &&
+        request.resource.data.instruction.size() >= 3 &&
+        request.resource.data.instruction.size() <= 500 &&
+        request.resource.data.createdByName is string &&
+        request.resource.data.createdByName.size() >= 1 &&
+        request.resource.data.createdByName.size() <= 120 &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.active == true;
+      allow update, delete: if isManager();
+    }
+
     // ---- password_change_audit (Part 1 — manager-driven password reset
     //      audit trail) ----
     // Append-only log of WHO changed a password, FOR WHOM, and WHEN. The
