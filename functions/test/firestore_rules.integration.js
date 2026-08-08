@@ -14,8 +14,10 @@ const {
   doc,
   getDoc,
   runTransaction,
+  serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
 } = require("firebase/firestore");
 
 const projectId = "neotask-spark-rules-test";
@@ -131,4 +133,52 @@ test("an employee cannot promote their own profile", async () => {
   await assertFails(
       updateDoc(doc(database, "users", uid), {role: "manager"}),
   );
+});
+
+test("manager atomically links and removes an active agent rule record", async () => {
+  const uid = "manager-agent-rules";
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "users", uid), {
+      uid,
+      employeeNumber: "900010",
+      role: "manager",
+      accountStatus: "active",
+    });
+  });
+
+  const database = testEnv.authenticatedContext(uid).firestore();
+  const ruleId = "rule-1";
+  const ideaId = "idea-1";
+  const createBatch = writeBatch(database);
+  createBatch.set(doc(database, "manager_agent_rules", ruleId), {
+    ruleId,
+    instruction: "نبّه الفريق عند تأخر المهمة",
+    createdBy: uid,
+    createdByName: "المدير",
+    createdAt: serverTimestamp(),
+    active: true,
+  });
+  createBatch.set(doc(database, "manager_ideas", ideaId), {
+    ideaId,
+    content: "نبّه الفريق عند تأخر المهمة",
+    authorUid: uid,
+    authorName: "المدير",
+    createdAt: serverTimestamp(),
+    status: "new",
+    recordType: "rule",
+    actionType: "update_agent_rule",
+    recordTitle: "تنبيه المهام المتأخرة",
+    ruleId,
+  });
+
+  await assertSucceeds(createBatch.commit());
+  await assertSucceeds(
+      getDoc(doc(database, "manager_agent_rules", ruleId)),
+  );
+  await assertSucceeds(getDoc(doc(database, "manager_ideas", ideaId)));
+
+  const deleteBatch = writeBatch(database);
+  deleteBatch.delete(doc(database, "manager_agent_rules", ruleId));
+  deleteBatch.delete(doc(database, "manager_ideas", ideaId));
+  await assertSucceeds(deleteBatch.commit());
 });

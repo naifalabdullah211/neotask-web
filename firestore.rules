@@ -1029,6 +1029,8 @@ service cloud.firestore {
           'status',
           'recordType',
           'actionType',
+          'recordTitle',
+          'ruleId',
           'taskId',
           'taskTitle',
           'assigneeUid',
@@ -1048,10 +1050,47 @@ service cloud.firestore {
         request.resource.data.authorName.size() <= 120 &&
         request.resource.data.createdAt is timestamp &&
         (!request.resource.data.keys().hasAny(['recordType']) ||
-         request.resource.data.recordType in ['note', 'task']) &&
+         request.resource.data.recordType in [
+           'note',
+           'task',
+           'rule',
+           'analysis'
+         ]) &&
         (((!request.resource.data.keys().hasAny(['recordType']) ||
            request.resource.data.recordType == 'note') &&
           request.resource.data.status == 'new') ||
+         (request.resource.data.recordType == 'rule' &&
+          request.resource.data.status == 'new' &&
+          request.resource.data.keys().hasAll([
+            'actionType',
+            'recordTitle',
+            'ruleId'
+          ]) &&
+          request.resource.data.actionType == 'update_agent_rule' &&
+          request.resource.data.recordTitle is string &&
+          request.resource.data.recordTitle.size() >= 1 &&
+          request.resource.data.recordTitle.size() <= 200 &&
+          request.resource.data.ruleId is string &&
+          request.resource.data.ruleId.size() >= 1 &&
+          existsAfter(
+            /databases/$(database)/documents/manager_agent_rules/$(request.resource.data.ruleId)
+          ) &&
+          getAfter(
+            /databases/$(database)/documents/manager_agent_rules/$(request.resource.data.ruleId)
+          ).data.createdBy == request.auth.uid &&
+          getAfter(
+            /databases/$(database)/documents/manager_agent_rules/$(request.resource.data.ruleId)
+          ).data.active == true) ||
+         (request.resource.data.recordType == 'analysis' &&
+          request.resource.data.status == 'new' &&
+          request.resource.data.keys().hasAll([
+            'actionType',
+            'recordTitle'
+          ]) &&
+          request.resource.data.actionType == 'team_summary' &&
+          request.resource.data.recordTitle is string &&
+          request.resource.data.recordTitle.size() >= 1 &&
+          request.resource.data.recordTitle.size() <= 200) ||
          (request.resource.data.recordType == 'task' &&
           request.resource.data.status == 'linked' &&
           request.resource.data.keys().hasAll([
