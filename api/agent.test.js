@@ -79,3 +79,33 @@ test('local fallback asks for assignee instead of inventing one', () => {
   assert.match(result.reply, /اسم الموظف/);
   assert.equal(result.action, null);
 });
+
+test('local fallback does not approve an initiative without an assignee', () => {
+  const result = buildLocalFallback({
+    prompt: 'أنشئ مبادرة لتحسين متابعة المهام المتأخرة غدًا',
+    today: '2026-08-08',
+    teamContext: [],
+  });
+  assert.match(result.reply, /الموظف المسؤول/);
+  assert.equal(result.action, null);
+});
+
+test('local fallback makes an initiative an executable task action', () => {
+  const result = buildLocalFallback({
+    prompt: 'أنشئ مبادرة لسارة لتحسين متابعة المهام المتأخرة غدًا',
+    today: '2026-08-08',
+    teamContext: [{
+      uid: 'employee-1',
+      name: 'سارة',
+      employeeNumber: '400200',
+      activeTasks: 0,
+      overdueTasks: 0,
+      plannedHours: 0,
+    }],
+  });
+  assert.equal(result.action?.type, 'create_initiative');
+  assert.equal(result.action?.employeeUid, 'employee-1');
+  assert.equal(result.action?.employeeNumber, '400200');
+  assert.equal(result.action?.dueDate, '2026-08-09');
+  assert.match(result.reply, /مهمة فعلية/);
+});

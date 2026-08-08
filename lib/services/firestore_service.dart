@@ -662,6 +662,46 @@ class FirestoreService {
     await document.set(idea.toMap());
   }
 
+  /// Creates the agent-generated task, its immutable audit entry, and the
+  /// linked manager-assistant record in one atomic commit. A partial write
+  /// can therefore never leave the history claiming a task exists when the
+  /// task document itself was not created.
+  static Future<void> saveAgentTaskBundle({
+    required AppTask task,
+    required TaskHistoryEntry history,
+    required ManagerIdea record,
+  }) async {
+    final batch = _db.batch();
+    batch.set(_db.collection('tasks').doc(task.taskId), task.toMap());
+    batch.set(
+      _db.collection('task_history').doc(history.historyId),
+      history.toMap(),
+    );
+    batch.set(
+      _db.collection('manager_ideas').doc(record.ideaId),
+      record.toMap(),
+    );
+    await batch.commit();
+  }
+
+  /// Reads from the server (not the live in-memory cache) so the assistant
+  /// only reports success after Firestore confirms the task document exists.
+  static Future<AppTask?> fetchTaskFromServer(String taskId) async {
+    final snapshot = await _db
+        .collection('tasks')
+        .doc(taskId)
+        .get(const GetOptions(source: Source.server));
+    final data = snapshot.data();
+    return snapshot.exists && data != null ? AppTask.fromMap(data) : null;
+  }
+
+  static Stream<AppTask?> watchTask(String taskId) {
+    return _db.collection('tasks').doc(taskId).snapshots().map((snapshot) {
+      final data = snapshot.data();
+      return snapshot.exists && data != null ? AppTask.fromMap(data) : null;
+    });
+  }
+
   static Future<void> deleteManagerIdea(String ideaId) async {
     await _db.collection('manager_ideas').doc(ideaId).delete();
   }

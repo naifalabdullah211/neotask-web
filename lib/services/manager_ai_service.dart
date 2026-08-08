@@ -30,6 +30,16 @@ class ManagerAiAction {
   final double plannedHours;
   final String category;
 
+  bool get isTaskCreation =>
+      type == 'create_task_draft' || type == 'create_initiative';
+
+  bool get hasExecutionDetails =>
+      employeeUid.trim().isNotEmpty &&
+      employeeName.trim().isNotEmpty &&
+      employeeNumber.trim().isNotEmpty &&
+      DateTime.tryParse(dueDate) != null &&
+      plannedHours > 0;
+
   factory ManagerAiAction.fromMap(Map<String, dynamic> map) {
     return ManagerAiAction(
       type: map['type']?.toString() ?? '',

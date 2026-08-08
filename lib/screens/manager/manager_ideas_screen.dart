@@ -8,6 +8,8 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/manager_ai_service.dart';
 import '../../theme/app_theme.dart';
+import '../designer/designer_task_view_screen.dart';
+import 'task_review_detail_screen.dart';
 
 class ManagerIdeasScreen extends StatefulWidget {
   const ManagerIdeasScreen({
@@ -172,6 +174,7 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   Future<String> _executeApprovedAction(ManagerAiAction action) async {
     switch (action.type) {
       case 'create_task_draft':
+      case 'create_initiative':
         final employees = FirestoreService.getAllEmployees().where(
           (employee) => employee.accountStatus == AccountStatus.active,
         );
@@ -187,6 +190,7 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
             'لم يتم العثور على الموظف المحدد. اطلب من الوكيل تجهيز المهمة من جديد.',
           );
         }
+        final selectedAssignee = assignee;
 
         final dueDate = DateTime.tryParse(action.dueDate);
         final today = DateTime.now();
@@ -202,24 +206,40 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
           'high' => TaskPriority.high,
           _ => TaskPriority.medium,
         };
-        await context.read<TaskProvider>().createTask(
+        final historyContent = action.payload.length <= 1000
+            ? action.payload
+            : action.payload.substring(0, 1000);
+        final task = await context.read<TaskProvider>().createTask(
           title: action.title,
           description: action.payload,
-          assignedTo: assignee.uid,
+          assignedTo: selectedAssignee.uid,
           assignedBy: widget.manager.uid,
           dueDate: dueDate,
           plannedHours: action.plannedHours,
           priority: priority,
           category: action.category.isEmpty ? 'عام' : action.category,
+          managerAgentRecordBuilder: (createdTask) => ManagerIdea(
+            ideaId: createdTask.taskId,
+            content: historyContent,
+            authorUid: widget.manager.uid,
+            authorName: widget.manager.name,
+            createdAt: createdTask.createdAt,
+            status: 'linked',
+            recordType: 'task',
+            actionType: action.type,
+            taskId: createdTask.taskId,
+            taskTitle: createdTask.title,
+            assigneeUid: selectedAssignee.uid,
+            assigneeName: selectedAssignee.name,
+            employeeNumber: selectedAssignee.employeeNumber,
+            dueDate: createdTask.dueDate,
+            priority: createdTask.priority.name,
+            plannedHours: createdTask.plannedHours,
+          ),
         );
-        try {
-          await _archiveAction(action, 'مهمة منفذة');
-        } catch (_) {
-          // The task is already committed. A history-panel outage must never
-          // report the task itself as failed and tempt the manager to create
-          // a duplicate by approving again.
-        }
-        return 'تم إنشاء المهمة فعليًا وإسنادها إلى ${assignee.name} (${assignee.employeeNumber}).';
+        return 'تم إنشاء المهمة والتحقق منها في Firestore. رقم المهمة: '
+            '${task.taskId} — المسؤول: ${selectedAssignee.name} '
+            '(${selectedAssignee.employeeNumber}). يمكنك فتحها وتعديلها من سجل المساعد.';
 
       case 'update_agent_rule':
         await FirestoreService.addManagerAgentRule(
@@ -234,8 +254,7 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
         return 'تم اعتماد التحليل وحفظه في سجل المساعد.';
 
       default:
-        await _archiveAction(action, 'مبادرة');
-        return 'تم اعتماد المبادرة وحفظها في سجل المساعد.';
+        throw ArgumentError('نوع الإجراء غير قابل للتنفيذ.');
     }
   }
 
@@ -263,7 +282,11 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('حذف السجل؟'),
-        content: const Text('سيتم حذف هذا العنصر نهائيًا من سجل المساعد.'),
+        content: Text(
+          idea.isTaskRecord
+              ? 'سيُحذف سجل المساعد فقط. المهمة الأصلية لن تُحذف.'
+              : 'سيتم حذف هذا العنصر نهائيًا من سجل المساعد.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -279,6 +302,16 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
     if (confirmed == true) {
       await FirestoreService.deleteManagerIdea(idea.ideaId);
     }
+  }
+
+  void _openTask(AppTask task) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => widget.readOnly
+            ? DesignerTaskViewScreen(task: task)
+            : TaskReviewDetailScreen(task: task),
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -433,43 +466,38 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final idea = ideas[index];
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF7F9FC),
-                        borderRadius: BorderRadius.circular(13),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.auto_awesome_outlined,
-                            color: Color(0xFF138B68),
-                            size: 20,
-                          ),
-                          const SizedBox(width: 9),
-                          Expanded(
-                            child: Text(
-                              idea.content,
-                              maxLines: 5,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFF26364A),
-                                height: 1.45,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          if (!widget.readOnly)
-                            IconButton(
-                              tooltip: 'حذف',
-                              onPressed: () => _deleteIdea(idea),
-                              icon: const Icon(Icons.delete_outline, size: 20),
-                              color: AppColors.statusRejected,
-                            ),
-                        ],
-                      ),
+                    if (idea.isTaskRecord) {
+                      return StreamBuilder<AppTask?>(
+                        stream: FirestoreService.watchTask(idea.taskId!),
+                        builder: (context, taskSnapshot) {
+                          final linkedTask = taskSnapshot.data;
+                          final verifying = taskSnapshot.connectionState ==
+                                  ConnectionState.waiting &&
+                              !taskSnapshot.hasData;
+                          return _HistoryRecordCard(
+                            idea: idea,
+                            linkedTask: linkedTask,
+                            verifying: verifying,
+                            readOnly: widget.readOnly,
+                            onOpen: linkedTask == null
+                                ? null
+                                : () => _openTask(linkedTask),
+                            onDelete: widget.readOnly
+                                ? null
+                                : () => _deleteIdea(idea),
+                          );
+                        },
+                      );
+                    }
+                    return _HistoryRecordCard(
+                      idea: idea,
+                      linkedTask: null,
+                      verifying: false,
+                      readOnly: widget.readOnly,
+                      onOpen: null,
+                      onDelete: widget.readOnly
+                          ? null
+                          : () => _deleteIdea(idea),
                     );
                   },
                 );
@@ -669,7 +697,7 @@ class _ApprovalCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Color(0xFF536174), height: 1.45),
           ),
-          if (action.type == 'create_task_draft') ...[
+          if (action.isTaskCreation) ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
@@ -710,11 +738,226 @@ class _ApprovalCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               FilledButton.icon(
-                onPressed: working ? null : onApprove,
+                onPressed: working ||
+                        (action.isTaskCreation && !action.hasExecutionDetails)
+                    ? null
+                    : onApprove,
                 icon: const Icon(Icons.check_circle_outline),
                 label: Text(working ? 'جارٍ الاعتماد' : 'اعتماد'),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryRecordCard extends StatelessWidget {
+  const _HistoryRecordCard({
+    required this.idea,
+    required this.linkedTask,
+    required this.verifying,
+    required this.readOnly,
+    required this.onOpen,
+    required this.onDelete,
+  });
+
+  final ManagerIdea idea;
+  final AppTask? linkedTask;
+  final bool verifying;
+  final bool readOnly;
+  final VoidCallback? onOpen;
+  final VoidCallback? onDelete;
+
+  String _dateTime(DateTime value) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${value.year}/${two(value.month)}/${two(value.day)} '
+        '${two(value.hour)}:${two(value.minute)}';
+  }
+
+  String _date(DateTime value) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${value.year}/${two(value.month)}/${two(value.day)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final taskExists = linkedTask != null;
+    final status = taskExists
+        ? statusLabelAr(linkedTask!.status.name)
+        : idea.isTaskRecord
+            ? verifying
+                ? 'جارٍ التحقق'
+                : 'المهمة محذوفة'
+            : null;
+    final dueDate = linkedTask?.dueDate ?? idea.dueDate;
+    final assignee = idea.assigneeName ?? 'غير محدد';
+    final employeeNumber = idea.employeeNumber ?? '';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F9FC),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(
+          color: idea.isTaskRecord
+              ? const Color(0x5533D6A6)
+              : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                idea.isTaskRecord
+                    ? Icons.task_alt_rounded
+                    : Icons.auto_awesome_outlined,
+                color: taskExists
+                    ? const Color(0xFF138B68)
+                    : const Color(0xFF8A94A3),
+                size: 20,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      idea.taskTitle ?? idea.content,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF26364A),
+                        height: 1.35,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (idea.isTaskRecord) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'رقم المهمة: ${idea.taskId}',
+                        style: const TextStyle(
+                          color: Color(0xFF66758A),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (onDelete != null)
+                IconButton(
+                  tooltip: 'حذف السجل',
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  color: AppColors.statusRejected,
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+          if (idea.isTaskRecord) ...[
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                _HistoryFact(
+                  icon: Icons.badge_outlined,
+                  text: employeeNumber.isEmpty
+                      ? assignee
+                      : '$assignee ($employeeNumber)',
+                ),
+                if (dueDate != null)
+                  _HistoryFact(
+                    icon: Icons.event_outlined,
+                    text: _date(dueDate),
+                  ),
+                if (status != null)
+                  _HistoryFact(
+                    icon: taskExists
+                        ? Icons.sync_alt_rounded
+                        : verifying
+                            ? Icons.hourglass_top_rounded
+                            : Icons.link_off_rounded,
+                    text: status,
+                    danger: !taskExists && !verifying,
+                  ),
+                _HistoryFact(
+                  icon: Icons.schedule_outlined,
+                  text: _dateTime(idea.createdAt),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onOpen,
+              icon: Icon(taskExists ? Icons.open_in_new : Icons.link_off),
+              label: Text(
+                taskExists
+                    ? readOnly
+                        ? 'فتح المهمة'
+                        : 'فتح المهمة وتعديلها'
+                    : verifying
+                        ? 'جارٍ التحقق من المهمة'
+                        : 'المهمة غير موجودة',
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 5),
+            Text(
+              idea.content,
+              maxLines: 5,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF536174),
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryFact extends StatelessWidget {
+  const _HistoryFact({
+    required this.icon,
+    required this.text,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String text;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? AppColors.statusRejected : const Color(0xFF526378);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: danger ? const Color(0xFFFFEEEE) : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1E7EF)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
