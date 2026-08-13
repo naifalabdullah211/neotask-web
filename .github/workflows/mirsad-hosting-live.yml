@@ -1,0 +1,51 @@
+name: Deploy MIRSAD to Firebase Hosting
+
+on:
+  push:
+    branches:
+      - mirsad-production
+    paths:
+      - 'mirsad-package/**'
+      - '.github/workflows/firebase-hosting-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirsad-production-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Restore MIRSAD site package
+        run: |
+          set -euo pipefail
+          mkdir -p mirsad
+          cat mirsad-package/mirsad-site.tar.gz.part-* > "$RUNNER_TEMP/mirsad-site.tar.gz"
+          tar -xzf "$RUNNER_TEMP/mirsad-site.tar.gz" -C mirsad
+
+      - name: Decode Firebase credential
+        env:
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Deploy MIRSAD only
+        working-directory: mirsad
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          set -euo pipefail
+          npx --yes firebase-tools deploy \
+            --only hosting:mirsad \
+            --project neotask1-ff5a4 \
+            --non-interactive
