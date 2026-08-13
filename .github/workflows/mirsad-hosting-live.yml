@@ -22,14 +22,29 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Restore MIRSAD site package
+      - name: Verify and restore MIRSAD site package
         run: |
           set -euo pipefail
           mkdir -p mirsad
           cat mirsad-package/mirsad-site.tar.gz.part-* > "$RUNNER_TEMP/mirsad-site.tar.gz"
+          expected_sha256="$(tr -d '[:space:]' < mirsad-package/mirsad-site.tar.gz.sha256)"
+          actual_sha256="$(sha256sum "$RUNNER_TEMP/mirsad-site.tar.gz" | cut -d' ' -f1)"
+          test "$actual_sha256" = "$expected_sha256"
           tar -xzf "$RUNNER_TEMP/mirsad-site.tar.gz" -C mirsad
+
+      - name: Install integrity-locked Firebase tools
+        working-directory: mirsad
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run MIRSAD security regression tests
+        working-directory: mirsad
+        run: npm run test:security
+
+      - name: Reject high or critical dependency vulnerabilities
+        working-directory: mirsad
+        run: npm run audit:security
 
       - name: Decode Firebase credential
         env:
@@ -37,6 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          node -e "const c=require(process.env.RUNNER_TEMP + '/firebase-service-account.json'); if(c.project_id!=='neotask1-ff5a4') throw new Error('Firebase project mismatch')"
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
 
       - name: Deploy MIRSAD only
@@ -45,7 +61,11 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
           set -euo pipefail
-          npx --yes firebase-tools deploy \
+          ./node_modules/.bin/firebase deploy \
             --only hosting:mirsad \
             --project neotask1-ff5a4 \
             --non-interactive
+
+      - name: Remove temporary Firebase credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
