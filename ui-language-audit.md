@@ -41,7 +41,6 @@ Automated static audit of `lib/screens` and `lib/widgets`, including runtime-com
 | 4 | `lib/screens/manager/manager_dashboard_tab.dart` | 2 runtime-composed Arabic strings need review | runtime: المهام (${rangeTasks.length}); runtime: Arabic date/month array used at runtime |
 | 4 | `lib/screens/manager/manager_reports_tab.dart` | 2 runtime-composed Arabic strings need review | runtime: الرقم الوظيفي ${employee.employeeNumber}; runtime: عدد المهام في هذا النطاق: ${tasks.length} |
 | 4 | `lib/screens/public/public_form_screen.dart` | legacy ListView/ListTile presentation, small legacy screen shell |  |
-| 4 | `lib/screens/shared/create_criterion_screen.dart` | legacy ListView/ListTile presentation, small legacy screen shell |  |
 | 4 | `lib/screens/shared/notification_center_screen.dart` | 1 untranslated non-Text properties, 1 runtime-composed Arabic strings need review | message: ستظهر هنا التنبيهات والتحديثات المرتبطة بمهامك و; runtime: $unread غير مقروءة وتحتاج انتباهك |
 | 4 | `lib/screens/shared/search_screen.dart` | 2 untranslated non-Text properties | message: اكتب اسم موظف أو رقمًا وظيفيًا أو عنوان هدف أو م; message: جرّب كلمة أقصر أو اسمًا أو رقمًا مختلفًا. |
 | 4 | `lib/screens/shared/settings_screen.dart` | 2 runtime-composed Arabic strings need review | runtime: تعذّر رفع الصورة: $error; runtime: الرقم الوظيفي: ${user.employeeNumber} |
@@ -57,6 +56,7 @@ Automated static audit of `lib/screens` and `lib/widgets`, including runtime-com
 | 2 | `lib/screens/manager/poll_report_screen.dart` | 1 untranslated non-Text properties | message: سيظهر التقرير هنا بعد إغلاق التصويت وحساب النتيج |
 | 2 | `lib/screens/manager/quick_add_task_sheet.dart` | 1 runtime-composed Arabic strings need review | runtime: الرقم الوظيفي ${user.employeeNumber} |
 | 2 | `lib/screens/shared/contacts_screen.dart` | 1 runtime-composed Arabic strings need review | runtime: هل تريد حذف "${contact.name}"؟ |
+| 2 | `lib/screens/shared/create_criterion_screen.dart` | 1 untranslated non-Text properties | message: أضف موظفين من تبويب الموظفين ثم عُد لإسناد المعي |
 | 2 | `lib/screens/shared/criterion_chat_body.dart` | 1 runtime-composed Arabic strings need review | runtime: تعذّر إرسال الرسالة: $e |
 | 2 | `lib/screens/shared/favorites_screen.dart` | 1 untranslated non-Text properties | message: استخدم النجمة في أي مهمة لتضيفها إلى مساحة الترك |
 | 2 | `lib/screens/shared/goal_detail_screen.dart` | 1 runtime-composed Arabic strings need review | runtime: ${ratio.completed} من ${ratio.total} مكتمل |
