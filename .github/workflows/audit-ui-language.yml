@@ -1,0 +1,29 @@
+name: Audit NeoTask UI Language
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tool/audit_ui_language.py'
+      - 'lib/screens/**'
+      - 'lib/widgets/**'
+      - 'lib/l10n/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run audit
+        run: python tool/audit_ui_language.py
+      - name: Record audit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f ui-language-audit.md
+          git commit -m 'chore: update NeoTask UI language audit [skip ci]' || true
+          git push || true
