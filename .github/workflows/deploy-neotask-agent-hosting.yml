@@ -39,7 +39,7 @@ jobs:
           set -o pipefail
           flutter pub get 2>&1 | tee -a agent-hosting-error.txt
           flutter test test/workflow_features_test.dart 2>&1 | tee -a agent-hosting-error.txt
-          flutter build web --release --pwa-strategy=none 2>&1 | tee -a agent-hosting-error.txt
+          flutter build web --release --pwa-strategy=none --dart-define=NEOTASK_AI_API_URL=https://neotask-agent-bridge-xo992u.v2.appdeploy.ai/api/multi-agent 2>&1 | tee -a agent-hosting-error.txt
 
       - name: Decode Firebase credential
         env:
