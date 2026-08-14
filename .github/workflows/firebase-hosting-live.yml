@@ -54,30 +54,14 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
         run: |
           set -euo pipefail
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-hosting-service-account.json"
-          node -e "const c=require(process.env.RUNNER_TEMP + '/firebase-hosting-service-account.json'); if(c.project_id!=='neotask1-ff5a4') throw new Error('Firebase hosting project mismatch')"
-          chmod 600 "$RUNNER_TEMP/firebase-hosting-service-account.json"
-
-      - name: Decode MIRSAD Firestore credential
-        env:
-          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MIRSAD_211 }}
-        run: |
-          set -euo pipefail
-          test -n "$FIREBASE_SERVICE_ACCOUNT_BASE64"
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/mirsad-firestore-service-account.json"
-          node -e "const c=require(process.env.RUNNER_TEMP + '/mirsad-firestore-service-account.json'); if(c.project_id!=='mirsad-211') throw new Error('MIRSAD Firestore project mismatch')"
-          chmod 600 "$RUNNER_TEMP/mirsad-firestore-service-account.json"
-
-      - name: Migrate approved MIRSAD medication master list
-        working-directory: mirsad
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/mirsad-firestore-service-account.json
-        run: node scripts/migrate-master-medications.mjs
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          node -e "const c=require(process.env.RUNNER_TEMP + '/firebase-service-account.json'); if(c.project_id!=='neotask1-ff5a4') throw new Error('Firebase project mismatch')"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
 
       - name: Deploy MIRSAD only
         working-directory: mirsad
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-hosting-service-account.json
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
           set -euo pipefail
           ./node_modules/.bin/firebase deploy \
@@ -87,4 +71,4 @@ jobs:
 
       - name: Remove temporary Firebase credential
         if: always()
-        run: rm -f "$RUNNER_TEMP/firebase-hosting-service-account.json" "$RUNNER_TEMP/mirsad-firestore-service-account.json"
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
