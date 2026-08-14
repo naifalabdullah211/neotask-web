@@ -39,6 +39,7 @@ entries = {
     'راجع الصفوف الصالحة والأخطاء قبل تنفيذ الاستيراد':
         'Review valid rows and errors before running the import',
     'اختيار ملف CSV أو XLSX': 'Choose CSV or XLSX file',
+    'الملف': 'File',
     'الاسم | الرقم الوظيفي | كلمة المرور':
         'Name | Employee ID | Password',
     'عنوان المهمة | الرقم الوظيفي | تاريخ الاستحقاق | الوصف | تاريخ البداية | الساعات | الأولوية | التصنيف':
