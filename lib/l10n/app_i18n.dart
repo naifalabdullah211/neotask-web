@@ -1125,6 +1125,9 @@ class AppI18n {
     'المهمة موجودة مسبقًا': 'Task already exists',
     'المهمة مكررة داخل الملف': 'Task is duplicated in the file',
 
+    // Meetings + import workspace refresh
+    'الملف': 'File',
+
     // Extended screen copy
     'إنشاء': 'Create',
     'أيقونة الهدف': 'Goal icon',
