@@ -31,7 +31,12 @@ jobs:
           cache: true
       - name: Apply meetings and import refresh
         run: |
-          python tool/refresh_workspace_phase5.py
+          if grep -q "إجمالي الاجتماعات" lib/screens/shared/meetings_screen.dart && \
+             grep -q "إجمالي الصفوف" lib/screens/manager/bulk_import_screen.dart; then
+            echo 'Phase-five workspace layout already applied; skipping structural rewrite.'
+          else
+            python tool/refresh_workspace_phase5.py
+          fi
           python tool/add_workspace_phase5_translations.py
           python tool/dedupe_i18n_keys.py
           dart format \
