@@ -15,7 +15,6 @@ Automated static audit of `lib/screens` and `lib/widgets`.
 | 5 | `lib/screens/manager/poll_report_screen.dart` | legacy ListView/ListTile presentation, legacy empty state |  |
 | 5 | `lib/screens/shared/chat_thread_screen.dart` | legacy ListView/ListTile presentation, legacy empty state |  |
 | 5 | `lib/screens/shared/goal_detail_screen.dart` | legacy ListView/ListTile presentation, legacy empty state |  |
-| 5 | `lib/screens/shared/notification_center_screen.dart` | legacy ListView/ListTile presentation, legacy empty state |  |
 | 5 | `lib/widgets/favorite_star_button.dart` | Arabic UI literals may bypass LocalizedText |  |
 | 5 | `lib/widgets/language_toggle.dart` | Arabic UI literals may bypass LocalizedText |  |
 | 5 | `lib/widgets/task_urgency_indicator.dart` | Arabic UI literals may bypass LocalizedText |  |
@@ -39,6 +38,7 @@ Automated static audit of `lib/screens` and `lib/widgets`.
 | 2 | `lib/screens/shared/documents_screen.dart` | legacy empty state |  |
 | 2 | `lib/screens/shared/favorites_screen.dart` | 1 untranslated non-Text properties | message: استخدم النجمة في أي مهمة لتضيفها إلى مساحة الترك |
 | 2 | `lib/screens/shared/meetings_screen.dart` | legacy empty state |  |
+| 2 | `lib/screens/shared/notification_center_screen.dart` | 1 untranslated non-Text properties | message: ستظهر هنا التنبيهات والتحديثات المرتبطة بمهامك و |
 | 1 | `lib/screens/auth/manager_setup_screen.dart` | small legacy screen shell |  |
 | 1 | `lib/screens/auth/pending_approval_screen.dart` | small legacy screen shell |  |
 | 1 | `lib/screens/auth/register_via_invite_screen.dart` | small legacy screen shell |  |
