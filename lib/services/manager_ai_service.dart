@@ -62,11 +62,17 @@ class ManagerAiResult {
     required this.reply,
     this.action,
     this.requestId,
+    this.mode,
+    this.truthStatus,
+    this.truthNote,
   });
 
   final String reply;
   final ManagerAiAction? action;
   final String? requestId;
+  final String? mode;
+  final String? truthStatus;
+  final String? truthNote;
 }
 
 class ManagerAiService {
@@ -74,6 +80,15 @@ class ManagerAiService {
     'NEOTASK_AI_API_URL',
     defaultValue: 'https://project-0wvza.vercel.app/api/agent',
   );
+
+  static const String _truthModeRule =
+      'TRUTHMODE إلزامي: لا تدّعِ أن إجراءً تم تنفيذه أو حفظه أو إرساله أو '
+      'تعديله إلا إذا كانت لديك نتيجة تنفيذ فعلية من NeoTask في نفس السياق. '
+      'قبل اعتماد المدير استخدم ألفاظ مثل: مقترح، مسودة، جاهز للاعتماد، ولم '
+      'يُنفذ بعد. إذا كانت المعلومة تحليلًا أو استنتاجًا فاذكر أنها استنتاج. '
+      'إذا لم توجد بيانات كافية فقل غير متحقق بدل التخمين. لا تخترع موظفين أو '
+      'مهام أو أرقامًا أو حالات. بيانات NeoTask الحية هي المصدر الوحيد للحقائق '
+      'التشغيلية داخل النظام.';
 
   static Future<bool> isAvailable() async {
     try {
@@ -104,6 +119,11 @@ class ManagerAiService {
       throw const ManagerAiException('تعذر التحقق من جلسة المستخدم');
     }
 
+    final effectiveRules = <String>[
+      ...agentRules.where((rule) => rule.trim().isNotEmpty),
+      _truthModeRule,
+    ];
+
     final response = await http
         .post(
           Uri.parse(_endpoint),
@@ -115,7 +135,8 @@ class ManagerAiService {
             'message': message,
             'history': history,
             'teamContext': teamContext,
-            'agentRules': agentRules,
+            'agentRules': effectiveRules,
+            'truthMode': true,
           }),
         )
         .timeout(const Duration(seconds: 35));
@@ -133,14 +154,65 @@ class ManagerAiService {
     }
 
     final rawAction = body['action'];
-    return ManagerAiResult(
-      reply: body['reply']?.toString().trim().isNotEmpty == true
-          ? body['reply'].toString().trim()
-          : 'تم تحليل طلبك.',
-      action: rawAction is Map<String, dynamic>
-          ? ManagerAiAction.fromMap(rawAction)
-          : null,
+    final action = rawAction is Map<String, dynamic>
+        ? ManagerAiAction.fromMap(rawAction)
+        : null;
+    final mode = body['mode']?.toString() ?? '';
+    final rawReply = body['reply']?.toString().trim().isNotEmpty == true
+        ? body['reply'].toString().trim()
+        : 'تم تحليل طلبك.';
+
+    final truth = _classifyTruth(
+      action: action,
+      mode: mode,
       requestId: body['requestId']?.toString(),
+    );
+
+    return ManagerAiResult(
+      reply: '${truth.label}\n$rawReply',
+      action: action,
+      requestId: body['requestId']?.toString(),
+      mode: mode,
+      truthStatus: truth.status,
+      truthNote: truth.note,
+    );
+  }
+
+  static _TruthClassification _classifyTruth({
+    required ManagerAiAction? action,
+    required String mode,
+    required String? requestId,
+  }) {
+    if (action != null) {
+      return const _TruthClassification(
+        status: 'pending',
+        label: '🟡 مقترح — لم يُنفذ بعد',
+        note: 'أي تغيير ينتظر اعتماد المدير ثم نتيجة تنفيذ فعلية من NeoTask.',
+      );
+    }
+
+    if (mode == 'resilient-local') {
+      return const _TruthClassification(
+        status: 'confirmed_local',
+        label: '✅ محسوب من بيانات NeoTask المتاحة',
+        note: 'النتيجة صادرة من المسار المحلي الحتمي وليست ادعاء تنفيذ.',
+      );
+    }
+
+    if (mode == 'ai-gateway') {
+      return _TruthClassification(
+        status: 'ai_analysis',
+        label: '🟡 تحليل AI — ليس دليل تنفيذ',
+        note: requestId == null || requestId.isEmpty
+            ? 'الرد تحليلي ويحتاج سجل NeoTask لإثبات أي تنفيذ.'
+            : 'معرّف الاستجابة متاح، لكن التنفيذ لا يُثبت إلا بسجل NeoTask.',
+      );
+    }
+
+    return const _TruthClassification(
+      status: 'unverified',
+      label: '🔴 غير متحقق',
+      note: 'لم يصل تصنيف موثوق لمسار الاستجابة؛ لا تعتمد عليه كدليل تنفيذ.',
     );
   }
 
@@ -163,6 +235,18 @@ class ManagerAiService {
         return 'تعذر الاتصال بمساعد المدير الآن';
     }
   }
+}
+
+class _TruthClassification {
+  const _TruthClassification({
+    required this.status,
+    required this.label,
+    required this.note,
+  });
+
+  final String status;
+  final String label;
+  final String note;
 }
 
 class ManagerAiException implements Exception {
