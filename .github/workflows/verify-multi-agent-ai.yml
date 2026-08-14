@@ -19,8 +19,10 @@ jobs:
         run: |
           set -euo pipefail
           URL='https://neotask-9kramm8id-naifalabdullah211s-projects.vercel.app/api/multi-agent'
-          STATUS=$(curl -sS -o /tmp/ai-health.json -w '%{http_code}' "$URL" || true)
-          printf 'Checked: %s\nURL: %s\nHTTP: %s\nBody:\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$URL" "$STATUS" > ai-health-check.txt
+          META=$(curl -sS -L -o /tmp/ai-health.json -w '%{http_code}|%{url_effective}' "$URL" || true)
+          STATUS=${META%%|*}
+          EFFECTIVE=${META#*|}
+          printf 'Checked: %s\nURL: %s\nEffectiveURL: %s\nHTTP: %s\nBody:\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$URL" "$EFFECTIVE" "$STATUS" > ai-health-check.txt
           cat /tmp/ai-health.json >> ai-health-check.txt || true
           cat ai-health-check.txt
       - name: Record result
