@@ -1,0 +1,50 @@
+name: Apply NeoTask Workspace Refresh Phase 2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tool/refresh_workspace_phase2.py'
+      - 'tool/add_workspace_phase2_translations.py'
+      - '.github/workflows/apply-workspace-refresh-phase2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: neotask-workspace-refresh-phase2
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.4'
+          channel: stable
+          cache: true
+      - name: Apply workspace refresh
+        run: |
+          python tool/refresh_workspace_phase2.py
+          python tool/add_workspace_phase2_translations.py
+      - name: Format changed Dart files
+        run: |
+          dart format \
+            lib/screens/manager/custom_forms_screen.dart \
+            lib/l10n/app_i18n.dart
+      - name: Verify Flutter
+        run: |
+          flutter pub get
+          flutter test test/workflow_features_test.dart
+          flutter build web --release --pwa-strategy=none
+      - name: Commit verified refresh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/screens/manager/custom_forms_screen.dart lib/l10n/app_i18n.dart
+          git commit -m 'Refresh NeoTask custom forms workspace' || true
+          git push || true
