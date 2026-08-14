@@ -28,7 +28,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p mirsad
-          cat mirsad-package/mirsad-site.tar.gz.part-* > "$RUNNER_TEMP/mirsad-site.tar.gz"
+          cat mirsad-package/mirsad-site.tar.gz.b64.part-* > "$RUNNER_TEMP/mirsad-site.tar.gz.b64"
+          base64 --decode "$RUNNER_TEMP/mirsad-site.tar.gz.b64" > "$RUNNER_TEMP/mirsad-site.tar.gz"
           expected_sha256="$(tr -d '[:space:]' < mirsad-package/mirsad-site.tar.gz.sha256)"
           actual_sha256="$(sha256sum "$RUNNER_TEMP/mirsad-site.tar.gz" | cut -d' ' -f1)"
           test "$actual_sha256" = "$expected_sha256"
@@ -42,8 +43,10 @@ jobs:
         working-directory: mirsad
         run: |
           npm run apply:master-data
+          npm run apply:warehouse
           npm run test:master-data
           npm run test:security
+          npm run test:warehouse
 
       - name: Reject high or critical dependency vulnerabilities
         working-directory: mirsad
@@ -90,6 +93,17 @@ jobs:
           if (new Set(window.__MIRSAD_MASTER_MEDICATIONS__.map(item => item.caseId)).size !== 55) throw new Error('Live case IDs are not unique');
           console.log('Live MIRSAD verification: PASS (55 unique medication records)');
           NODE
+          curl --fail --silent --show-error \
+            -H 'Cache-Control: no-cache' \
+            "https://mirsad.web.app/assets/index-D_ed9xY4.js?commit=${GITHUB_SHA}" \
+            -o "$RUNNER_TEMP/mirsad-app.js"
+          curl --fail --silent --show-error \
+            -H 'Cache-Control: no-cache' \
+            "https://mirsad.web.app/mirsad-security.css?commit=${GITHUB_SHA}" \
+            -o "$RUNNER_TEMP/mirsad-security.css"
+          grep -q 'function MirsadWarehousePanel' "$RUNNER_TEMP/mirsad-app.js"
+          grep -q 'warehouse-overview' "$RUNNER_TEMP/mirsad-security.css"
+          echo 'Live MIRSAD warehouse follow-up verification: PASS'
 
       - name: Remove temporary Firebase credential
         if: always()
