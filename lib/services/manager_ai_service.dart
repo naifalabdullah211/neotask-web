@@ -57,6 +57,25 @@ class ManagerAiAction {
   }
 }
 
+class ManagerAiDelegation {
+  const ManagerAiDelegation({
+    required this.id,
+    required this.name,
+    required this.status,
+  });
+
+  final String id;
+  final String name;
+  final String status;
+
+  factory ManagerAiDelegation.fromMap(Map<String, dynamic> map) =>
+      ManagerAiDelegation(
+        id: map['id']?.toString() ?? '',
+        name: map['name']?.toString() ?? '',
+        status: map['status']?.toString() ?? 'completed',
+      );
+}
+
 class ManagerAiResult {
   const ManagerAiResult({
     required this.reply,
@@ -65,6 +84,7 @@ class ManagerAiResult {
     this.mode,
     this.truthStatus,
     this.truthNote,
+    this.delegatedAgents = const [],
   });
 
   final String reply;
@@ -73,6 +93,7 @@ class ManagerAiResult {
   final String? mode;
   final String? truthStatus;
   final String? truthNote;
+  final List<ManagerAiDelegation> delegatedAgents;
 }
 
 class ManagerAiService {
@@ -107,6 +128,11 @@ class ManagerAiService {
     required String message,
     required List<Map<String, String>> history,
     required List<Map<String, dynamic>> teamContext,
+    required List<Map<String, dynamic>> taskContext,
+    required List<Map<String, dynamic>> projectContext,
+    required List<Map<String, dynamic>> meetingContext,
+    required List<Map<String, dynamic>> knowledgeContext,
+    required Map<String, dynamic> qualityContext,
     required List<String> agentRules,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -135,11 +161,16 @@ class ManagerAiService {
             'message': message,
             'history': history,
             'teamContext': teamContext,
+            'taskContext': taskContext,
+            'projectContext': projectContext,
+            'meetingContext': meetingContext,
+            'knowledgeContext': knowledgeContext,
+            'qualityContext': qualityContext,
             'agentRules': effectiveRules,
             'truthMode': true,
           }),
         )
-        .timeout(const Duration(seconds: 35));
+        .timeout(const Duration(seconds: 45));
 
     Map<String, dynamic> body;
     try {
@@ -161,6 +192,16 @@ class ManagerAiService {
     final rawReply = body['reply']?.toString().trim().isNotEmpty == true
         ? body['reply'].toString().trim()
         : 'تم تحليل طلبك.';
+    final rawDelegations = body['delegatedAgents'];
+    final delegatedAgents = rawDelegations is List
+        ? rawDelegations
+            .whereType<Map>()
+            .map((item) => ManagerAiDelegation.fromMap(
+                  Map<String, dynamic>.from(item),
+                ))
+            .where((item) => item.id.isNotEmpty)
+            .toList(growable: false)
+        : const <ManagerAiDelegation>[];
 
     final truth = _classifyTruth(
       action: action,
@@ -175,6 +216,7 @@ class ManagerAiService {
       mode: mode,
       truthStatus: truth.status,
       truthNote: truth.note,
+      delegatedAgents: delegatedAgents,
     );
   }
 
@@ -190,7 +232,6 @@ class ManagerAiService {
         note: 'أي تغيير ينتظر اعتماد المدير ثم نتيجة تنفيذ فعلية من NeoTask.',
       );
     }
-
     if (mode == 'resilient-local') {
       return const _TruthClassification(
         status: 'confirmed_local',
@@ -198,7 +239,6 @@ class ManagerAiService {
         note: 'النتيجة صادرة من المسار المحلي الحتمي وليست ادعاء تنفيذ.',
       );
     }
-
     if (mode == 'ai-gateway') {
       return _TruthClassification(
         status: 'ai_analysis',
@@ -208,7 +248,6 @@ class ManagerAiService {
             : 'معرّف الاستجابة متاح، لكن التنفيذ لا يُثبت إلا بسجل NeoTask.',
       );
     }
-
     return const _TruthClassification(
       status: 'unverified',
       label: '🔴 غير متحقق',
