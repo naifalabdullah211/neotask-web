@@ -2,6 +2,25 @@
 
 Flutter client and Firebase backend for NeoTask.
 
+## Interface and language contract
+
+NeoTask uses one shared modern workspace language across manager, employee,
+designer, authentication, and shared screens. New or refreshed UI should use
+the shared theme/design tokens and workspace components instead of introducing
+one-off visual styles.
+
+Arabic and English are complete interface modes, not partial translations.
+All NeoTask-authored UI copy — navigation, labels, tooltips, empty states,
+validation, status text, runtime counters, system feedback, and AI-agent chrome
+— must follow the selected locale. English mode must not fall back to Arabic
+product copy. User-authored content such as names, task titles, comments,
+meeting text, form responses, and uploaded data stays exactly as the user
+entered it and is not auto-translated.
+
+Runtime-composed product copy is covered by `AppI18n` templates and automated
+translation tests. UI refreshes are built and tested as Flutter Web before they
+are merged into production.
+
 ## Spark-plan deployment
 
 Production stays on Firebase's no-cost Spark plan and does not deploy Cloud
