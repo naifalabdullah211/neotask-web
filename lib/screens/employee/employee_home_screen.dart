@@ -68,7 +68,7 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Tooltip(
-              message: 'الملف الشخصي والقائمة',
+              message: context.tr('صورة الحساب والقائمة'),
               child: InkWell(
                 onTap: () => _scaffoldKey.currentState?.openDrawer(),
                 customBorder: const CircleBorder(),

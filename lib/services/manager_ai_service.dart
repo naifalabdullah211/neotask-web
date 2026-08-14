@@ -132,6 +132,7 @@ class ManagerAiService {
     required List<Map<String, String>> history,
     required List<Map<String, dynamic>> teamContext,
     required List<String> agentRules,
+    String languageCode = 'ar',
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -166,6 +167,7 @@ class ManagerAiService {
             'qualityContext': _buildQualityContext(),
             'agentRules': effectiveRules,
             'truthMode': true,
+            'languageCode': languageCode == 'en' ? 'en' : 'ar',
           }),
         )
         .timeout(const Duration(seconds: 55));
@@ -179,7 +181,7 @@ class ManagerAiService {
 
     if (response.statusCode != 200) {
       final code = body['error']?.toString() ?? '';
-      throw ManagerAiException(_messageForCode(code));
+      throw ManagerAiException(_messageForCode(code, languageCode));
     }
 
     final rawAction = body['action'];
@@ -189,25 +191,32 @@ class ManagerAiService {
     final mode = body['mode']?.toString() ?? '';
     final rawReply = body['reply']?.toString().trim().isNotEmpty == true
         ? body['reply'].toString().trim()
+        : languageCode == 'en'
+        ? 'Your request was analyzed.'
         : 'تم تحليل طلبك.';
     final rawDelegations = body['delegatedAgents'];
     final delegatedAgents = rawDelegations is List
         ? rawDelegations
-            .whereType<Map>()
-            .map((item) => ManagerAiDelegation.fromMap(
+              .whereType<Map>()
+              .map(
+                (item) => ManagerAiDelegation.fromMap(
                   Map<String, dynamic>.from(item),
-                ))
-            .where((item) => item.id.isNotEmpty)
-            .toList(growable: false)
+                ),
+              )
+              .where((item) => item.id.isNotEmpty)
+              .toList(growable: false)
         : const <ManagerAiDelegation>[];
 
     final truth = _classifyTruth(
       action: action,
       mode: mode,
       requestId: body['requestId']?.toString(),
+      languageCode: languageCode,
     );
     final agentLine = delegatedAgents.isEmpty
         ? ''
+        : languageCode == 'en'
+        ? '\n🤖 Agents: ${delegatedAgents.map((agent) => agent.name).join(' ← ')}'
         : '\n🤖 الوكلاء: ${delegatedAgents.map((agent) => agent.name).join(' ← ')}';
 
     return ManagerAiResult(
@@ -222,115 +231,167 @@ class ManagerAiService {
   }
 
   static List<Map<String, dynamic>> _buildTaskContext() {
-    final tasks = FirestoreService.getAllTasks()
-        .where((task) => !task.isPersonal)
-        .toList()
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return tasks.take(120).map((task) => {
-          'taskId': task.taskId,
-          'title': task.title,
-          'assignedTo': task.assignedTo,
-          'assignedBy': task.assignedBy,
-          'dueDate': task.dueDate.toIso8601String(),
-          'startDate': task.startDate.toIso8601String(),
-          'status': task.status.name,
-          'priority': task.priority.name,
-          'plannedHours': task.plannedHours,
-          'progressPercent': task.progressPercent,
-          'category': task.category,
-          'isOverdue': task.isOverdue,
-          'updatedAt': task.updatedAt.toIso8601String(),
-        }).toList(growable: false);
+    final tasks =
+        FirestoreService.getAllTasks()
+            .where((task) => !task.isPersonal)
+            .toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return tasks
+        .take(120)
+        .map(
+          (task) => {
+            'taskId': task.taskId,
+            'title': task.title,
+            'assignedTo': task.assignedTo,
+            'assignedBy': task.assignedBy,
+            'dueDate': task.dueDate.toIso8601String(),
+            'startDate': task.startDate.toIso8601String(),
+            'status': task.status.name,
+            'priority': task.priority.name,
+            'plannedHours': task.plannedHours,
+            'progressPercent': task.progressPercent,
+            'category': task.category,
+            'isOverdue': task.isOverdue,
+            'updatedAt': task.updatedAt.toIso8601String(),
+          },
+        )
+        .toList(growable: false);
   }
 
   static List<Map<String, dynamic>> _buildProjectContext() {
     final criteria = FirestoreService.getAllCriteria();
-    return FirestoreService.getAllGoals().take(60).map((goal) {
-      final items = criteria.where((item) => item.goalId == goal.goalId).toList();
-      final completed = items.where((item) => item.aggregateStatus.name == 'completed').length;
-      final inProgress = items.where((item) => item.aggregateStatus.name == 'inProgress').length;
-      return {
-        'goalId': goal.goalId,
-        'title': goal.title,
-        'description': goal.description,
-        'startDate': goal.startDate.toIso8601String(),
-        'endDate': goal.endDate.toIso8601String(),
-        'criteriaTotal': items.length,
-        'criteriaCompleted': completed,
-        'criteriaInProgress': inProgress,
-        'criteria': items.take(30).map((item) => {
-              'criterionId': item.criterionId,
-              'title': item.title,
-              'status': item.aggregateStatus.name,
-              'assignees': item.assignees,
-              'completion': '${item.completionRatio.completed}/${item.completionRatio.total}',
-            }).toList(growable: false),
-      };
-    }).toList(growable: false);
+    return FirestoreService.getAllGoals()
+        .take(60)
+        .map((goal) {
+          final items = criteria
+              .where((item) => item.goalId == goal.goalId)
+              .toList();
+          final completed = items
+              .where((item) => item.aggregateStatus.name == 'completed')
+              .length;
+          final inProgress = items
+              .where((item) => item.aggregateStatus.name == 'inProgress')
+              .length;
+          return {
+            'goalId': goal.goalId,
+            'title': goal.title,
+            'description': goal.description,
+            'startDate': goal.startDate.toIso8601String(),
+            'endDate': goal.endDate.toIso8601String(),
+            'criteriaTotal': items.length,
+            'criteriaCompleted': completed,
+            'criteriaInProgress': inProgress,
+            'criteria': items
+                .take(30)
+                .map(
+                  (item) => {
+                    'criterionId': item.criterionId,
+                    'title': item.title,
+                    'status': item.aggregateStatus.name,
+                    'assignees': item.assignees,
+                    'completion':
+                        '${item.completionRatio.completed}/${item.completionRatio.total}',
+                  },
+                )
+                .toList(growable: false),
+          };
+        })
+        .toList(growable: false);
   }
 
   static List<Map<String, dynamic>> _buildMeetingContext() {
     final meetings = FirestoreService.getAllMeetings().toList()
       ..sort((a, b) => b.startTime.compareTo(a.startTime));
-    return meetings.take(50).map((meeting) => {
-          'meetingId': meeting.meetingId,
-          'title': meeting.title,
-          'startTime': meeting.startTime.toIso8601String(),
-          'status': meeting.status.name,
-          'location': meeting.location,
-          'agendaItems': meeting.agendaItems.take(15).toList(),
-          'minutes': meeting.minutes.length > 1200
-              ? meeting.minutes.substring(0, 1200)
-              : meeting.minutes,
-          'decisions': meeting.decisions.take(30).map((decision) => {
-                'text': decision.text,
-                'ownerUid': decision.ownerUid,
-                'ownerName': decision.ownerName,
-                'dueDate': decision.dueDate.toIso8601String(),
-                'linkedTaskId': decision.linkedTaskId,
-                'isCompleted': decision.isCompleted,
-              }).toList(growable: false),
-        }).toList(growable: false);
+    return meetings
+        .take(50)
+        .map(
+          (meeting) => {
+            'meetingId': meeting.meetingId,
+            'title': meeting.title,
+            'startTime': meeting.startTime.toIso8601String(),
+            'status': meeting.status.name,
+            'location': meeting.location,
+            'agendaItems': meeting.agendaItems.take(15).toList(),
+            'minutes': meeting.minutes.length > 1200
+                ? meeting.minutes.substring(0, 1200)
+                : meeting.minutes,
+            'decisions': meeting.decisions
+                .take(30)
+                .map(
+                  (decision) => {
+                    'text': decision.text,
+                    'ownerUid': decision.ownerUid,
+                    'ownerName': decision.ownerName,
+                    'dueDate': decision.dueDate.toIso8601String(),
+                    'linkedTaskId': decision.linkedTaskId,
+                    'isCompleted': decision.isCompleted,
+                  },
+                )
+                .toList(growable: false),
+          },
+        )
+        .toList(growable: false);
   }
 
   static List<Map<String, dynamic>> _buildKnowledgeContext() {
-    return FirestoreService.getAllDocuments().take(50).map((document) {
-      final excerpt = document.content.trim();
-      return {
-        'documentId': document.documentId,
-        'title': document.title,
-        'kind': document.kind.name,
-        'status': document.status.name,
-        'department': document.department,
-        'category': document.category,
-        'tags': document.tags.take(12).toList(),
-        'ownerName': document.ownerName,
-        'reviewerName': document.reviewerName,
-        'reviewDueDate': document.reviewDueDate?.toIso8601String(),
-        'updatedAt': document.updatedAt.toIso8601String(),
-        'contentExcerpt': excerpt.length > 1000 ? excerpt.substring(0, 1000) : excerpt,
-      };
-    }).toList(growable: false);
+    return FirestoreService.getAllDocuments()
+        .take(50)
+        .map((document) {
+          final excerpt = document.content.trim();
+          return {
+            'documentId': document.documentId,
+            'title': document.title,
+            'kind': document.kind.name,
+            'status': document.status.name,
+            'department': document.department,
+            'category': document.category,
+            'tags': document.tags.take(12).toList(),
+            'ownerName': document.ownerName,
+            'reviewerName': document.reviewerName,
+            'reviewDueDate': document.reviewDueDate?.toIso8601String(),
+            'updatedAt': document.updatedAt.toIso8601String(),
+            'contentExcerpt': excerpt.length > 1000
+                ? excerpt.substring(0, 1000)
+                : excerpt,
+          };
+        })
+        .toList(growable: false);
   }
 
   static Map<String, dynamic> _buildQualityContext() {
-    final tasks = FirestoreService.getAllTasks().where((task) => !task.isPersonal).toList();
+    final tasks = FirestoreService.getAllTasks()
+        .where((task) => !task.isPersonal)
+        .toList();
     final criteria = FirestoreService.getAllCriteria();
     final documents = FirestoreService.getAllDocuments();
     final now = DateTime.now();
     return {
       'tasksTotal': tasks.length,
       'overdueTasks': tasks.where((task) => task.isOverdue).length,
-      'rejectedTasks': tasks.where((task) => task.status.name == 'rejected').length,
-      'submittedForReview': tasks.where((task) => task.status.name == 'submitted').length,
+      'rejectedTasks': tasks
+          .where((task) => task.status.name == 'rejected')
+          .length,
+      'submittedForReview': tasks
+          .where((task) => task.status.name == 'submitted')
+          .length,
       'criteriaTotal': criteria.length,
-      'criteriaNotStarted': criteria.where((item) => item.aggregateStatus.name == 'notStarted').length,
-      'criteriaInProgress': criteria.where((item) => item.aggregateStatus.name == 'inProgress').length,
-      'criteriaCompleted': criteria.where((item) => item.aggregateStatus.name == 'completed').length,
-      'documentsInReview': documents.where((doc) => doc.status.name == 'inReview').length,
+      'criteriaNotStarted': criteria
+          .where((item) => item.aggregateStatus.name == 'notStarted')
+          .length,
+      'criteriaInProgress': criteria
+          .where((item) => item.aggregateStatus.name == 'inProgress')
+          .length,
+      'criteriaCompleted': criteria
+          .where((item) => item.aggregateStatus.name == 'completed')
+          .length,
+      'documentsInReview': documents
+          .where((doc) => doc.status.name == 'inReview')
+          .length,
       'documentReviewsOverdue': documents.where((doc) {
         final due = doc.reviewDueDate;
-        return doc.status.name == 'inReview' && due != null && due.isBefore(now);
+        return doc.status.name == 'inReview' &&
+            due != null &&
+            due.isBefore(now);
       }).length,
     };
   }
@@ -339,50 +400,79 @@ class ManagerAiService {
     required ManagerAiAction? action,
     required String mode,
     required String? requestId,
+    required String languageCode,
   }) {
+    final english = languageCode == 'en';
     if (action != null) {
-      return const _TruthClassification(
+      return _TruthClassification(
         status: 'pending',
-        label: '🟡 مقترح — لم يُنفذ بعد',
-        note: 'أي تغيير ينتظر اعتماد المدير ثم نتيجة تنفيذ فعلية من NeoTask.',
+        label: english
+            ? '🟡 Proposed — not executed yet'
+            : '🟡 مقترح — لم يُنفذ بعد',
+        note: english
+            ? 'Any change waits for manager approval and an actual NeoTask execution result.'
+            : 'أي تغيير ينتظر اعتماد المدير ثم نتيجة تنفيذ فعلية من NeoTask.',
       );
     }
     if (mode == 'resilient-local') {
-      return const _TruthClassification(
+      return _TruthClassification(
         status: 'confirmed_local',
-        label: '✅ محسوب من بيانات NeoTask المتاحة',
-        note: 'النتيجة صادرة من المسار المحلي الحتمي وليست ادعاء تنفيذ.',
+        label: english
+            ? '✅ Calculated from available NeoTask data'
+            : '✅ محسوب من بيانات NeoTask المتاحة',
+        note: english
+            ? 'This result comes from deterministic local logic and is not an execution claim.'
+            : 'النتيجة صادرة من المسار المحلي الحتمي وليست ادعاء تنفيذ.',
       );
     }
     if (mode == 'multi-agent' || mode == 'ai-gateway') {
       return _TruthClassification(
         status: 'ai_analysis',
-        label: '🟡 تحليل AI — ليس دليل تنفيذ',
+        label: english
+            ? '🟡 AI analysis — not execution evidence'
+            : '🟡 تحليل AI — ليس دليل تنفيذ',
         note: requestId == null || requestId.isEmpty
-            ? 'الرد تحليلي ويحتاج سجل NeoTask لإثبات أي تنفيذ.'
+            ? english
+                  ? 'This is analysis; only the NeoTask audit log can prove execution.'
+                  : 'الرد تحليلي ويحتاج سجل NeoTask لإثبات أي تنفيذ.'
+            : english
+            ? 'A response ID is available, but only the NeoTask audit log proves execution.'
             : 'معرّف الاستجابة متاح، لكن التنفيذ لا يُثبت إلا بسجل NeoTask.',
       );
     }
-    return const _TruthClassification(
+    return _TruthClassification(
       status: 'unverified',
-      label: '🔴 غير متحقق',
-      note: 'لم يصل تصنيف موثوق لمسار الاستجابة؛ لا تعتمد عليه كدليل تنفيذ.',
+      label: english ? '🔴 Unverified' : '🔴 غير متحقق',
+      note: english
+          ? 'The response path could not be verified; do not treat it as execution evidence.'
+          : 'لم يصل تصنيف موثوق لمسار الاستجابة؛ لا تعتمد عليه كدليل تنفيذ.',
     );
   }
 
-  static String _messageForCode(String code) {
+  static String _messageForCode(String code, String languageCode) {
+    final english = languageCode == 'en';
     switch (code) {
       case 'manager-only':
-        return 'هذه الميزة متاحة للمدير فقط';
+        return english
+            ? 'This feature is available to managers only'
+            : 'هذه الميزة متاحة للمدير فقط';
       case 'rate-limit':
-        return 'تم إرسال طلبات كثيرة. حاول بعد دقيقة';
+        return english
+            ? 'Too many requests. Try again in a minute'
+            : 'تم إرسال طلبات كثيرة. حاول بعد دقيقة';
       case 'invalid-message':
-        return 'الطلب فارغ أو طويل جدًا';
+        return english
+            ? 'The request is empty or too long'
+            : 'الطلب فارغ أو طويل جدًا';
       case 'missing-token':
       case 'invalid-token':
-        return 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى';
+        return english
+            ? 'Your session expired. Sign in again'
+            : 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى';
       default:
-        return 'تعذر الاتصال بمساعد المدير الآن';
+        return english
+            ? 'The Manager AI Assistant is unavailable right now'
+            : 'تعذر الاتصال بمساعد المدير الآن';
     }
   }
 }

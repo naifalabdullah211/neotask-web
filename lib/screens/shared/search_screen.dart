@@ -12,30 +12,15 @@ import '../../providers/goal_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_workspace_chrome.dart';
 import '../../widgets/status_chip.dart';
-import '../employee/task_detail_screen.dart';
 import '../designer/designer_task_view_screen.dart';
+import '../employee/task_detail_screen.dart';
 import '../manager/employee_stats_detail_screen.dart';
 import '../manager/task_review_detail_screen.dart';
 import 'criterion_detail_screen.dart';
 import 'goal_detail_screen.dart';
 
-/// External/global search screen — per the manager's explicit answer
-/// "٦- يستطيع البحث عن معيار او عن هدف او عن اعمال موظف او عن موظف":
-/// search covers FOUR entity types at once:
-///   1. A Criterion (by title)
-///   2. A Goal (by title)
-///   3. An Employee's collection of assigned work (tasks + criteria)
-///   4. An Employee (by name/employee number)
-///
-/// JUDGMENT CALL (flagged — the manager did not answer this question,
-/// "Q7", about icon placement/result presentation): this screen is
-/// reached via a search icon placed in the AppBar of manager, observer, and
-/// employee home screens. Results are grouped into labeled sections
-/// (موظفون / أهداف / معايير / مهام) rather than a single flat list, since
-/// the query can plausibly match more than one entity type at once (e.g.
-/// searching an employee's name should surface both that employee's
-/// profile AND everything assigned to them).
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -60,155 +45,260 @@ class _SearchScreenState extends State<SearchScreen> {
     final criterionProvider = context.watch<CriterionProvider>();
     final taskProvider = context.watch<TaskProvider>();
 
-    List<AppUser> matchedEmployees = [];
-    List<Goal> matchedGoals = [];
-    List<Criterion> matchedCriteria = [];
-    List<AppTask> matchedTasks = [];
+    List<AppUser> employees = [];
+    List<Goal> goals = [];
+    List<Criterion> criteria = [];
+    List<AppTask> tasks = [];
 
     if (q.isNotEmpty) {
       final lower = q.toLowerCase();
-
-      matchedEmployees = FirestoreService.getAllEmployees()
+      employees = FirestoreService.getAllEmployees()
           .where(
-            (u) =>
-                u.name.toLowerCase().contains(lower) ||
-                u.employeeNumber.toLowerCase().contains(lower),
+            (user) =>
+                user.name.toLowerCase().contains(lower) ||
+                user.employeeNumber.toLowerCase().contains(lower),
           )
           .toList();
-
-      // If the query matches an employee, also surface everything
-      // assigned to them ("أعمال موظف") even if the task/criterion title
-      // itself doesn't contain the search text.
-      final matchedEmployeeUids = matchedEmployees.map((u) => u.uid).toSet();
-
-      matchedGoals = goalProvider.allGoals
-          .where((g) => g.title.toLowerCase().contains(lower))
+      final employeeUids = employees.map((user) => user.uid).toSet();
+      goals = goalProvider.allGoals
+          .where((goal) => goal.title.toLowerCase().contains(lower))
           .toList();
-
-      matchedCriteria = criterionProvider.allCriteria
+      criteria = criterionProvider.allCriteria
           .where(
-            (c) =>
-                c.title.toLowerCase().contains(lower) ||
-                c.assignees.any((uid) => matchedEmployeeUids.contains(uid)),
+            (criterion) =>
+                criterion.title.toLowerCase().contains(lower) ||
+                criterion.assignees.any(employeeUids.contains),
           )
           .toList();
-
-      matchedTasks = taskProvider.allTasks
+      tasks = taskProvider.allTasks
           .where(
-            (t) =>
-                t.title.toLowerCase().contains(lower) ||
-                matchedEmployeeUids.contains(t.assignedTo),
+            (task) =>
+                task.title.toLowerCase().contains(lower) ||
+                employeeUids.contains(task.assignedTo),
           )
           .toList();
     }
 
-    final hasResults =
-        matchedEmployees.isNotEmpty ||
-        matchedGoals.isNotEmpty ||
-        matchedCriteria.isNotEmpty ||
-        matchedTasks.isNotEmpty;
+    final total =
+        employees.length + goals.length + criteria.length + tasks.length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: TextField(
-          controller: _ctrl,
-          autofocus: true,
-          onChanged: (v) => setState(() => _query = v),
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: context.tr('ابحث عن معيار، هدف، موظف، أو أعمال موظف...'),
-            hintStyle: TextStyle(color: Colors.white70),
-            border: InputBorder.none,
-          ),
+        centerTitle: false,
+        title: const Text(
+          'بحث شامل',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
         ),
       ),
       body: SafeArea(
-        child: q.isEmpty
-            ? const Center(
-                child: Text(
-                  'ابحث عن معيار، هدف، موظف، أو أعمال موظف',
-                  style: TextStyle(color: AppColors.textSecondary),
+        child: Column(
+          children: [
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: TextField(
+                controller: _ctrl,
+                autofocus: true,
+                onChanged: (value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                  hintText: context.tr(
+                    'ابحث عن معيار، هدف، موظف، أو أعمال موظف...',
+                  ),
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: q.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: context.tr('مسح البحث'),
+                          onPressed: () {
+                            _ctrl.clear();
+                            setState(() => _query = '');
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
                 ),
-              )
-            : !hasResults
-            ? const Center(
-                child: Text(
-                  'لا توجد نتائج مطابقة',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-              )
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (matchedEmployees.isNotEmpty)
-                    _SearchSection(
-                      title: 'موظفون',
-                      children: matchedEmployees
-                          .map((u) => _EmployeeResultTile(user: u))
-                          .toList(),
-                    ),
-                  if (matchedGoals.isNotEmpty)
-                    _SearchSection(
-                      title: 'أهداف',
-                      children: matchedGoals
-                          .map(
-                            (g) => ListTile(
-                              leading: const Icon(Icons.flag_outlined),
-                              title: Text(g.title),
-                              trailing: const Icon(Icons.chevron_left),
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      GoalDetailScreen(goalId: g.goalId),
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  if (matchedCriteria.isNotEmpty)
-                    _SearchSection(
-                      title: 'معايير',
-                      children: matchedCriteria
-                          .map((c) => _CriterionResultTile(criterion: c))
-                          .toList(),
-                    ),
-                  if (matchedTasks.isNotEmpty)
-                    _SearchSection(
-                      title: 'مهام',
-                      children: matchedTasks
-                          .map((t) => _TaskResultTile(task: t))
-                          .toList(),
-                    ),
+              ),
+            ),
+            if (q.isNotEmpty)
+              NeoWorkspaceMetricsBar(
+                items: [
+                  NeoWorkspaceMetric(
+                    label: 'موظفون',
+                    value: '${employees.length}',
+                    icon: Icons.people_alt_outlined,
+                    color: const Color(0xFF1F6FD2),
+                  ),
+                  NeoWorkspaceMetric(
+                    label: 'أهداف',
+                    value: '${goals.length}',
+                    icon: Icons.flag_outlined,
+                    color: AppColors.gold,
+                  ),
+                  NeoWorkspaceMetric(
+                    label: 'معايير',
+                    value: '${criteria.length}',
+                    icon: Icons.checklist_rtl_outlined,
+                    color: const Color(0xFF7656C8),
+                  ),
+                  NeoWorkspaceMetric(
+                    label: 'مهام',
+                    value: '${tasks.length}',
+                    icon: Icons.task_alt_outlined,
+                    color: AppColors.mintAccent,
+                  ),
                 ],
               ),
+            Expanded(
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: AppColors.divider)),
+                ),
+                child: q.isEmpty
+                    ? const NeoWorkspaceEmptyState(
+                        icon: Icons.manage_search_rounded,
+                        title: 'ابحث في NeoTask',
+                        message:
+                            'اكتب اسم موظف أو رقمًا وظيفيًا أو عنوان هدف أو معيار أو مهمة.',
+                      )
+                    : total == 0
+                    ? const NeoWorkspaceEmptyState(
+                        icon: Icons.search_off_rounded,
+                        title: 'لا توجد نتائج مطابقة',
+                        message: 'جرّب كلمة أقصر أو اسمًا أو رقمًا مختلفًا.',
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        children: [
+                          if (employees.isNotEmpty)
+                            _SearchSection(
+                              title: 'موظفون',
+                              icon: Icons.people_alt_outlined,
+                              children: employees
+                                  .map(
+                                    (user) => _EmployeeResultTile(user: user),
+                                  )
+                                  .toList(),
+                            ),
+                          if (goals.isNotEmpty)
+                            _SearchSection(
+                              title: 'أهداف',
+                              icon: Icons.flag_outlined,
+                              children: goals
+                                  .map(
+                                    (goal) => _ResultTile(
+                                      icon: Icons.flag_outlined,
+                                      title: goal.title,
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => GoalDetailScreen(
+                                            goalId: goal.goalId,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          if (criteria.isNotEmpty)
+                            _SearchSection(
+                              title: 'معايير',
+                              icon: Icons.checklist_rtl_outlined,
+                              children: criteria
+                                  .map(
+                                    (criterion) => _CriterionResultTile(
+                                      criterion: criterion,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          if (tasks.isNotEmpty)
+                            _SearchSection(
+                              title: 'مهام',
+                              icon: Icons.task_alt_outlined,
+                              children: tasks
+                                  .map((task) => _TaskResultTile(task: task))
+                                  .toList(),
+                            ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _SearchSection extends StatelessWidget {
-  const _SearchSection({required this.title, required this.children});
+  const _SearchSection({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
 
   final String title;
+  final IconData icon;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8, top: 8),
-          child: Text(
-            title,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FBFD),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: [
+          NeoWorkspaceSectionHeader(
+            title: title,
+            trailing: Icon(icon, color: AppColors.deepBlue, size: 20),
           ),
+          const Divider(height: 1),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _ResultTile extends StatelessWidget {
+  const _ResultTile({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final Widget? subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.deepBlue.withValues(alpha: .08),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
-        Card(child: Column(children: children)),
-        const SizedBox(height: 16),
-      ],
+        child: Icon(icon, color: AppColors.deepBlue, size: 20),
+      ),
+      title: Text(title, style: AppTextStyles.cardTitle),
+      subtitle: subtitle,
+      trailing: const Icon(
+        Icons.arrow_forward_ios_rounded,
+        size: 15,
+        color: AppColors.textSecondary,
+      ),
+      onTap: onTap,
     );
   }
 }
@@ -230,29 +320,22 @@ class _EmployeeResultTile extends StatelessWidget {
         .read<TaskProvider>()
         .tasksForEmployee(user.uid)
         .length;
+    final subtitle =
+        '${context.tr('رقم وظيفي')}: ${user.employeeNumber} • '
+        '$taskCount ${context.tr('مهام')} • '
+        '$criterionCount ${context.tr('معايير')}';
 
-    return ListTile(
-      // Aligned with every other name-initial CircleAvatar in the app
-      // (contacts/chat/employees lists) — this one previously had no
-      // explicit background color, so it rendered with Flutter's
-      // default gray instead of the app's deepBlue brand tone.
-      leading: CircleAvatar(
-        backgroundColor: AppColors.deepBlue,
-        foregroundColor: Colors.white,
-        child: Text(user.name.isNotEmpty ? user.name[0] : '؟'),
-      ),
-      title: Text(user.name),
-      subtitle: Text(
-        'رقم وظيفي: ${user.employeeNumber} • $taskCount مهمة • $criterionCount معيار',
-      ),
-      trailing: canOpenStats ? const Icon(Icons.chevron_left) : null,
+    return _ResultTile(
+      icon: Icons.person_outline_rounded,
+      title: user.name,
+      subtitle: Text(subtitle, style: AppTextStyles.bodySecondary),
       onTap: canOpenStats
           ? () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => EmployeeStatsDetailScreen(employee: user),
               ),
             )
-          : null,
+          : () {},
     );
   }
 }
@@ -264,14 +347,16 @@ class _CriterionResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: const Icon(Icons.checklist_rtl_outlined),
-      title: Text(criterion.title),
-      subtitle: StatusChip(
-        statusName: criterion.aggregateStatus.name,
-        fontSize: 10,
+    return _ResultTile(
+      icon: Icons.checklist_rtl_outlined,
+      title: criterion.title,
+      subtitle: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: StatusChip(
+          statusName: criterion.aggregateStatus.name,
+          fontSize: 10,
+        ),
       ),
-      trailing: const Icon(Icons.chevron_left),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => CriterionDetailScreen(
@@ -297,18 +382,17 @@ class _TaskResultTile extends StatelessWidget {
         : auth.isManager
         ? TaskReviewDetailScreen(task: task)
         : TaskDetailScreen(task: task);
-
-    return ListTile(
-      leading: const Icon(Icons.task_outlined),
-      title: Text(task.title),
-      subtitle: Row(
+    return _ResultTile(
+      icon: Icons.task_outlined,
+      title: task.title,
+      subtitle: Wrap(
+        spacing: 6,
+        runSpacing: 5,
         children: [
           StatusChip(statusName: task.status.name, fontSize: 10),
-          const SizedBox(width: 6),
           PriorityBadge(priorityName: task.priority.name, compact: true),
         ],
       ),
-      trailing: const Icon(Icons.chevron_left),
       onTap: () => Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => destination)),

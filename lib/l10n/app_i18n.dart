@@ -6,14 +6,12 @@ import '../providers/locale_provider.dart';
 
 extension AppI18nContext on BuildContext {
   String tr(String source) {
-    final inBuildPhase = SchedulerBinding.instance.schedulerPhase ==
+    final inBuildPhase =
+        SchedulerBinding.instance.schedulerPhase ==
         SchedulerPhase.persistentCallbacks;
     Locale locale;
     try {
-      locale = Provider.of<LocaleProvider>(
-        this,
-        listen: inBuildPhase,
-      ).locale;
+      locale = Provider.of<LocaleProvider>(this, listen: inBuildPhase).locale;
     } on ProviderNotFoundException {
       locale = const Locale('ar');
     }
@@ -111,7 +109,8 @@ class AppI18n {
     match = RegExp(r'^(\d+) من (\d+) مكتمل$').firstMatch(source);
     if (match != null) return '${match.group(1)} of ${match.group(2)} complete';
     match = RegExp(r'^(\d+)/(\d+) معايير مكتملة$').firstMatch(source);
-    if (match != null) return '${match.group(1)}/${match.group(2)} criteria complete';
+    if (match != null)
+      return '${match.group(1)}/${match.group(2)} criteria complete';
     match = RegExp(r'^اختيار (\d+)$').firstMatch(source);
     if (match != null) return 'Option ${match.group(1)}';
     match = RegExp(r'^يوم (\d+)$').firstMatch(source);
@@ -139,9 +138,11 @@ class AppI18n {
     match = RegExp(r'^تذكير: مهمة "(.+)" تستحق غدًا$').firstMatch(source);
     if (match != null) return 'Reminder: “${match.group(1)}” is due tomorrow';
     match = RegExp(r'^مهمتك الشخصية "(.+)" أصبحت متأخرة$').firstMatch(source);
-    if (match != null) return 'Your personal task “${match.group(1)}” is overdue';
-    match = RegExp(r'^مهمة "(.+)" المسندة لـ(.+) أصبحت متأخرة$')
-        .firstMatch(source);
+    if (match != null)
+      return 'Your personal task “${match.group(1)}” is overdue';
+    match = RegExp(
+      r'^مهمة "(.+)" المسندة لـ(.+) أصبحت متأخرة$',
+    ).firstMatch(source);
     if (match != null) {
       return 'Task “${match.group(1)}” assigned to ${match.group(2)} is overdue';
     }
@@ -149,9 +150,11 @@ class AppI18n {
     if (match != null) return 'New comment on task: ${match.group(1)}';
     match = RegExp(r'^تذكير بالتصويت: (.+)$').firstMatch(source);
     if (match != null) return 'Poll reminder: ${match.group(1)}';
-    match = RegExp(r'^انتهى التصويت على: (.+)\. اضغط لعرض النتيجة\.$')
-        .firstMatch(source);
-    if (match != null) return 'Voting ended for: ${match.group(1)}. Tap to view the result.';
+    match = RegExp(
+      r'^انتهى التصويت على: (.+)\. اضغط لعرض النتيجة\.$',
+    ).firstMatch(source);
+    if (match != null)
+      return 'Voting ended for: ${match.group(1)}. Tap to view the result.';
     match = RegExp(r'^شهريًا \(يوم (\d+)\)$').firstMatch(source);
     if (match != null) return 'Monthly (day ${match.group(1)})';
     match = RegExp(r'^أولوية (.+)$').firstMatch(source);
@@ -172,7 +175,8 @@ class AppI18n {
     match = RegExp(r'^تعذّر رفع الصورة: (.+)$').firstMatch(source);
     if (match != null) return 'Could not upload the image: ${match.group(1)}';
     match = RegExp(r'^تعذّر رفع المرفق: (.+)$').firstMatch(source);
-    if (match != null) return 'Could not upload the attachment: ${match.group(1)}';
+    if (match != null)
+      return 'Could not upload the attachment: ${match.group(1)}';
     match = RegExp(r'^تعذّر رفع الملف: (.+)$').firstMatch(source);
     if (match != null) return 'Could not upload the file: ${match.group(1)}';
     match = RegExp(r'^تعذّر إرسال الرسالة: (.+)$').firstMatch(source);
@@ -180,7 +184,9 @@ class AppI18n {
     match = RegExp(r'^حدث خطأ غير متوقع[ :]*(.*)$').firstMatch(source);
     if (match != null) {
       final detail = match.group(1)!.trim();
-      return detail.isEmpty ? 'An unexpected error occurred' : 'Unexpected error: $detail';
+      return detail.isEmpty
+          ? 'An unexpected error occurred'
+          : 'Unexpected error: $detail';
     }
     match = RegExp(r'^الصورة الشخصية لـ (.+)$').firstMatch(source);
     if (match != null) return '${match.group(1)} profile photo';
@@ -511,7 +517,8 @@ class AppI18n {
     'اتخاذ القرار النهائي للتعادل': 'Set final tie-break decision',
     'لا توجد أصوات — لا يمكن تحديد نتيجة':
         'No votes — a result cannot be determined',
-    'لا يوجد تقرير نهائي لهذا التصويت': 'No final report is available for this poll',
+    'لا يوجد تقرير نهائي لهذا التصويت':
+        'No final report is available for this poll',
 
     // Knowledge, forms, meetings and contacts
     'تفاصيل المعرفة': 'Knowledge details',
@@ -584,13 +591,15 @@ class AppI18n {
     'لا توجد مهام في هذا اليوم': 'No tasks on this day',
     'لا توجد مهام مجدولة اليوم': 'No tasks scheduled today',
     'لا توجد مهام ضمن هذا العرض': 'No tasks in this view',
-    'لا توجد مهام بانتظار المراجعة حاليًا': 'No tasks currently awaiting review',
+    'لا توجد مهام بانتظار المراجعة حاليًا':
+        'No tasks currently awaiting review',
     'لا توجد اجتماعات قادمة': 'No upcoming meetings',
     'لا توجد إشعارات': 'No notifications',
     'لا توجد نتائج مطابقة': 'No matching results',
     'لا توجد نتائج في مركز المعرفة': 'No results in the knowledge center',
     'لا توجد محادثات حتى الآن': 'No chats yet',
-    'لا توجد رسائل بعد — ابدأ المحادثة': 'No messages yet — start the conversation',
+    'لا توجد رسائل بعد — ابدأ المحادثة':
+        'No messages yet — start the conversation',
     'لا يوجد سجل بعد': 'No history yet',
     'لا يوجد موظفون نشطون': 'No active employees',
     'لا يوجد موظفون نشطون بعد': 'No active employees yet',
@@ -607,7 +616,8 @@ class AppI18n {
     'أضف حقلًا واحدًا على الأقل': 'Add at least one field',
     'يجب إدخال اختيارين على الأقل': 'Enter at least two options',
     'يجب اختيار موظف واحد على الأقل': 'Select at least one employee',
-    'موعد الإغلاق يجب أن يكون في المستقبل': 'The closing time must be in the future',
+    'موعد الإغلاق يجب أن يكون في المستقبل':
+        'The closing time must be in the future',
     'موعد البدء يجب أن يكون قبل موعد الإغلاق':
         'The start time must be before the closing time',
     'تعذّرت قراءة الملف المحدَّد': 'The selected file could not be read',
@@ -635,13 +645,17 @@ class AppI18n {
     'تم إلغاء التصويت': 'Poll cancelled',
     'تم نسخ رابط الدعوة الفعّال': 'Active invitation link copied',
     'تم نسخ رابط النموذج': 'Form link copied',
-    'تم إرسال طلب الإسناد إلى المدير': 'Reassignment request sent to the manager',
-    'تم تأكيد استلام المهمة، وهي الآن مهمتك': 'Task receipt confirmed; it is now assigned to you',
+    'تم إرسال طلب الإسناد إلى المدير':
+        'Reassignment request sent to the manager',
+    'تم تأكيد استلام المهمة، وهي الآن مهمتك':
+        'Task receipt confirmed; it is now assigned to you',
     'تعذر حفظ التعديلات، حاول مجددًا': 'Could not save changes. Try again.',
-    'تعذّر حفظ المتابعة، حاول مرة أخرى': 'Could not save the follow-up. Try again.',
+    'تعذّر حفظ المتابعة، حاول مرة أخرى':
+        'Could not save the follow-up. Try again.',
     'تعذّر إرسال الرد. حاول مرة أخرى': 'Could not send the reply. Try again.',
     'تعذر تحديث السعة الأسبوعية': 'Could not update weekly capacity',
-    'تعذر حذف المعيار، حاول مجددًا': 'Could not delete the criterion. Try again.',
+    'تعذر حذف المعيار، حاول مجددًا':
+        'Could not delete the criterion. Try again.',
     'تعذر حذف الهدف، حاول مجددًا': 'Could not delete the goal. Try again.',
     'تعذر حذف النموذج. حاول مرة أخرى.': 'Could not delete the form. Try again.',
 
@@ -694,7 +708,8 @@ class AppI18n {
         'Arabic interface with right-to-left layout',
     'الإشعارات الصوتية': 'Sound notifications',
     'صوت الرسائل': 'Message sound',
-    'تشغيل صوت عند استلام رسالة جديدة': 'Play a sound when a new message arrives',
+    'تشغيل صوت عند استلام رسالة جديدة':
+        'Play a sound when a new message arrives',
     'صوت المهام': 'Task sound',
     'تشغيل صوت عند إسناد أو تحديث مهمة':
         'Play a sound when a task is assigned or updated',
@@ -713,7 +728,8 @@ class AppI18n {
     'كلمتا المرور غير متطابقتين': 'Passwords do not match',
     'مفتاح التأسيس غير صحيح': 'Incorrect setup key',
     'أدخل الاسم': 'Enter the name',
-    'الرقم السري 6 أحرف على الأقل': 'Password must contain at least 6 characters',
+    'الرقم السري 6 أحرف على الأقل':
+        'Password must contain at least 6 characters',
     'الرقمان السريان لا يتطابقان': 'Passwords do not match',
     'هذا الحقل مطلوب': 'This field is required',
     'يجب تأكيد هذا الحقل': 'This field must be confirmed',
@@ -775,11 +791,14 @@ class AppI18n {
     'فكرة': 'Idea',
     'تم إنشاء حساب المدير بالفعل من جهاز آخر':
         'A manager account has already been created from another device',
-    'تعذّر إنشاء الحساب، حاول مرة أخرى': 'Could not create the account. Try again.',
+    'تعذّر إنشاء الحساب، حاول مرة أخرى':
+        'Could not create the account. Try again.',
     'الحساب غير مكتمل، يرجى التواصل مع المدير':
         'The account setup is incomplete. Contact the manager.',
-    'تم رفض طلب انضمامك من قِبل المدير': 'Your join request was rejected by the manager',
-    'هذا الحساب تم حذفه من قِبل المدير': 'This account was deleted by the manager',
+    'تم رفض طلب انضمامك من قِبل المدير':
+        'Your join request was rejected by the manager',
+    'هذا الحساب تم حذفه من قِبل المدير':
+        'This account was deleted by the manager',
     'جلسة الدخول منتهية، يرجى تسجيل الدخول مرة أخرى':
         'Your session has expired. Sign in again.',
     'ليس لديك صلاحية تغيير كلمات مرور الموظفين':
@@ -802,6 +821,101 @@ class AppI18n {
     'تعذّر الاتصال بالخادم، تحقّق من اتصال الإنترنت':
         'Could not connect to the server. Check your internet connection.',
 
+    // Workspace refresh + Manager AI
+    'مساعد المدير الذكي': 'Manager AI Assistant',
+    'يحلل الطلب ويعرض الإجراء قبل التنفيذ':
+        'Analyzes requests and previews actions before execution',
+    'جارٍ الفحص': 'Checking',
+    'جاهز': 'Ready',
+    'غير متصل': 'Offline',
+    'بانتظار اعتماد المدير': 'Awaiting manager approval',
+    'موظف غير محدد': 'Employee not specified',
+    'أولوية مرتفعة': 'High priority',
+    'أولوية متوسطة': 'Medium priority',
+    'أولوية منخفضة': 'Low priority',
+    'جارٍ الاعتماد': 'Approving…',
+    'سجل عمليات المساعد': 'Assistant activity log',
+    'دليل لما حفظه أو أنشأه الوكيل فعليًا':
+        'Evidence of what the agent actually saved or created',
+    'تعذر تحميل سجل عمليات المساعد':
+        'Could not load the assistant activity log',
+    'لا توجد إجراءات محفوظة': 'No saved actions',
+    'لا توجد عمليات في هذا التصنيف': 'No actions in this category',
+    'قواعد المدير': 'Manager rules',
+    'المبادرات': 'Initiatives',
+    'التحليلات': 'Analyses',
+    'مبادرة منشأة': 'Created initiative',
+    'مهمة منشأة': 'Created task',
+    'قاعدة مدير': 'Manager rule',
+    'تحليل محفوظ': 'Saved analysis',
+    'سجل عام': 'General record',
+    'خيارات حذف القاعدة والسجل': 'Rule and record deletion options',
+    'حذف سجل العملية': 'Delete activity record',
+    'جارٍ التحقق': 'Verifying',
+    'المهمة محذوفة': 'Task deleted',
+    'غير محدد': 'Not specified',
+    'فتح المهمة': 'Open task',
+    'فتح المهمة وتعديلها': 'Open and edit task',
+    'جارٍ التحقق من المهمة': 'Verifying task',
+    'المهمة غير موجودة': 'Task not found',
+    'جارٍ التحقق من القاعدة': 'Verifying rule',
+    'قاعدة فعّالة': 'Active rule',
+    'القاعدة غير فعّالة': 'Rule inactive',
+    'سجل قديم غير مرتبط': 'Unlinked legacy record',
+    'هذه القاعدة تؤثر على طلبات الوكيل القادمة.':
+        'This rule affects future agent requests.',
+    'حذف هذا السجل القديم لا يضمن إيقاف القاعدة.':
+        'Deleting this legacy record does not guarantee the rule is disabled.',
+    'اكتب طلبك لمساعد المدير...': 'Ask the Manager AI Assistant…',
+    'وضع العرض فقط': 'View-only mode',
+    'إضافة للمفضلة': 'Add to favorites',
+    'إزالة من المفضلة': 'Remove from favorites',
+    'إجمالي المفضلة': 'Total favorites',
+    'استخدم النجمة في أي مهمة لتضيفها إلى مساحة التركيز السريع.':
+        'Use the star on any task to add it to your quick-focus workspace.',
+    'المهام التي اخترت الرجوع إليها بسرعة': 'Tasks you chose for quick access',
+    'إجمالي جهات الاتصال': 'Total contacts',
+    'لديهم رقم هاتف': 'With phone number',
+    'لديهم بريد إلكتروني': 'With email',
+    'دليل جهات الاتصال': 'Contact directory',
+    'ابحث واتصل بالجهات الداخلية والخارجية من مكان واحد':
+        'Search and call internal and external contacts from one place',
+    'ابحث بالاسم أو المسمى أو رقم الهاتف':
+        'Search by name, job title, or phone number',
+    'مسح البحث': 'Clear search',
+    'أضف جهات الاتصال المهمة لفريقك لتكون متاحة من مكان واحد.':
+        'Add important team contacts so they are available in one place.',
+    'جرّب اسمًا أو رقمًا مختلفًا.': 'Try a different name or number.',
+    'اتصال': 'Call',
+    'تغلق خلال 24 ساعة': 'Closing within 24 hours',
+    'تصويتاتي': 'My polls',
+    'الموضوعات النشطة والسابقة في مكان واحد':
+        'Active and past poll topics in one place',
+    'ستظهر هنا موضوعات التصويت التي تحتاج مشاركتك أو نتائجها بعد الإغلاق.':
+        'Polls that need your participation, or their results after closing, will appear here.',
+    'نتيجة محسومة': 'Resolved result',
+    'تعادل': 'Tie',
+    'أرشيف القرارات': 'Decision archive',
+    'السجل الدائم للتصويتات المنتهية ونتائجها':
+        'Permanent archive of closed polls and their results',
+    'عند إغلاق أي تصويت سيبقى سجله ونتيجته هنا للرجوع إليه.':
+        'When a poll closes, its record and result remain here for reference.',
+    'غير مرئي للموظفين': 'Hidden from employees',
+    'أُلغي': 'Cancelled',
+    'أُغلق': 'Closed',
+    'ينتهي الآن...': 'Closing now…',
+    'يتبقى': 'Remaining',
+    'يوم': 'day',
+    'ساعة': 'hour',
+    'دقيقة': 'minute',
+    'ثانية': 'second',
+    'منتهي - تعادل': 'Closed — tie',
+    'ابحث في NeoTask': 'Search NeoTask',
+    'اكتب اسم موظف أو رقمًا وظيفيًا أو عنوان هدف أو معيار أو مهمة.':
+        'Enter an employee name or ID, or a goal, criterion, or task title.',
+    'جرّب كلمة أقصر أو اسمًا أو رقمًا مختلفًا.':
+        'Try a shorter keyword, name, or number.',
+    'رقم وظيفي': 'Employee ID',
     // Extended screen copy
     'إنشاء': 'Create',
     'أيقونة الهدف': 'Goal icon',
@@ -844,7 +958,8 @@ class AppI18n {
         'The task was submitted and is now awaiting manager review.',
     'تم إرسال طلب إسناد هذه المهمة لموظف آخر، وهو بانتظار موافقة المدير. يمكنك الاستمرار بالعمل عليها حتى الرد.':
         'A reassignment request was sent and is awaiting manager approval. You can continue working until a decision is made.',
-    'تم إلغاء هذا التصويت من قِبل المدير': 'This poll was cancelled by the manager',
+    'تم إلغاء هذا التصويت من قِبل المدير':
+        'This poll was cancelled by the manager',
     'تم إنشاء نسخة متوقفة من القاعدة': 'A paused copy of the rule was created',
     'تم إنشاء هذا التقرير بواسطة المدير عبر منصة':
         'This report was generated by the manager through',
@@ -927,7 +1042,8 @@ class AppI18n {
     'يجب تحديد موعد إغلاق التصويت — لا يمكن الحفظ بدونه':
         'Set the poll closing time — the poll cannot be saved without it',
     'يجب توفر اختيارين على الأقل': 'At least two options are required',
-    'يرجى اختيار الموظف المسؤول عن المهمة': 'Select the employee responsible for the task',
+    'يرجى اختيار الموظف المسؤول عن المهمة':
+        'Select the employee responsible for the task',
     'يرجى اختيار موظف واحد على الأقل للمشاركة بالتصويت':
         'Select at least one employee to participate in the poll',
     'يرجى اختيار موظف واحد على الأقل للمعيار':
@@ -943,7 +1059,8 @@ class AppI18n {
     'اتصال صوتي': 'Voice call',
     'اسم الموظف المتوقع (اختياري)': 'Expected employee name (optional)',
     'اكتب السبب أو الملاحظة هنا...': 'Enter the reason or note here…',
-    'اكتب النقاشات والنتائج الأساسية': 'Record the main discussion and outcomes',
+    'اكتب النقاشات والنتائج الأساسية':
+        'Record the main discussion and outcomes',
     'اكتب تعليقًا سريعًا...': 'Write a quick comment…',
     'اكتب تعليقًا...': 'Write a comment…',
     'اكتب رسالة...': 'Write a message…',
@@ -954,7 +1071,8 @@ class AppI18n {
     'الغرض من الاجتماع': 'Meeting purpose',
     'الفترة التالية': 'Next period',
     'الفترة السابقة': 'Previous period',
-    'الفقرة أو النص المقصود (اختياري)': 'Referenced paragraph or text (optional)',
+    'الفقرة أو النص المقصود (اختياري)':
+        'Referenced paragraph or text (optional)',
     'القسم': 'Department',
     'المحتوى': 'Content',
     'المكان أو رابط الاتصال': 'Location or meeting link',
@@ -963,8 +1081,7 @@ class AppI18n {
     'الوسوم مفصولة بفاصلة': 'Comma-separated tags',
     'الوصف': 'Description',
     'الوصف (اختياري)': 'Description (optional)',
-    'بحث عن موظف بالاسم أو الرقم الوظيفي...':
-        'Search by employee name or ID…',
+    'بحث عن موظف بالاسم أو الرقم الوظيفي...': 'Search by employee name or ID…',
     'بحث عن موظف...': 'Search for an employee…',
     'تأكيح الرقم السري': 'Confirm password',
     'تأكيد كلمة المرور': 'Confirm password',
@@ -1037,7 +1154,8 @@ class AppI18n {
     'إسناد المهمة إلى أحد الموظفين': 'Assign the task to an employee',
     'إعادة الإسناد إلى': 'Reassign to',
     'اختر موضوعًا لعرض مسار القرار': 'Select a topic to view its decision flow',
-    'اختر هدفًا لاستعراض تقدمه ومعاييره': 'Select a goal to review its progress and criteria',
+    'اختر هدفًا لاستعراض تقدمه ومعاييره':
+        'Select a goal to review its progress and criteria',
     'اختر يومًا لعرض مهامه': 'Select a day to view its tasks',
     'اعتمد بواسطة': 'Approved by',
     'الأولوية الجديدة': 'New priority',
@@ -1048,7 +1166,8 @@ class AppI18n {
     'التكرار': 'Recurrence',
     'الحالة الجديدة': 'New status',
     'الخصوصية': 'Privacy',
-    'الخصوصية كانت مفعّلة عند إجراء التصويت': 'Privacy was enabled while voting',
+    'الخصوصية كانت مفعّلة عند إجراء التصويت':
+        'Privacy was enabled while voting',
     'السابقة والمحاضر': 'History & minutes',
     'العرض': 'View',
     'الفريق كاملًا': 'Entire team',
@@ -1096,7 +1215,6 @@ class AppI18n {
     'عرض المهام': 'Task view',
     'عمليات متعثرة': 'Failed runs',
     'عمليات ناجحة': 'Successful runs',
-    'غير مرئي للموظفين': 'Hidden from employees',
     'قائمة التركيز': 'Focus list',
     'قبل الاستحقاق بـ': 'Before due time by',
     'كل القواعد': 'All rules',
@@ -1115,7 +1233,8 @@ class AppI18n {
     'مرات التنفيذ': 'Run count',
     'مراجعة قريبة': 'Review due soon',
     'مركز القرار جاهز': 'Decision center is ready',
-    'مساحة الأتمتة جاهزة لأول قاعدة': 'Automation workspace is ready for its first rule',
+    'مساحة الأتمتة جاهزة لأول قاعدة':
+        'Automation workspace is ready for its first rule',
     'مساحة الأهداف جاهزة': 'Goals workspace is ready',
     'مساحة التركيز جاهزة': 'Focus workspace is ready',
     'مسودات': 'Drafts',
@@ -1128,7 +1247,8 @@ class AppI18n {
     'مهام الخطة': 'Planned tasks',
     'مهام اليوم': 'Today’s tasks',
     'مهام نشطة': 'Active tasks',
-    'مهامك الخاصة مرتبة حسب الاستحقاق': 'Your personal tasks ordered by due date',
+    'مهامك الخاصة مرتبة حسب الاستحقاق':
+        'Your personal tasks ordered by due date',
     'مهمة خاصة بالمدير': 'Private manager task',
     'موضوعات التصويت': 'Poll topics',
     'موظفون': 'Employees',

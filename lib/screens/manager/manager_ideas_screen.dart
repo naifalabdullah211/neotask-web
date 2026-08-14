@@ -1,10 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/manager_idea_model.dart';
 import '../../models/task_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/task_provider.dart';
+import '../../providers/locale_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/manager_ai_service.dart';
 import '../../theme/app_theme.dart';
@@ -41,10 +44,12 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   @override
   void initState() {
     super.initState();
+    final english = context.read<LocaleProvider>().languageCode == 'en';
     _messages.add(
       _ChatMessage.agent(
-        'حياك الله ${widget.manager.name}. أنا مساعد المدير الذكي. '
-        'اطلب مني إنشاء مبادرة، تجهيز مهمة، تلخيص أداء الفريق، أو تعديل قواعد المساعد.',
+        english
+            ? 'Welcome ${widget.manager.name}. I am the NeoTask Manager AI Assistant. Ask me to create an initiative, prepare a task, summarize team performance, or update assistant rules.'
+            : 'حياك الله ${widget.manager.name}. أنا مساعد المدير الذكي. اطلب مني إنشاء مبادرة، تجهيز مهمة، تلخيص أداء الفريق، أو تعديل قواعد المساعد.',
       ),
     );
     _checkAgentStatus();
@@ -80,13 +85,16 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
         message: input,
         history: _messages
             .take(_messages.length - 1)
-            .map((message) => {
-                  'role': message.fromAgent ? 'assistant' : 'user',
-                  'content': message.text,
-                })
+            .map(
+              (message) => {
+                'role': message.fromAgent ? 'assistant' : 'user',
+                'content': message.text,
+              },
+            )
             .toList(),
         teamContext: _buildTeamContext(),
         agentRules: await FirestoreService.loadManagerAgentRules(),
+        languageCode: context.read<LocaleProvider>().languageCode,
       );
       if (!mounted) return;
       setState(() {
@@ -102,14 +110,12 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
       });
     } catch (_) {
       if (!mounted) return;
-      setState(
-        () {
-          _agentOnline = false;
-          _messages.add(
-            _ChatMessage.error('تعذر الاتصال بالمساعد. حاول مرة أخرى.'),
-          );
-        },
-      );
+      setState(() {
+        _agentOnline = false;
+        _messages.add(
+          _ChatMessage.error('تعذر الاتصال بالمساعد. حاول مرة أخرى.'),
+        );
+      });
     } finally {
       if (mounted) setState(() => _working = false);
       _scrollToBottom();
@@ -152,28 +158,32 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
     final tasks = FirestoreService.getAllTasks();
     final now = DateTime.now();
 
-    return employees.map((employee) {
-      final employeeTasks = tasks
-          .where((task) => task.assignedTo == employee.uid && !task.isPersonal)
-          .toList();
-      final activeTasks = employeeTasks
-          .where((task) => task.status != TaskStatus.approved)
-          .toList();
-      return {
-        'uid': employee.uid,
-        'name': employee.name,
-        'employeeNumber': employee.employeeNumber,
-        'weeklyCapacityHours': employee.weeklyCapacityHours,
-        'activeTasks': activeTasks.length,
-        'overdueTasks': activeTasks
-            .where((task) => task.dueDate.isBefore(now))
-            .length,
-        'plannedHours': activeTasks.fold<double>(
-          0,
-          (sum, task) => sum + task.plannedHours,
-        ),
-      };
-    }).toList(growable: false);
+    return employees
+        .map((employee) {
+          final employeeTasks = tasks
+              .where(
+                (task) => task.assignedTo == employee.uid && !task.isPersonal,
+              )
+              .toList();
+          final activeTasks = employeeTasks
+              .where((task) => task.status != TaskStatus.approved)
+              .toList();
+          return {
+            'uid': employee.uid,
+            'name': employee.name,
+            'employeeNumber': employee.employeeNumber,
+            'weeklyCapacityHours': employee.weeklyCapacityHours,
+            'activeTasks': activeTasks.length,
+            'overdueTasks': activeTasks
+                .where((task) => task.dueDate.isBefore(now))
+                .length,
+            'plannedHours': activeTasks.fold<double>(
+              0,
+              (sum, task) => sum + task.plannedHours,
+            ),
+          };
+        })
+        .toList(growable: false);
   }
 
   Future<String> _executeApprovedAction(ManagerAiAction action) async {
@@ -242,9 +252,10 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
             plannedHours: createdTask.plannedHours,
           ),
         );
-        return 'تم إنشاء المهمة والتحقق منها في Firestore. رقم المهمة: '
-            '${task.taskId} — المسؤول: ${selectedAssignee.name} '
-            '(${selectedAssignee.employeeNumber}). يمكنك فتحها وتعديلها من سجل عمليات المساعد.';
+        final english = context.read<LocaleProvider>().languageCode == 'en';
+        return english
+            ? 'Task created and verified in Firestore. Task ID: ${task.taskId} — owner: ${selectedAssignee.name} (${selectedAssignee.employeeNumber}). You can open and edit it from the assistant activity log.'
+            : 'تم إنشاء المهمة والتحقق منها في Firestore. رقم المهمة: ${task.taskId} — المسؤول: ${selectedAssignee.name} (${selectedAssignee.employeeNumber}). يمكنك فتحها وتعديلها من سجل عمليات المساعد.';
 
       case 'update_agent_rule':
         await FirestoreService.saveManagerAgentRuleBundle(
@@ -252,14 +263,22 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
           title: action.title,
           manager: widget.manager,
         );
-        return 'تم حفظ القاعدة واعتمادها. سيطبقها الوكيل في الطلبات التالية.';
+        return context.read<LocaleProvider>().languageCode == 'en'
+            ? 'The rule was saved and approved. The agent will apply it to future requests.'
+            : 'تم حفظ القاعدة واعتمادها. سيطبقها الوكيل في الطلبات التالية.';
 
       case 'team_summary':
         await _archiveAction(action, recordType: 'analysis');
-        return 'تم اعتماد التحليل وحفظه في سجل عمليات المساعد.';
+        return context.read<LocaleProvider>().languageCode == 'en'
+            ? 'The analysis was approved and saved in the assistant activity log.'
+            : 'تم اعتماد التحليل وحفظه في سجل عمليات المساعد.';
 
       default:
-        throw ArgumentError('نوع الإجراء غير قابل للتنفيذ.');
+        throw ArgumentError(
+          context.read<LocaleProvider>().languageCode == 'en'
+              ? 'This action type cannot be executed.'
+              : 'نوع الإجراء غير قابل للتنفيذ.',
+        );
     }
   }
 
@@ -282,7 +301,13 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   void _cancelAction() {
     setState(() {
       _pendingAction = null;
-      _messages.add(_ChatMessage.agent('تم إلغاء الإجراء ولم يُحفظ أي تغيير.'));
+      _messages.add(
+        _ChatMessage.agent(
+          context.read<LocaleProvider>().languageCode == 'en'
+              ? 'The action was cancelled and no change was saved.'
+              : 'تم إلغاء الإجراء ولم يُحفظ أي تغيير.',
+        ),
+      );
     });
     _scrollToBottom();
   }
@@ -303,20 +328,16 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
               child: const Text('إلغاء'),
             ),
             OutlinedButton(
-              onPressed: () => Navigator.pop(
-                context,
-                _RuleDeleteChoice.recordOnly,
-              ),
+              onPressed: () =>
+                  Navigator.pop(context, _RuleDeleteChoice.recordOnly),
               child: const Text('حذف السجل فقط'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.statusRejected,
               ),
-              onPressed: () => Navigator.pop(
-                context,
-                _RuleDeleteChoice.ruleAndRecord,
-              ),
+              onPressed: () =>
+                  Navigator.pop(context, _RuleDeleteChoice.ruleAndRecord),
               child: const Text('حذف القاعدة والسجل'),
             ),
           ],
@@ -352,8 +373,8 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
           idea.isTaskRecord
               ? 'سيُحذف سجل المساعد فقط. المهمة الأصلية لن تُحذف.'
               : idea.isRuleRecord
-                  ? 'هذا سجل قاعدة قديم وغير مرتبط تقنيًا بالقاعدة الفعّالة. '
-                      'حذف البطاقة لن يوقف القاعدة.'
+              ? 'هذا سجل قاعدة قديم وغير مرتبط تقنيًا بالقاعدة الفعّالة. '
+                    'حذف البطاقة لن يوقف القاعدة.'
               : 'سيتم حذف هذا العنصر نهائيًا من سجل المساعد.',
         ),
         actions: [
@@ -377,8 +398,8 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
             idea.isTaskRecord
                 ? 'تم حذف سجل العملية فقط، والمهمة الأصلية ما زالت موجودة.'
                 : idea.isRuleRecord
-                    ? 'تم حذف بطاقة السجل فقط، ولم تتغير القاعدة الفعّالة.'
-                    : 'تم حذف سجل العملية.',
+                ? 'تم حذف بطاقة السجل فقط، ولم تتغير القاعدة الفعّالة.'
+                : 'تم حذف سجل العملية.',
           ),
         ),
       );
@@ -466,9 +487,8 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
-              itemBuilder: (context, index) => _MessageBubble(
-                message: _messages[index],
-              ),
+              itemBuilder: (context, index) =>
+                  _MessageBubble(message: _messages[index]),
             ),
           ),
           if (_pendingAction != null)
@@ -574,9 +594,7 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
                     const Divider(height: 1),
                     Expanded(
                       child: filteredIdeas.isEmpty
-                          ? const _EmptyHistory(
-                              'لا توجد عمليات في هذا التصنيف',
-                            )
+                          ? const _EmptyHistory('لا توجد عمليات في هذا التصنيف')
                           : ListView.separated(
                               padding: const EdgeInsets.all(12),
                               itemCount: filteredIdeas.length,
@@ -597,15 +615,14 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   }
 
   Widget _buildHistoryRecord(ManagerIdea idea) {
-    final onDelete =
-        widget.readOnly ? null : () => _deleteIdea(idea);
+    final onDelete = widget.readOnly ? null : () => _deleteIdea(idea);
     if (idea.isTaskRecord) {
       return StreamBuilder<AppTask?>(
         stream: FirestoreService.watchTask(idea.taskId!),
         builder: (context, taskSnapshot) {
           final linkedTask = taskSnapshot.data;
-          final verifying = taskSnapshot.connectionState ==
-                  ConnectionState.waiting &&
+          final verifying =
+              taskSnapshot.connectionState == ConnectionState.waiting &&
               !taskSnapshot.hasData;
           return _HistoryRecordCard(
             idea: idea,
@@ -626,8 +643,8 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
           linkedTask: null,
           verifying: false,
           ruleActive: ruleSnapshot.data,
-          verifyingRule: ruleSnapshot.connectionState ==
-                  ConnectionState.waiting &&
+          verifyingRule:
+              ruleSnapshot.connectionState == ConnectionState.waiting &&
               !ruleSnapshot.hasData,
           readOnly: widget.readOnly,
           onOpen: null,
@@ -706,13 +723,13 @@ class _OnlineBadge extends StatelessWidget {
     final dotColor = checking
         ? const Color(0xFFE8B84B)
         : available
-            ? const Color(0xFF33D6A6)
-            : const Color(0xFFFF8A80);
+        ? const Color(0xFF33D6A6)
+        : const Color(0xFFFF8A80);
     final foreground = checking
         ? const Color(0xFFFFD77A)
         : available
-            ? const Color(0xFF8EF0D1)
-            : const Color(0xFFFFB4AE);
+        ? const Color(0xFF8EF0D1)
+        : const Color(0xFFFFB4AE);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -725,7 +742,11 @@ class _OnlineBadge extends StatelessWidget {
           CircleAvatar(radius: 4, backgroundColor: dotColor),
           const SizedBox(width: 6),
           Text(
-            checking ? 'جارٍ الفحص' : available ? 'جاهز' : 'غير متصل',
+            checking
+                ? 'جارٍ الفحص'
+                : available
+                ? 'جاهز'
+                : 'غير متصل',
             style: TextStyle(
               color: foreground,
               fontSize: 12,
@@ -751,13 +772,13 @@ class _MessageBubble extends StatelessWidget {
     final background = message.isError
         ? const Color(0xFFFFEEEE)
         : message.fromAgent
-            ? const Color(0xFFF0F5FA)
-            : AppColors.navy;
+        ? const Color(0xFFF0F5FA)
+        : AppColors.navy;
     final foreground = message.isError
         ? AppColors.statusRejected
         : message.fromAgent
-            ? const Color(0xFF26364A)
-            : Colors.white;
+        ? const Color(0xFF26364A)
+        : Colors.white;
 
     return Align(
       alignment: alignment,
@@ -859,7 +880,8 @@ class _ApprovalCard extends StatelessWidget {
                 ),
                 _ActionDetailChip(
                   icon: Icons.schedule_outlined,
-                  label: '${action.plannedHours.toStringAsFixed(action.plannedHours % 1 == 0 ? 0 : 1)} ساعة',
+                  label:
+                      '${action.plannedHours.toStringAsFixed(action.plannedHours % 1 == 0 ? 0 : 1)} ساعة',
                 ),
               ],
             ),
@@ -874,7 +896,8 @@ class _ApprovalCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               FilledButton.icon(
-                onPressed: working ||
+                onPressed:
+                    working ||
                         (action.isTaskCreation && !action.hasExecutionDetails)
                     ? null
                     : onApprove,
@@ -891,29 +914,28 @@ class _ApprovalCard extends StatelessWidget {
 
 extension on _HistoryFilter {
   String get label => switch (this) {
-        _HistoryFilter.all => 'الكل',
-        _HistoryFilter.rules => 'قواعد المدير',
-        _HistoryFilter.tasks => 'المهام',
-        _HistoryFilter.initiatives => 'المبادرات',
-        _HistoryFilter.analyses => 'التحليلات',
-      };
+    _HistoryFilter.all => 'الكل',
+    _HistoryFilter.rules => 'قواعد المدير',
+    _HistoryFilter.tasks => 'المهام',
+    _HistoryFilter.initiatives => 'المبادرات',
+    _HistoryFilter.analyses => 'التحليلات',
+  };
 
   IconData get icon => switch (this) {
-        _HistoryFilter.all => Icons.view_list_outlined,
-        _HistoryFilter.rules => Icons.rule_folder_outlined,
-        _HistoryFilter.tasks => Icons.task_alt_outlined,
-        _HistoryFilter.initiatives => Icons.rocket_launch_outlined,
-        _HistoryFilter.analyses => Icons.analytics_outlined,
-      };
+    _HistoryFilter.all => Icons.view_list_outlined,
+    _HistoryFilter.rules => Icons.rule_folder_outlined,
+    _HistoryFilter.tasks => Icons.task_alt_outlined,
+    _HistoryFilter.initiatives => Icons.rocket_launch_outlined,
+    _HistoryFilter.analyses => Icons.analytics_outlined,
+  };
 
   bool matches(ManagerIdea idea) => switch (this) {
-        _HistoryFilter.all => true,
-        _HistoryFilter.rules => idea.isRuleRecord,
-        _HistoryFilter.tasks =>
-          idea.isTaskRecord && !idea.isInitiativeRecord,
-        _HistoryFilter.initiatives => idea.isInitiativeRecord,
-        _HistoryFilter.analyses => idea.isAnalysisRecord,
-      };
+    _HistoryFilter.all => true,
+    _HistoryFilter.rules => idea.isRuleRecord,
+    _HistoryFilter.tasks => idea.isTaskRecord && !idea.isInitiativeRecord,
+    _HistoryFilter.initiatives => idea.isInitiativeRecord,
+    _HistoryFilter.analyses => idea.isAnalysisRecord,
+  };
 }
 
 class _HistoryFilters extends StatelessWidget {
@@ -998,10 +1020,10 @@ class _HistoryRecordCard extends StatelessWidget {
     final status = taskExists
         ? statusLabelAr(linkedTask!.status.name)
         : idea.isTaskRecord
-            ? verifying
-                ? 'جارٍ التحقق'
-                : 'المهمة محذوفة'
-            : null;
+        ? verifying
+              ? 'جارٍ التحقق'
+              : 'المهمة محذوفة'
+        : null;
     final dueDate = linkedTask?.dueDate ?? idea.dueDate;
     final assignee = idea.assigneeName ?? 'غير محدد';
     final employeeNumber = idea.employeeNumber ?? '';
@@ -1009,39 +1031,37 @@ class _HistoryRecordCard extends StatelessWidget {
     final typeLabel = idea.isInitiativeRecord
         ? 'مبادرة منشأة'
         : idea.isTaskRecord
-            ? 'مهمة منشأة'
-            : idea.isRuleRecord
-                ? 'قاعدة مدير'
-                : idea.isAnalysisRecord
-                    ? 'تحليل محفوظ'
-                    : 'سجل عام';
+        ? 'مهمة منشأة'
+        : idea.isRuleRecord
+        ? 'قاعدة مدير'
+        : idea.isAnalysisRecord
+        ? 'تحليل محفوظ'
+        : 'سجل عام';
     final typeIcon = idea.isInitiativeRecord
         ? Icons.rocket_launch_outlined
         : idea.isTaskRecord
-            ? Icons.task_alt_rounded
-            : idea.isRuleRecord
-                ? Icons.rule_folder_outlined
-                : idea.isAnalysisRecord
-                    ? Icons.analytics_outlined
-                    : Icons.notes_outlined;
+        ? Icons.task_alt_rounded
+        : idea.isRuleRecord
+        ? Icons.rule_folder_outlined
+        : idea.isAnalysisRecord
+        ? Icons.analytics_outlined
+        : Icons.notes_outlined;
     final accent = idea.isInitiativeRecord
         ? const Color(0xFF7656A7)
         : idea.isTaskRecord
-            ? const Color(0xFF138B68)
-            : idea.isRuleRecord
-                ? const Color(0xFF9A6810)
-                : idea.isAnalysisRecord
-                    ? const Color(0xFF376AA3)
-                    : const Color(0xFF6C7788);
+        ? const Color(0xFF138B68)
+        : idea.isRuleRecord
+        ? const Color(0xFF9A6810)
+        : idea.isAnalysisRecord
+        ? const Color(0xFF376AA3)
+        : const Color(0xFF6C7788);
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F9FC),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(
-          color: accent.withValues(alpha: 0.28),
-        ),
+        border: Border.all(color: accent.withValues(alpha: 0.28)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1049,11 +1069,7 @@ class _HistoryRecordCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                typeIcon,
-                color: accent,
-                size: 20,
-              ),
+              Icon(typeIcon, color: accent, size: 20),
               const SizedBox(width: 9),
               Expanded(
                 child: Column(
@@ -1100,9 +1116,11 @@ class _HistoryRecordCard extends StatelessWidget {
               ),
               if (onDelete != null)
                 IconButton(
-                  tooltip: idea.isRuleRecord
-                      ? 'خيارات حذف القاعدة والسجل'
-                      : 'حذف سجل العملية',
+                  tooltip: context.tr(
+                    idea.isRuleRecord
+                        ? 'خيارات حذف القاعدة والسجل'
+                        : 'حذف سجل العملية',
+                  ),
                   onPressed: onDelete,
                   icon: const Icon(Icons.delete_outline, size: 20),
                   color: AppColors.statusRejected,
@@ -1132,8 +1150,8 @@ class _HistoryRecordCard extends StatelessWidget {
                     icon: taskExists
                         ? Icons.sync_alt_rounded
                         : verifying
-                            ? Icons.hourglass_top_rounded
-                            : Icons.link_off_rounded,
+                        ? Icons.hourglass_top_rounded
+                        : Icons.link_off_rounded,
                     text: status,
                     danger: !taskExists && !verifying,
                   ),
@@ -1150,11 +1168,11 @@ class _HistoryRecordCard extends StatelessWidget {
               label: Text(
                 taskExists
                     ? readOnly
-                        ? 'فتح المهمة'
-                        : 'فتح المهمة وتعديلها'
+                          ? 'فتح المهمة'
+                          : 'فتح المهمة وتعديلها'
                     : verifying
-                        ? 'جارٍ التحقق من المهمة'
-                        : 'المهمة غير موجودة',
+                    ? 'جارٍ التحقق من المهمة'
+                    : 'المهمة غير موجودة',
               ),
             ),
           ] else ...[
@@ -1168,18 +1186,19 @@ class _HistoryRecordCard extends StatelessWidget {
                     icon: verifyingRule
                         ? Icons.hourglass_top_rounded
                         : ruleActive == true
-                            ? Icons.check_circle_outline
-                            : idea.hasLinkedRule
-                                ? Icons.block_outlined
-                                : Icons.info_outline,
+                        ? Icons.check_circle_outline
+                        : idea.hasLinkedRule
+                        ? Icons.block_outlined
+                        : Icons.info_outline,
                     text: verifyingRule
                         ? 'جارٍ التحقق من القاعدة'
                         : ruleActive == true
-                            ? 'قاعدة فعّالة'
-                            : idea.hasLinkedRule
-                                ? 'القاعدة غير فعّالة'
-                                : 'سجل قديم غير مرتبط',
-                    danger: idea.hasLinkedRule &&
+                        ? 'قاعدة فعّالة'
+                        : idea.hasLinkedRule
+                        ? 'القاعدة غير فعّالة'
+                        : 'سجل قديم غير مرتبط',
+                    danger:
+                        idea.hasLinkedRule &&
                         !verifyingRule &&
                         ruleActive == false,
                   ),
@@ -1314,14 +1333,20 @@ class _Suggestions extends StatelessWidget {
 
   final ValueChanged<String> onSelected;
 
-  static const items = [
-    'أنشئ مبادرة لتحسين متابعة المهام المتأخرة',
-    'جهز مسودة مهمة لفريق الجودة لمدة أسبوع',
-    'اقترح قاعدة تنبيه للمهام المتأخرة',
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final english = context.watch<LocaleProvider>().languageCode == 'en';
+    final items = english
+        ? const [
+            'Create an initiative to improve overdue-task follow-up',
+            'Prepare a one-week task draft for the Quality team',
+            'Suggest an alert rule for overdue tasks',
+          ]
+        : const [
+            'أنشئ مبادرة لتحسين متابعة المهام المتأخرة',
+            'جهز مسودة مهمة لفريق الجودة لمدة أسبوع',
+            'اقترح قاعدة تنبيه للمهام المتأخرة',
+          ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -1366,7 +1391,7 @@ class _Composer extends StatelessWidget {
               maxLines: 5,
               onSubmitted: (_) => onSend(),
               decoration: InputDecoration(
-                hintText: 'اكتب طلبك لمساعد المدير...',
+                hintText: context.tr('اكتب طلبك لمساعد المدير...'),
                 filled: true,
                 fillColor: const Color(0xFFF7F9FC),
                 border: OutlineInputBorder(
