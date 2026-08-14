@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mirsad-production-deploy
+  group: mirsad-production-warehouse-v2
   cancel-in-progress: true
 
 jobs:
