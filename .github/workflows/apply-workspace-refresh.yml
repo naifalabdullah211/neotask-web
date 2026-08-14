@@ -1,0 +1,60 @@
+name: Apply NeoTask Workspace Refresh
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-workspace-refresh.yml'
+      - 'tool/apply_workspace_refresh.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: neotask-workspace-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.4'
+          channel: stable
+          cache: true
+
+      - name: Apply refresh
+        run: python tool/apply_workspace_refresh.py
+
+      - name: Format changed Dart files
+        run: |
+          dart format \
+            lib/screens/manager/manager_ideas_screen.dart \
+            lib/services/manager_ai_service.dart \
+            lib/screens/employee/employee_home_screen.dart \
+            lib/widgets/poll_card.dart \
+            lib/screens/employee/employee_polls_tab.dart \
+            lib/screens/manager/past_polls_screen.dart \
+            lib/screens/shared/favorites_screen.dart \
+            lib/screens/shared/contacts_screen.dart \
+            lib/screens/shared/search_screen.dart \
+            lib/l10n/app_i18n.dart
+
+      - name: Verify Flutter
+        run: |
+          flutter pub get
+          flutter test test/workflow_features_test.dart
+          flutter build web --release --pwa-strategy=none
+
+      - name: Commit verified refresh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/screens lib/services/manager_ai_service.dart lib/widgets lib/l10n/app_i18n.dart
+          git commit -m 'Refresh NeoTask legacy screens and bilingual UI' || true
+          git push || true
