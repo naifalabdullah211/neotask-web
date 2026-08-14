@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/apply-workspace-refresh.yml'
       - 'tool/apply_workspace_refresh.py'
+      - 'tool/dedupe_i18n_keys.py'
   workflow_dispatch:
 
 permissions:
@@ -29,7 +30,9 @@ jobs:
           cache: true
 
       - name: Apply refresh
-        run: python tool/apply_workspace_refresh.py
+        run: |
+          python tool/apply_workspace_refresh.py
+          python tool/dedupe_i18n_keys.py
 
       - name: Format changed Dart files
         run: |
