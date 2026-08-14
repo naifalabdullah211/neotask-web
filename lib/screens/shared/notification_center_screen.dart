@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart' hide Text;
-import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:neotask_pro/l10n/app_i18n.dart';
+import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
+
 import '../../models/notification_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/notification_provider.dart';
 import '../../providers/document_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/neo_workspace_chrome.dart';
 import '../employee/employee_poll_vote_screen.dart';
 import '../employee/task_detail_screen.dart';
 import '../manager/manager_poll_detail_screen.dart';
@@ -16,24 +18,6 @@ import '../manager/poll_report_screen.dart';
 import '../manager/task_review_detail_screen.dart';
 import 'knowledge_document_detail_screen.dart';
 
-/// In-app notification inbox — accessible from the [NotificationBell] in
-/// both `manager_home_screen.dart` and `employee_home_screen.dart`.
-///
-/// Renders every [AppNotification] for [userUid] (newest first), marking
-/// each one read the moment it is tapped.
-///
-/// UPGRADED (Phase E) routing for the multi-status voting lifecycle:
-///   - [NotificationType.pollEnded] (manager-only, "انتهى التصويت"): opens
-///     [PollReportScreen] DIRECTLY (per the exact requirement "اضغط لعرض
-///     النتيجة"), not [ManagerPollDetailScreen].
-///   - [NotificationType.voteReminder] (employee-only, "حث الموظفين على
-///     التصويت"): opens [EmployeePollVoteScreen] directly so the employee
-///     can vote immediately.
-///   - [NotificationType.pollTieNeedsDecision] (legacy, manager-only):
-///     still opens [ManagerPollDetailScreen] for backward-compat with any
-///     already-persisted notification of this legacy type.
-/// [NotificationType.pollTieNeedsDecision] notifications are visually
-/// distinguished with an orange accent and a gavel icon.
 class NotificationCenterScreen extends StatelessWidget {
   const NotificationCenterScreen({super.key, required this.userUid});
 
@@ -46,15 +30,20 @@ class NotificationCenterScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('الإشعارات'),
+        centerTitle: false,
+        title: const Text(
+          'الإشعارات',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
         actions: [
           IconButton(
             tooltip: context.tr('تعليم الكل كمقروء'),
-            icon: const Icon(Icons.done_all),
+            icon: const Icon(Icons.done_all_rounded),
             onPressed: () => context
                 .read<NotificationProvider>()
                 .markAllReadForUser(userUid),
           ),
+          const SizedBox(width: 6),
         ],
       ),
       body: SafeArea(
@@ -65,240 +54,399 @@ class NotificationCenterScreen extends StatelessWidget {
               snapshot.data ?? const <AppNotification>[],
             )..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-            if (notifications.isEmpty) {
-              return const Center(
-                child: Text(
-                  'لا توجد إشعارات',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-              );
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                notifications.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
             }
 
-            return ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: notifications.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final n = notifications[index];
-                return _NotificationTile(
-                  notification: n,
-                  isManager: isManager,
-                  onTap: () async {
-                    if (!n.isRead) {
-                      await context.read<NotificationProvider>().markRead(
-                        n.notificationId,
-                      );
-                    }
-                    // pollEnded — manager-only, EXACT requirement: tapping
-                    // opens the permanent final report DIRECTLY, not the
-                    // live detail screen.
-                    if (isManager &&
-                        n.type == NotificationType.pollEnded &&
-                        n.relatedPollId != null &&
-                        context.mounted) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              PollReportScreen(pollId: n.relatedPollId!),
-                        ),
-                      );
-                    }
-                    // voteReminder — employee-only: jump straight to the
-                    // vote screen so the not-yet-voted employee can act
-                    // immediately.
-                    else if (!isManager &&
-                        n.type == NotificationType.voteReminder &&
-                        n.relatedPollId != null &&
-                        context.mounted) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => EmployeePollVoteScreen(
-                            pollId: n.relatedPollId!,
-                            employeeUid: userUid,
+            final unread = notifications.where((item) => !item.isRead).length;
+            final taskRelated = notifications
+                .where((item) => item.relatedTaskId != null)
+                .length;
+            final pollRelated = notifications
+                .where((item) => item.relatedPollId != null)
+                .length;
+            final knowledgeRelated = notifications
+                .where((item) => item.relatedDocumentId != null)
+                .length;
+
+            return Column(
+              children: [
+                NeoWorkspaceMetricsBar(
+                  items: [
+                    NeoWorkspaceMetric(
+                      label: 'إجمالي الإشعارات',
+                      value: '${notifications.length}',
+                      icon: Icons.notifications_none_rounded,
+                      color: const Color(0xFF1F6FD2),
+                    ),
+                    NeoWorkspaceMetric(
+                      label: 'غير مقروءة',
+                      value: '$unread',
+                      icon: Icons.mark_email_unread_outlined,
+                      color: AppColors.statusPending,
+                    ),
+                    NeoWorkspaceMetric(
+                      label: 'مرتبطة بمهام',
+                      value: '$taskRelated',
+                      icon: Icons.task_alt_outlined,
+                      color: AppColors.mintAccent,
+                    ),
+                    NeoWorkspaceMetric(
+                      label: 'مرتبطة بتصويت',
+                      value: '$pollRelated',
+                      icon: Icons.how_to_vote_outlined,
+                      color: AppColors.gold,
+                    ),
+                    NeoWorkspaceMetric(
+                      label: 'معرفة ووثائق',
+                      value: '$knowledgeRelated',
+                      icon: Icons.auto_stories_outlined,
+                      color: const Color(0xFF7656C8),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      border: Border(
+                        top: BorderSide(color: AppColors.divider),
+                      ),
+                    ),
+                    child: notifications.isEmpty
+                        ? const NeoWorkspaceEmptyState(
+                            icon: Icons.notifications_none_rounded,
+                            title: 'لا توجد إشعارات',
+                            message:
+                                'ستظهر هنا التنبيهات والتحديثات المرتبطة بمهامك وتصويتاتك ووثائقك.',
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              NeoWorkspaceSectionHeader(
+                                title: 'مركز الإشعارات',
+                                subtitle: unread == 0
+                                    ? 'جميع الإشعارات مقروءة'
+                                    : '$unread غير مقروءة وتحتاج انتباهك',
+                                trailing: unread == 0
+                                    ? const Icon(
+                                        Icons.check_circle_rounded,
+                                        color: AppColors.statusApproved,
+                                      )
+                                    : null,
+                              ),
+                              const Divider(height: 1),
+                              Expanded(
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.all(AppSpacing.lg),
+                                  itemCount: notifications.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: AppSpacing.md),
+                                  itemBuilder: (context, index) {
+                                    final item = notifications[index];
+                                    return _NotificationCard(
+                                      notification: item,
+                                      onTap: () => _openNotification(
+                                        context,
+                                        notification: item,
+                                        isManager: isManager,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      );
-                    }
-                    // Legacy pollTieNeedsDecision / pollClosed (manager-
-                    // only) — kept for backward-compat with any
-                    // already-persisted notification of these legacy
-                    // types; opens the live detail screen as before.
-                    else if (isManager &&
-                        n.relatedPollId != null &&
-                        context.mounted) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ManagerPollDetailScreen(pollId: n.relatedPollId!),
-                        ),
-                      );
-                    }
-                    if (n.relatedDocumentId != null && context.mounted) {
-                      final document = context
-                          .read<DocumentProvider>()
-                          .byId(n.relatedDocumentId!);
-                      final auth = context.read<AuthProvider>();
-                      final user = auth.currentUser;
-                      if (document != null && user != null && context.mounted) {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => KnowledgeDocumentDetailScreen(
-                              initialDocument: document,
-                              currentUserUid: user.uid,
-                              currentUserName: user.name,
-                              isManager: auth.isManager,
-                              readOnly: auth.isDesigner,
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                    // NEW — Quick Comments feature: tapping a task-comment
-                    // notification jumps straight to that task's detail
-                    // screen (manager -> TaskReviewDetailScreen, employee
-                    // -> TaskDetailScreen), matching the poll-notification
-                    // navigation pattern above.
-                    if (n.relatedTaskId != null && context.mounted) {
-                      final task = FirestoreService.getTask(n.relatedTaskId!);
-                      if (task != null && context.mounted) {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => isManager
-                                ? TaskReviewDetailScreen(task: task)
-                                : TaskDetailScreen(task: task),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                );
-              },
+                  ),
+                ),
+              ],
             );
           },
         ),
       ),
     );
   }
+
+  Future<void> _openNotification(
+    BuildContext context, {
+    required AppNotification notification,
+    required bool isManager,
+  }) async {
+    if (!notification.isRead) {
+      await context
+          .read<NotificationProvider>()
+          .markRead(notification.notificationId);
+    }
+    if (!context.mounted) return;
+
+    if (isManager &&
+        notification.type == NotificationType.pollEnded &&
+        notification.relatedPollId != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PollReportScreen(
+            pollId: notification.relatedPollId!,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (!isManager &&
+        notification.type == NotificationType.voteReminder &&
+        notification.relatedPollId != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EmployeePollVoteScreen(
+            pollId: notification.relatedPollId!,
+            employeeUid: userUid,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (isManager && notification.relatedPollId != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ManagerPollDetailScreen(
+            pollId: notification.relatedPollId!,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (notification.relatedDocumentId != null) {
+      final document = context
+          .read<DocumentProvider>()
+          .byId(notification.relatedDocumentId!);
+      final auth = context.read<AuthProvider>();
+      final user = auth.currentUser;
+      if (document != null && user != null && context.mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => KnowledgeDocumentDetailScreen(
+              initialDocument: document,
+              currentUserUid: user.uid,
+              currentUserName: user.name,
+              isManager: auth.isManager,
+              readOnly: auth.isDesigner,
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
+    if (notification.relatedTaskId != null && context.mounted) {
+      final task = FirestoreService.getTask(notification.relatedTaskId!);
+      if (task != null) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => isManager
+                ? TaskReviewDetailScreen(task: task)
+                : TaskDetailScreen(task: task),
+          ),
+        );
+      }
+    }
+  }
 }
 
-class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({
     required this.notification,
-    required this.isManager,
     required this.onTap,
   });
 
   final AppNotification notification;
-  final bool isManager;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final isTieDecision =
-        notification.type == NotificationType.pollTieNeedsDecision;
-    final isTaskComment = notification.type == NotificationType.taskComment;
-    // NEW — automatic reminders feature: distinct accent/icon per type so
-    // the inbox visually distinguishes "reminder" (amber, matches
-    // AppColors.statusPending used for "قيد الانتظار" elsewhere) from
-    // "overdue escalation" (red, matches AppColors.overdue used by
-    // TaskUrgencyIndicator for the exact same concept) instead of both
-    // falling back to the generic poll icon/color.
-    final isDueSoon = notification.type == NotificationType.taskDueSoon;
-    final isOverdue = notification.type == NotificationType.taskOverdue;
-    // NEW — voting lifecycle upgrade: pollEnded gets a distinct "result
-    // ready" green accent + chart icon (distinguishing it from the
-    // generic ballot-box icon used for the legacy pollClosed type), and
-    // voteReminder gets an amber "campaign" accent/icon matching the
-    // "حث الموظفين على التصويت" action's own icon in
-    // ManagerPollDetailScreen.
-    final isPollEnded = notification.type == NotificationType.pollEnded;
-    final isVoteReminder = notification.type == NotificationType.voteReminder;
-    final isAutomation = notification.type == NotificationType.automation;
-    final isKnowledge =
-        notification.type == NotificationType.knowledgeMention ||
-        notification.type == NotificationType.knowledgeReview ||
-        notification.type == NotificationType.knowledgeReviewDue;
-    final Color accent = isTieDecision || isDueSoon || isVoteReminder
-        ? AppColors.statusPending
-        : isOverdue
-        ? AppColors.overdue
-        : isPollEnded
-        ? AppColors.statusApproved
-        : isAutomation
-        ? AppColors.mintAccent
-        : isKnowledge
-        ? AppColors.gold
-        : (notification.isRead ? AppColors.textSecondary : AppColors.deepBlue);
-    final IconData icon = isTieDecision
-        ? Icons.gavel_outlined
-        : isDueSoon
-        ? Icons.alarm_outlined
-        : isOverdue
-        ? Icons.warning_amber_rounded
-        : isPollEnded
-        ? Icons.assessment_outlined
-        : isVoteReminder
-        ? Icons.campaign_outlined
-        : isAutomation
-        ? Icons.bolt_outlined
-        : isKnowledge
-        ? Icons.auto_stories_outlined
-        : (isTaskComment
-              ? Icons.chat_bubble_outline
-              : Icons.how_to_vote_outlined);
+    final style = _styleFor(notification);
 
-    return Card(
-      color: notification.isRead ? null : accent.withValues(alpha: 0.06),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: isTieDecision
-            ? BorderSide(color: accent.withValues(alpha: 0.5))
-            : BorderSide.none,
-      ),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        leading: CircleAvatar(
-          backgroundColor: accent.withValues(alpha: 0.15),
-          child: Icon(icon, color: accent),
-        ),
-        title: Text(
-          notification.title,
-          style: TextStyle(
-            fontWeight: notification.isRead
-                ? FontWeight.normal
-                : FontWeight.bold,
+    return Material(
+      color: notification.isRead
+          ? const Color(0xFFF9FBFD)
+          : style.color.withValues(alpha: .055),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: notification.isRead
+                  ? AppColors.divider
+                  : style.color.withValues(alpha: .28),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: style.color.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Icon(style.icon, color: style.color, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            notification.title,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: notification.isRead
+                                  ? FontWeight.w700
+                                  : FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        if (!notification.isRead)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsetsDirectional.only(start: 8),
+                            decoration: BoxDecoration(
+                              color: style.color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      notification.body,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodySecondary.copyWith(
+                        fontSize: 12.5,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.schedule_rounded,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          intl.DateFormat(
+                            'yyyy/MM/dd — HH:mm',
+                          ).format(notification.createdAt),
+                          style: AppTextStyles.bodySecondary.copyWith(
+                            fontSize: 11,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(notification.body),
-            const SizedBox(height: 4),
-            Text(
-              intl.DateFormat(
-                'yyyy/MM/dd — HH:mm',
-              ).format(notification.createdAt),
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        trailing: !notification.isRead
-            ? Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: accent,
-                  shape: BoxShape.circle,
-                ),
-              )
-            : null,
-        isThreeLine: true,
-        onTap: onTap,
       ),
     );
   }
+
+  _NotificationStyle _styleFor(AppNotification item) {
+    final isTieDecision = item.type == NotificationType.pollTieNeedsDecision;
+    final isTaskComment = item.type == NotificationType.taskComment;
+    final isDueSoon = item.type == NotificationType.taskDueSoon;
+    final isOverdue = item.type == NotificationType.taskOverdue;
+    final isPollEnded = item.type == NotificationType.pollEnded;
+    final isVoteReminder = item.type == NotificationType.voteReminder;
+    final isAutomation = item.type == NotificationType.automation;
+    final isKnowledge =
+        item.type == NotificationType.knowledgeMention ||
+        item.type == NotificationType.knowledgeReview ||
+        item.type == NotificationType.knowledgeReviewDue;
+
+    if (isTieDecision) {
+      return const _NotificationStyle(
+        color: AppColors.statusPending,
+        icon: Icons.gavel_outlined,
+      );
+    }
+    if (isDueSoon) {
+      return const _NotificationStyle(
+        color: AppColors.statusPending,
+        icon: Icons.alarm_outlined,
+      );
+    }
+    if (isOverdue) {
+      return const _NotificationStyle(
+        color: AppColors.overdue,
+        icon: Icons.warning_amber_rounded,
+      );
+    }
+    if (isPollEnded) {
+      return const _NotificationStyle(
+        color: AppColors.statusApproved,
+        icon: Icons.assessment_outlined,
+      );
+    }
+    if (isVoteReminder) {
+      return const _NotificationStyle(
+        color: AppColors.statusPending,
+        icon: Icons.campaign_outlined,
+      );
+    }
+    if (isAutomation) {
+      return const _NotificationStyle(
+        color: AppColors.mintAccent,
+        icon: Icons.bolt_outlined,
+      );
+    }
+    if (isKnowledge) {
+      return const _NotificationStyle(
+        color: AppColors.gold,
+        icon: Icons.auto_stories_outlined,
+      );
+    }
+    if (isTaskComment) {
+      return const _NotificationStyle(
+        color: AppColors.deepBlue,
+        icon: Icons.chat_bubble_outline_rounded,
+      );
+    }
+    return const _NotificationStyle(
+      color: AppColors.steel,
+      icon: Icons.notifications_none_rounded,
+    );
+  }
+}
+
+class _NotificationStyle {
+  const _NotificationStyle({required this.color, required this.icon});
+
+  final Color color;
+  final IconData icon;
 }
