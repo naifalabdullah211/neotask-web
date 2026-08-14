@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/task_model.dart';
+import 'firestore_service.dart';
+
 class ManagerAiAction {
   const ManagerAiAction({
     required this.type,
@@ -99,7 +102,7 @@ class ManagerAiResult {
 class ManagerAiService {
   static const String _endpoint = String.fromEnvironment(
     'NEOTASK_AI_API_URL',
-    defaultValue: 'https://project-0wvza.vercel.app/api/agent',
+    defaultValue: 'https://project-0wvza.vercel.app/api/multi-agent',
   );
 
   static const String _truthModeRule =
@@ -128,11 +131,6 @@ class ManagerAiService {
     required String message,
     required List<Map<String, String>> history,
     required List<Map<String, dynamic>> teamContext,
-    required List<Map<String, dynamic>> taskContext,
-    required List<Map<String, dynamic>> projectContext,
-    required List<Map<String, dynamic>> meetingContext,
-    required List<Map<String, dynamic>> knowledgeContext,
-    required Map<String, dynamic> qualityContext,
     required List<String> agentRules,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -161,16 +159,16 @@ class ManagerAiService {
             'message': message,
             'history': history,
             'teamContext': teamContext,
-            'taskContext': taskContext,
-            'projectContext': projectContext,
-            'meetingContext': meetingContext,
-            'knowledgeContext': knowledgeContext,
-            'qualityContext': qualityContext,
+            'taskContext': _buildTaskContext(),
+            'projectContext': _buildProjectContext(),
+            'meetingContext': _buildMeetingContext(),
+            'knowledgeContext': _buildKnowledgeContext(),
+            'qualityContext': _buildQualityContext(),
             'agentRules': effectiveRules,
             'truthMode': true,
           }),
         )
-        .timeout(const Duration(seconds: 45));
+        .timeout(const Duration(seconds: 55));
 
     Map<String, dynamic> body;
     try {
@@ -208,9 +206,12 @@ class ManagerAiService {
       mode: mode,
       requestId: body['requestId']?.toString(),
     );
+    final agentLine = delegatedAgents.isEmpty
+        ? ''
+        : '\n🤖 الوكلاء: ${delegatedAgents.map((agent) => agent.name).join(' ← ')}';
 
     return ManagerAiResult(
-      reply: '${truth.label}\n$rawReply',
+      reply: '${truth.label}$agentLine\n$rawReply',
       action: action,
       requestId: body['requestId']?.toString(),
       mode: mode,
@@ -218,6 +219,120 @@ class ManagerAiService {
       truthNote: truth.note,
       delegatedAgents: delegatedAgents,
     );
+  }
+
+  static List<Map<String, dynamic>> _buildTaskContext() {
+    final tasks = FirestoreService.getAllTasks()
+        .where((task) => !task.isPersonal)
+        .toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return tasks.take(120).map((task) => {
+          'taskId': task.taskId,
+          'title': task.title,
+          'assignedTo': task.assignedTo,
+          'assignedBy': task.assignedBy,
+          'dueDate': task.dueDate.toIso8601String(),
+          'startDate': task.startDate.toIso8601String(),
+          'status': task.status.name,
+          'priority': task.priority.name,
+          'plannedHours': task.plannedHours,
+          'progressPercent': task.progressPercent,
+          'category': task.category,
+          'isOverdue': task.isOverdue,
+          'updatedAt': task.updatedAt.toIso8601String(),
+        }).toList(growable: false);
+  }
+
+  static List<Map<String, dynamic>> _buildProjectContext() {
+    final criteria = FirestoreService.getAllCriteria();
+    return FirestoreService.getAllGoals().take(60).map((goal) {
+      final items = criteria.where((item) => item.goalId == goal.goalId).toList();
+      final completed = items.where((item) => item.aggregateStatus.name == 'completed').length;
+      final inProgress = items.where((item) => item.aggregateStatus.name == 'inProgress').length;
+      return {
+        'goalId': goal.goalId,
+        'title': goal.title,
+        'description': goal.description,
+        'startDate': goal.startDate.toIso8601String(),
+        'endDate': goal.endDate.toIso8601String(),
+        'criteriaTotal': items.length,
+        'criteriaCompleted': completed,
+        'criteriaInProgress': inProgress,
+        'criteria': items.take(30).map((item) => {
+              'criterionId': item.criterionId,
+              'title': item.title,
+              'status': item.aggregateStatus.name,
+              'assignees': item.assignees,
+              'completion': '${item.completionRatio.completed}/${item.completionRatio.total}',
+            }).toList(growable: false),
+      };
+    }).toList(growable: false);
+  }
+
+  static List<Map<String, dynamic>> _buildMeetingContext() {
+    final meetings = FirestoreService.getAllMeetings().toList()
+      ..sort((a, b) => b.startTime.compareTo(a.startTime));
+    return meetings.take(50).map((meeting) => {
+          'meetingId': meeting.meetingId,
+          'title': meeting.title,
+          'startTime': meeting.startTime.toIso8601String(),
+          'status': meeting.status.name,
+          'location': meeting.location,
+          'agendaItems': meeting.agendaItems.take(15).toList(),
+          'minutes': meeting.minutes.length > 1200
+              ? meeting.minutes.substring(0, 1200)
+              : meeting.minutes,
+          'decisions': meeting.decisions.take(30).map((decision) => {
+                'text': decision.text,
+                'ownerUid': decision.ownerUid,
+                'ownerName': decision.ownerName,
+                'dueDate': decision.dueDate.toIso8601String(),
+                'linkedTaskId': decision.linkedTaskId,
+                'isCompleted': decision.isCompleted,
+              }).toList(growable: false),
+        }).toList(growable: false);
+  }
+
+  static List<Map<String, dynamic>> _buildKnowledgeContext() {
+    return FirestoreService.getAllDocuments().take(50).map((document) {
+      final excerpt = document.content.trim();
+      return {
+        'documentId': document.documentId,
+        'title': document.title,
+        'kind': document.kind.name,
+        'status': document.status.name,
+        'department': document.department,
+        'category': document.category,
+        'tags': document.tags.take(12).toList(),
+        'ownerName': document.ownerName,
+        'reviewerName': document.reviewerName,
+        'reviewDueDate': document.reviewDueDate?.toIso8601String(),
+        'updatedAt': document.updatedAt.toIso8601String(),
+        'contentExcerpt': excerpt.length > 1000 ? excerpt.substring(0, 1000) : excerpt,
+      };
+    }).toList(growable: false);
+  }
+
+  static Map<String, dynamic> _buildQualityContext() {
+    final tasks = FirestoreService.getAllTasks().where((task) => !task.isPersonal).toList();
+    final criteria = FirestoreService.getAllCriteria();
+    final documents = FirestoreService.getAllDocuments();
+    final now = DateTime.now();
+    return {
+      'tasksTotal': tasks.length,
+      'overdueTasks': tasks.where((task) => task.isOverdue).length,
+      'rejectedTasks': tasks.where((task) => task.status.name == 'rejected').length,
+      'submittedForReview': tasks.where((task) => task.status.name == 'submitted').length,
+      'criteriaTotal': criteria.length,
+      'criteriaNotStarted': criteria.where((item) => item.aggregateStatus.name == 'notStarted').length,
+      'criteriaInProgress': criteria.where((item) => item.aggregateStatus.name == 'inProgress').length,
+      'criteriaCompleted': criteria.where((item) => item.aggregateStatus.name == 'completed').length,
+      'documentsInReview': documents.where((doc) => doc.status.name == 'inReview').length,
+      'documentReviewsOverdue': documents.where((doc) {
+        final due = doc.reviewDueDate;
+        return doc.status.name == 'inReview' && due != null && due.isBefore(now);
+      }).length,
+    };
   }
 
   static _TruthClassification _classifyTruth({
@@ -239,7 +354,7 @@ class ManagerAiService {
         note: 'النتيجة صادرة من المسار المحلي الحتمي وليست ادعاء تنفيذ.',
       );
     }
-    if (mode == 'ai-gateway') {
+    if (mode == 'multi-agent' || mode == 'ai-gateway') {
       return _TruthClassification(
         status: 'ai_analysis',
         label: '🟡 تحليل AI — ليس دليل تنفيذ',
@@ -261,10 +376,6 @@ class ManagerAiService {
         return 'هذه الميزة متاحة للمدير فقط';
       case 'rate-limit':
         return 'تم إرسال طلبات كثيرة. حاول بعد دقيقة';
-      case 'agent-not-configured':
-        return 'خدمة المساعد لم تكتمل تهيئتها بعد';
-      case 'agent-provider-error':
-        return 'تعذر الحصول على رد من محرك الذكاء الاصطناعي';
       case 'invalid-message':
         return 'الطلب فارغ أو طويل جدًا';
       case 'missing-token':
