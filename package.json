@@ -8,8 +8,5 @@
   },
   "scripts": {
     "test": "node --test api/*.test.js"
-  },
-  "dependencies": {
-    "ai": "7.0.43"
   }
 }
