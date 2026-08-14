@@ -1,0 +1,55 @@
+name: Check Mirsad Firebase Access
+
+on:
+  push:
+    branches:
+      - agent/mirsad-firebase-deploy
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mirsad-firebase-access-check
+  cancel-in-progress: true
+
+jobs:
+  check-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decode existing Firebase credential
+        env:
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_SERVICE_ACCOUNT_BASE64"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Check Mirsad project access
+        id: check
+        continue-on-error: true
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          set -o pipefail
+          npm install --global firebase-tools
+          firebase hosting:sites:list --project mirsad-211 --json > mirsad-access-output.txt 2>&1
+
+      - name: Record result
+        if: always()
+        run: |
+          {
+            printf 'status=%s\n' "${{ steps.check.outcome }}"
+            printf 'checked=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            printf '%s\n' '---'
+            sed -n '1,120p' mirsad-access-output.txt 2>/dev/null || true
+          } > mirsad-access-result.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f mirsad-access-result.txt
+          git commit -m "chore: record Mirsad Firebase access check [skip ci]" || true
+          git push origin HEAD:agent/mirsad-firebase-deploy || true
