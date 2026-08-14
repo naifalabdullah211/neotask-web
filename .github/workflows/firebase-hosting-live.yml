@@ -69,6 +69,28 @@ jobs:
             --project neotask1-ff5a4 \
             --non-interactive
 
+      - name: Verify live MIRSAD release
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error \
+              -H 'Cache-Control: no-cache' \
+              "https://mirsad.web.app/mirsad-master-medications.js?commit=${GITHUB_SHA}" \
+              -o "$RUNNER_TEMP/mirsad-master-medications.js"; then
+              break
+            fi
+            sleep 5
+          done
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const window = {};
+          vm.runInNewContext(fs.readFileSync(process.env.RUNNER_TEMP + '/mirsad-master-medications.js', 'utf8'), {window});
+          if (window.__MIRSAD_MASTER_MEDICATIONS__?.length !== 55) throw new Error('Live medication count is not 55');
+          if (new Set(window.__MIRSAD_MASTER_MEDICATIONS__.map(item => item.caseId)).size !== 55) throw new Error('Live case IDs are not unique');
+          console.log('Live MIRSAD verification: PASS (55 unique medication records)');
+          NODE
+
       - name: Remove temporary Firebase credential
         if: always()
         run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
