@@ -10,6 +10,8 @@ import '../../providers/auth_provider.dart';
 import '../../services/workflow_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/neo_selection_field.dart';
+import '../../widgets/neo_workspace_chrome.dart';
+import '../../widgets/status_chip.dart' show AppPill;
 import 'manager_create_task_screen.dart';
 
 class CustomFormsScreen extends StatelessWidget {
@@ -19,85 +21,145 @@ class CustomFormsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 620;
+
+    void createForm() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CustomFormEditorScreen()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('النماذج والحقول المخصصة')),
-      floatingActionButton: readOnly
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const CustomFormEditorScreen(),
-                ),
-              ),
-              icon: const Icon(Icons.add),
-              label: const Text('نموذج جديد'),
-            ),
-      body: StreamBuilder<List<CustomFormDefinition>>(
-        stream: WorkflowService.watchForms(),
-        builder: (context, snapshot) {
-          final forms = snapshot.data ?? const [];
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              forms.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return ListView(
-            padding: const EdgeInsets.all(18),
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.dynamic_form_outlined,
-                      size: 38,
-                      color: AppColors.gold,
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'اجمع الطلبات والبيانات برابط مباشر',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 19,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            'أنشئ حقولك، فعّل النموذج، ثم تابع الردود من نفس المكان',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                        ],
+      appBar: AppBar(
+        centerTitle: false,
+        title: const Text(
+          'النماذج والحقول المخصصة',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          if (!readOnly)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 12),
+              child: compact
+                  ? IconButton.filled(
+                      tooltip: context.tr('نموذج جديد'),
+                      onPressed: createForm,
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
                       ),
+                      icon: const Icon(Icons.add_rounded),
+                    )
+                  : FilledButton.icon(
+                      onPressed: createForm,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 20),
+                      label: const Text('نموذج جديد'),
+                    ),
+            ),
+        ],
+      ),
+      body: SafeArea(
+        child: StreamBuilder<List<CustomFormDefinition>>(
+          stream: WorkflowService.watchForms(),
+          builder: (context, snapshot) {
+            final forms = snapshot.data ?? const <CustomFormDefinition>[];
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                forms.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final active = forms.where((form) => form.isActive).length;
+            final paused = forms.length - active;
+            final fieldCount = forms.fold<int>(
+              0,
+              (sum, form) => sum + form.fields.length,
+            );
+
+            return Column(
+              children: [
+                NeoWorkspaceMetricsBar(
+                  items: [
+                    NeoWorkspaceMetric(
+                      label: 'إجمالي النماذج',
+                      value: '${forms.length}',
+                      icon: Icons.dynamic_form_outlined,
+                      color: const Color(0xFF1F6FD2),
+                    ),
+                    NeoWorkspaceMetric(
+                      label: 'نماذج نشطة',
+                      value: '$active',
+                      icon: Icons.public_rounded,
+                      color: AppColors.mintAccent,
+                    ),
+                    NeoWorkspaceMetric(
+                      label: 'نماذج متوقفة',
+                      value: '$paused',
+                      icon: Icons.pause_circle_outline_rounded,
+                      color: AppColors.statusPending,
+                    ),
+                    NeoWorkspaceMetric(
+                      label: 'إجمالي الحقول',
+                      value: '$fieldCount',
+                      icon: Icons.view_list_outlined,
+                      color: AppColors.gold,
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 18),
-              if (forms.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(26),
-                    child: Center(child: Text('لا توجد نماذج بعد')),
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      border: Border(top: BorderSide(color: AppColors.divider)),
+                    ),
+                    child: forms.isEmpty
+                        ? NeoWorkspaceEmptyState(
+                            icon: Icons.dynamic_form_outlined,
+                            title: 'مساحة النماذج جاهزة',
+                            message:
+                                'أنشئ نموذجًا وحدد حقوله ثم شارك رابطه وتابع الردود من نفس المكان.',
+                            action: readOnly
+                                ? null
+                                : FilledButton.icon(
+                                    onPressed: createForm,
+                                    icon: const Icon(Icons.add_rounded),
+                                    label: const Text('نموذج جديد'),
+                                  ),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const NeoWorkspaceSectionHeader(
+                                title: 'مكتبة النماذج',
+                                subtitle:
+                                    'النماذج وروابطها وحالة استقبال الردود في مساحة واحدة',
+                              ),
+                              const Divider(height: 1),
+                              Expanded(
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.all(AppSpacing.lg),
+                                  itemCount: forms.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: AppSpacing.md),
+                                  itemBuilder: (context, index) => _FormCard(
+                                    form: forms[index],
+                                    readOnly: readOnly,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
-                )
-              else
-                ...forms.map(
-                  (form) => _FormCard(form: form, readOnly: readOnly),
                 ),
-              const SizedBox(height: 90),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -105,6 +167,7 @@ class CustomFormsScreen extends StatelessWidget {
 
 class _FormCard extends StatelessWidget {
   const _FormCard({required this.form, required this.readOnly});
+
   final CustomFormDefinition form;
   final bool readOnly;
 
@@ -114,29 +177,40 @@ class _FormCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 12),
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Wrap(
-        runSpacing: 12,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          SizedBox(
-            width: MediaQuery.sizeOf(context).width < 650
-                ? double.infinity
-                : 360,
-            child: Row(
+  Widget build(BuildContext context) {
+    final statusColor = form.isActive
+        ? AppColors.statusApproved
+        : AppColors.statusPending;
+
+    return Material(
+      color: const Color(0xFFF9FBFD),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  backgroundColor:
-                      (form.isActive
-                              ? AppColors.mintAccent
-                              : AppColors.textSecondary)
-                          .withValues(alpha: .14),
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
                   child: Icon(
-                    form.isActive ? Icons.public : Icons.public_off,
-                    color: AppColors.navy,
+                    form.isActive
+                        ? Icons.public_rounded
+                        : Icons.public_off_rounded,
+                    color: statusColor,
+                    size: 22,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -147,76 +221,147 @@ class _FormCard extends StatelessWidget {
                       Text(
                         form.title,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
                           fontSize: 16,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                      Text(
-                        '${form.fields.length} حقول · ${form.isActive ? 'متاح لاستقبال الردود' : 'متوقف'}',
-                        style: const TextStyle(color: AppColors.textSecondary),
+                      if (form.description.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          form.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodySecondary,
+                        ),
+                      ],
+                      const SizedBox(height: 9),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          AppPill(
+                            color: statusColor,
+                            label: form.isActive ? 'نشط' : 'متوقف',
+                          ),
+                          _FormFact(
+                            icon: Icons.view_list_outlined,
+                            text:
+                                '${form.fields.length} ${context.tr('الحقول')}',
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
+                if (!readOnly)
+                  Tooltip(
+                    message: context.tr(
+                      form.isActive ? 'إيقاف استقبال الردود' : 'تفعيل النموذج',
+                    ),
+                    child: Switch(
+                      value: form.isActive,
+                      onChanged: (value) =>
+                          WorkflowService.setFormActive(form.formId, value),
+                    ),
+                  ),
               ],
             ),
-          ),
-          OutlinedButton.icon(
-            onPressed: form.isActive
-                ? () async {
-                    await Clipboard.setData(ClipboardData(text: _shareUrl));
-                    if (context.mounted)
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('تم نسخ رابط النموذج')),
-                      );
-                  }
-                : null,
-            icon: const Icon(Icons.link),
-            label: const Text('نسخ الرابط'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    FormResponsesScreen(form: form, readOnly: readOnly),
-              ),
-            ),
-            icon: const Icon(Icons.inbox_outlined),
-            label: const Text('الردود'),
-          ),
-          if (!readOnly) ...[
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CustomFormEditorScreen(existing: form),
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: form.isActive
+                      ? () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: _shareUrl),
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('تم نسخ رابط النموذج'),
+                              ),
+                            );
+                          }
+                        }
+                      : null,
+                  icon: const Icon(Icons.link_rounded, size: 18),
+                  label: const Text('نسخ الرابط'),
                 ),
-              ),
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('تعديل النموذج'),
-            ),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.statusRejected,
-              ),
-              onPressed: () => _deleteFormWithConfirmation(context, form),
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('حذف النموذج'),
-            ),
-            Tooltip(
-              message: form.isActive ? 'إيقاف استقبال الردود' : 'تفعيل النموذج',
-              child: Switch(
-                value: form.isActive,
-                onChanged: (value) =>
-                    WorkflowService.setFormActive(form.formId, value),
-              ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          FormResponsesScreen(form: form, readOnly: readOnly),
+                    ),
+                  ),
+                  icon: const Icon(Icons.inbox_outlined, size: 18),
+                  label: const Text('الردود'),
+                ),
+                if (!readOnly)
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CustomFormEditorScreen(existing: form),
+                      ),
+                    ),
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('تعديل النموذج'),
+                  ),
+                if (!readOnly)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.statusRejected,
+                    ),
+                    onPressed: () => _deleteFormWithConfirmation(context, form),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    label: const Text('حذف النموذج'),
+                  ),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FormFact extends StatelessWidget {
+  const _FormFact({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: AppColors.textSecondary),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: AppTextStyles.bodySecondary.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 Future<bool> _deleteFormWithConfirmation(

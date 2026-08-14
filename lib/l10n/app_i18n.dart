@@ -206,6 +206,10 @@ class AppI18n {
       return 'Please select ${_en[value] ?? value}';
     }
 
+    match = RegExp(r'^(\d+) غير مقروءة وتحتاج انتباهك$').firstMatch(source);
+    if (match != null)
+      return '${match.group(1)} unread notifications need your attention';
+
     return null;
   }
 
@@ -916,6 +920,29 @@ class AppI18n {
     'جرّب كلمة أقصر أو اسمًا أو رقمًا مختلفًا.':
         'Try a shorter keyword, name, or number.',
     'رقم وظيفي': 'Employee ID',
+    // Workspace refresh phase 2
+    'إجمالي الإشعارات': 'Total notifications',
+    'غير مقروءة': 'Unread',
+    'مرتبطة بمهام': 'Task-related',
+    'مرتبطة بتصويت': 'Poll-related',
+    'معرفة ووثائق': 'Knowledge & documents',
+    'ستظهر هنا التنبيهات والتحديثات المرتبطة بمهامك وتصويتاتك ووثائقك.':
+        'Alerts and updates related to your tasks, polls, and documents will appear here.',
+    'مركز الإشعارات': 'Notification center',
+    'جميع الإشعارات مقروءة': 'All notifications are read',
+    'إجمالي النماذج': 'Total forms',
+    'نماذج نشطة': 'Active forms',
+    'نماذج متوقفة': 'Paused forms',
+    'إجمالي الحقول': 'Total fields',
+    'مساحة النماذج جاهزة': 'Forms workspace is ready',
+    'أنشئ نموذجًا وحدد حقوله ثم شارك رابطه وتابع الردود من نفس المكان.':
+        'Create a form, define its fields, share its link, and track responses in one place.',
+    'مكتبة النماذج': 'Forms library',
+    'النماذج وروابطها وحالة استقبال الردود في مساحة واحدة':
+        'Forms, share links, and response status in one workspace',
+    'إيقاف استقبال الردود': 'Stop accepting responses',
+    'تفعيل النموذج': 'Activate form',
+
     // Extended screen copy
     'إنشاء': 'Create',
     'أيقونة الهدف': 'Goal icon',
