@@ -7,7 +7,6 @@ Automated static audit of `lib/screens` and `lib/widgets`, including runtime-com
 | 18 | `lib/widgets/automation_workspace.dart` | 4 untranslated non-Text properties, 8 runtime-composed Arabic strings need review | message: أنشئ قاعدة تربط حدثًا بشرط وإجراء ليعمل NeoTask ; message: غيّر عامل التصفية لعرض بقية قواعد الأتمتة.; runtime: $visibleCount قاعدة; runtime: قبل الموعد بـ ${rule.dueWithinHours} ساعة |
 | 18 | `lib/widgets/goals_workspace.dart` | 4 untranslated non-Text properties, 6 runtime-composed Arabic strings need review | message: أنشئ هدفًا وحدد معاييره وفترته لمتابعة التقدم من; message: غيّر عامل التصفية لعرض بقية الأهداف.; runtime: $visibleCount هدف في العرض; runtime: ${progress.completed}/${progress.total} معايير |
 | 16 | `lib/widgets/polls_workspace.dart` | 3 untranslated non-Text properties, 5 runtime-composed Arabic strings need review | message: أنشئ موضوع تصويت وحدد الخيارات والمشاركين ووقت ا; message: غيّر عامل التصفية لعرض بقية التصويتات.; runtime: $visibleCount تصويت في العرض; runtime: ${poll.participantUids.length} مشارك |
-| 15 | `lib/screens/manager/poll_report_screen.dart` | 6 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation, legacy empty state | runtime: تعذّر حفظ القرار: $e; runtime: قائمة من صوّت (${report.voterUids.length}) |
 | 13 | `lib/screens/manager/bulk_import_screen.dart` | 7 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation | runtime: الملف: $_fileName; runtime: $validCount صالح |
 | 13 | `lib/screens/manager/manager_ideas_screen.dart` | 4 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation, legacy empty state | runtime: حياك الله ${widget.manager.name}. أنا مساعد المدير الذكي; runtime: تم إنشاء المهمة والتحقق منها في Firestore. رقم المهمة: $ |
 | 13 | `lib/screens/manager/task_review_detail_screen.dart` | 5 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation | runtime: تم تحديث الحالة إلى ${statusLabelAr(selected.name)}; runtime: الرقم الوظيفي ${user.employeeNumber} |
@@ -15,24 +14,23 @@ Automated static audit of `lib/screens` and `lib/widgets`, including runtime-com
 | 12 | `lib/screens/manager/custom_forms_screen.dart` | 1 untranslated non-Text properties, 6 runtime-composed Arabic strings need review | message: أنشئ نموذجًا وحدد حقوله ثم شارك رابطه وتابع الرد; runtime: سيُحذف نموذج «${form.title}» وجميع الردود المرتبطة به نه; runtime: تم حذف نموذج «${form.title}» |
 | 12 | `lib/screens/shared/documents_screen.dart` | 5 runtime-composed Arabic strings need review, legacy empty state | runtime: ${provider.documents.length} وثيقة; runtime: تعذّر إنشاء الصفحة: $error |
 | 12 | `lib/screens/shared/meetings_screen.dart` | 5 runtime-composed Arabic strings need review, legacy empty state | runtime: هل تريد حذف «${meeting.title}» ومحضره؟; runtime: ).format(meeting.startTime)}\n${meeting.decisions.length |
-| 11 | `lib/screens/shared/chat_thread_screen.dart` | 3 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation, legacy empty state | runtime: تعذّر إرسال الرسالة: $e; runtime: تعذّر رفع الملف: $e |
 | 10 | `lib/screens/manager/automation_rules_screen.dart` | 5 runtime-composed Arabic strings need review | runtime: سيتم حذف «${rule.name}» نهائيًا.; runtime: ${source.name} - نسخة |
 | 10 | `lib/screens/manager/manager_employees_tab.dart` | 1 untranslated non-Text properties, 4 runtime-composed Arabic strings need review | message: نسبة الإنجاز في الوقت المحدد; runtime: تغيير كلمة المرور — ${user.name}; runtime: تم تغيير كلمة مرور "${user.name}" بنجاح |
 | 10 | `lib/screens/shared/knowledge_document_detail_screen.dart` | 9 runtime-composed Arabic strings need review | runtime: تعديل الإصدار ${document.version + 1}; runtime: ${documentKindLabelAr(document.kind)} · الإصدار ${docume |
 | 10 | `lib/widgets/task_plan_summary.dart` | 6 runtime-composed Arabic strings need review | runtime: البداية ${intl.DateFormat(; runtime: النهاية ${intl.DateFormat( |
 | 9 | `lib/screens/manager/employee_stats_detail_screen.dart` | 3 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation | runtime: رقم وظيفي: ${widget.employee.employeeNumber}; runtime: ${onTime.onTimeCount} من ${onTime.completedCount} مهمة م |
 | 8 | `lib/screens/shared/app_drawer.dart` | 4 runtime-composed Arabic strings need review | runtime: ${widget.completedThisWeek} مكتملة هذا الأسبوع; runtime: يحتاج انتباهك ${widget.overdue} مهمة متأخرة و |
+| 8 | `lib/screens/shared/chat_thread_screen.dart` | 1 untranslated non-Text properties, 3 runtime-composed Arabic strings need review | message: ابدأ المحادثة بإرسال أول رسالة.; runtime: تعذّر إرسال الرسالة: $e; runtime: تعذّر رفع الملف: $e |
 | 8 | `lib/widgets/personal_tasks_workspace.dart` | 3 untranslated non-Text properties, 1 runtime-composed Arabic strings need review | message: أضف مهمة أو تذكيرًا شخصيًا؛ ولن تظهر ضمن تقارير ; message: غيّر عامل التصفية لعرض بقية مهامك الشخصية.; runtime: $visibleCount مهمة في العرض |
 | 7 | `lib/screens/manager/manager_create_task_screen.dart` | 2 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation | runtime: الرقم الوظيفي ${user.employeeNumber}; runtime: يوم ${index + 1} |
 | 7 | `lib/screens/manager/project_plan_screen.dart` | 2 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation | runtime: السعة الأسبوعية — ${user.name}; runtime: ${entry.plannedHours.toStringAsFixed(1)} / ${entry.capac |
-| 7 | `lib/screens/shared/goal_detail_screen.dart` | 1 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation, legacy empty state | runtime: ${ratio.completed} من ${ratio.total} مكتمل |
 | 6 | `lib/screens/designer/designer_dashboard_tab.dart` | 3 runtime-composed Arabic strings need review | runtime: $_periodLabel التالي; runtime: $_periodLabel السابق |
 | 6 | `lib/screens/designer/designer_home_screen.dart` | Arabic UI literals may bypass LocalizedText, small legacy screen shell |  |
 | 6 | `lib/screens/employee/employee_poll_vote_screen.dart` | 2 runtime-composed Arabic strings need review, legacy empty state | runtime: صوتك الحالي: $currentChoice; runtime: النتيجة النهائية: $winnerLabel |
 | 6 | `lib/screens/manager/manager_review_tab.dart` | 3 runtime-composed Arabic strings need review | runtime: أُرسلت: ${t.submittedAt != null ? intl.DateFormat(; runtime: ملاحظة الموظف: ${t.submissionNote} |
 | 6 | `lib/screens/shared/neotask_assistant_screen.dart` | 3 runtime-composed Arabic strings need review | runtime: مرحبًا $name، أنا مساعد NeoTask; runtime: اختر أي تبويب أو أيقونة، أو اكتب اسمها، وسأوضح وظيفتها و |
 | 6 | `lib/widgets/voice_message_recorder_button.dart` | 3 runtime-composed Arabic strings need review | runtime: تعذّر بدء التسجيل: $e; runtime: تعذّر إيقاف التسجيل: $e |
-| 5 | `lib/screens/auth/pending_approval_screen.dart` | 2 runtime-composed Arabic strings need review, small legacy screen shell | runtime: مرحبًا ${user?.name ??; runtime: الرقم الوظيفي: ${user?.employeeNumber ?? |
+| 5 | `lib/screens/auth/pending_approval_screen.dart` | 2 runtime-composed Arabic strings need review, small legacy screen shell | runtime: مرحبًا $name، تم إرسال طلب انضمامك بنجاح، وسيصبح حسابك ف; runtime: الرقم الوظيفي: $employeeNumber |
 | 5 | `lib/screens/shared/criterion_detail_screen.dart` | 1 runtime-composed Arabic strings need review, legacy ListView/ListTile presentation | runtime: ضمن الهدف: ${goal.title} |
 | 5 | `lib/widgets/favorite_star_button.dart` | Arabic UI literals may bypass LocalizedText |  |
 | 5 | `lib/widgets/language_toggle.dart` | Arabic UI literals may bypass LocalizedText |  |
@@ -56,10 +54,12 @@ Automated static audit of `lib/screens` and `lib/widgets`, including runtime-com
 | 2 | `lib/screens/manager/manager_calendar_screen.dart` | 1 untranslated non-Text properties | message: لا توجد مهام مستحقة في هذا اليوم. |
 | 2 | `lib/screens/manager/manager_chat_tab.dart` | 1 runtime-composed Arabic strings need review | runtime: محادثة المهمة مع $employeeName |
 | 2 | `lib/screens/manager/past_polls_screen.dart` | 1 untranslated non-Text properties | message: عند إغلاق أي تصويت سيبقى سجله ونتيجته هنا للرجوع |
+| 2 | `lib/screens/manager/poll_report_screen.dart` | 1 untranslated non-Text properties | message: سيظهر التقرير هنا بعد إغلاق التصويت وحساب النتيج |
 | 2 | `lib/screens/manager/quick_add_task_sheet.dart` | 1 runtime-composed Arabic strings need review | runtime: الرقم الوظيفي ${user.employeeNumber} |
 | 2 | `lib/screens/shared/contacts_screen.dart` | 1 runtime-composed Arabic strings need review | runtime: هل تريد حذف "${contact.name}"؟ |
 | 2 | `lib/screens/shared/criterion_chat_body.dart` | 1 runtime-composed Arabic strings need review | runtime: تعذّر إرسال الرسالة: $e |
 | 2 | `lib/screens/shared/favorites_screen.dart` | 1 untranslated non-Text properties | message: استخدم النجمة في أي مهمة لتضيفها إلى مساحة الترك |
+| 2 | `lib/screens/shared/goal_detail_screen.dart` | 1 runtime-composed Arabic strings need review | runtime: ${ratio.completed} من ${ratio.total} مكتمل |
 | 2 | `lib/screens/shared/request_reassignment_dialog.dart` | 1 runtime-composed Arabic strings need review | runtime: الرقم الوظيفي ${user.employeeNumber} |
 | 2 | `lib/widgets/linked_knowledge_card.dart` | 1 runtime-composed Arabic strings need review | runtime: ${document.department} · الإصدار ${document.version} |
 | 2 | `lib/widgets/neo_selection_field.dart` | 1 runtime-composed Arabic strings need review | runtime: يرجى اختيار $label |
