@@ -19,7 +19,6 @@ Automated static audit of `lib/screens` and `lib/widgets`.
 | 5 | `lib/widgets/favorite_star_button.dart` | Arabic UI literals may bypass LocalizedText |  |
 | 5 | `lib/widgets/language_toggle.dart` | Arabic UI literals may bypass LocalizedText |  |
 | 5 | `lib/widgets/task_urgency_indicator.dart` | Arabic UI literals may bypass LocalizedText |  |
-| 4 | `lib/screens/employee/employee_poll_vote_screen.dart` | legacy ListView/ListTile presentation, small legacy screen shell |  |
 | 4 | `lib/screens/public/public_form_screen.dart` | legacy ListView/ListTile presentation, small legacy screen shell |  |
 | 4 | `lib/screens/shared/create_criterion_screen.dart` | legacy ListView/ListTile presentation, small legacy screen shell |  |
 | 4 | `lib/screens/shared/search_screen.dart` | 2 untranslated non-Text properties | message: اكتب اسم موظف أو رقمًا وظيفيًا أو عنوان هدف أو م; message: جرّب كلمة أقصر أو اسمًا أو رقمًا مختلفًا. |
@@ -32,6 +31,7 @@ Automated static audit of `lib/screens` and `lib/widgets`.
 | 3 | `lib/screens/manager/task_review_detail_screen.dart` | legacy ListView/ListTile presentation |  |
 | 3 | `lib/screens/shared/create_poll_screen.dart` | legacy ListView/ListTile presentation |  |
 | 3 | `lib/screens/shared/criterion_detail_screen.dart` | legacy ListView/ListTile presentation |  |
+| 2 | `lib/screens/employee/employee_poll_vote_screen.dart` | legacy empty state |  |
 | 2 | `lib/screens/employee/employee_polls_tab.dart` | 1 untranslated non-Text properties | message: ستظهر هنا موضوعات التصويت التي تحتاج مشاركتك أو  |
 | 2 | `lib/screens/manager/manager_calendar_screen.dart` | 1 untranslated non-Text properties | message: لا توجد مهام مستحقة في هذا اليوم. |
 | 2 | `lib/screens/manager/manager_employees_tab.dart` | 1 untranslated non-Text properties | message: نسبة الإنجاز في الوقت المحدد |
