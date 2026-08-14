@@ -23,6 +23,8 @@ entries = {
     'أدخل رقمًا صحيحًا': 'Enter a valid number',
     'استخدم صيغة YYYY-MM-DD': 'Use YYYY-MM-DD format',
     'ابدأ المحادثة بإرسال أول رسالة.': 'Start the conversation by sending the first message.',
+    'مدير القسم': 'Department manager',
+    'متابعة · عرض فقط': 'Monitoring · View only',
 }
 
 missing = []
