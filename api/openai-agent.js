@@ -57,6 +57,25 @@ const AGENTS = Object.freeze({
   },
 });
 
+const AGENT_EN = Object.freeze({
+  executive: {name: 'Executive Agent', mission: 'Coordinates specialist agents and consolidates their findings for the manager.'},
+  tasks: {name: 'Tasks Agent', mission: 'Analyzes tasks, overdue work, due dates, priorities, and assignment distribution.'},
+  projects: {name: 'Projects Agent', mission: 'Analyzes goals, initiatives, criteria, completion rates, and schedule risks.'},
+  employees: {name: 'Employees Agent', mission: 'Analyzes employee workload, weekly capacity, distribution, and operational performance.'},
+  meetings: {name: 'Meetings Agent', mission: 'Reviews meetings, minutes, decisions, owners, and due dates.'},
+  knowledge: {name: 'Knowledge Agent', mission: 'Searches only NeoTask policies, procedures, guides, and knowledge pages available in context.'},
+  analytics: {name: 'Analytics Agent', mission: 'Turns NeoTask data into specific metrics, trends, comparisons, and grounded conclusions.'},
+  quality: {name: 'Quality Agent', mission: 'Reviews compliance gaps, delays, criteria, document reviews, and proposes corrective actions.'},
+});
+
+function agentName(id, languageCode = 'ar') {
+  return languageCode === 'en' ? AGENT_EN[id]?.name || id : AGENTS[id]?.name || id;
+}
+
+function agentMission(id, languageCode = 'ar') {
+  return languageCode === 'en' ? AGENT_EN[id]?.mission || '' : AGENTS[id]?.mission || '';
+}
+
 const requestWindows = new Map();
 let firebaseCertCache = {certs: null, expiresAt: 0};
 let openAiHealthCache = {ready: false, expiresAt: 0, code: ''};
@@ -207,6 +226,7 @@ function list(value, limit = 80) {
 function sanitizeBody(body = {}) {
   return {
     prompt: String(body.message || '').trim().slice(0, 4000),
+    languageCode: body.languageCode === 'en' ? 'en' : 'ar',
     history: list(body.history, 10).map((item) => ({
       role: item?.role === 'assistant' ? 'assistant' : 'user',
       content: String(item?.content || '').trim().slice(0, 2500),
@@ -227,17 +247,17 @@ function sanitizeBody(body = {}) {
 
 function routeAgents(prompt) {
   const p = normalizeText(prompt);
-  if (/(تقرير شامل|الوضع العام|وضع القسم|حلل القسم|كل شيء|كل شي|نظره شامله|نظرة شاملة)/.test(p)) {
+  if (/(تقرير شامل|الوضع العام|وضع القسم|حلل القسم|كل شيء|كل شي|نظره شامله|نظرة شاملة|comprehensive report|overall status|department status|analy[sz]e (?:the )?department|everything|full overview)/.test(p)) {
     return ['tasks', 'projects', 'employees', 'meetings', 'knowledge', 'analytics', 'quality'];
   }
   const selected = new Set();
-  if (/(مهمه|مهمة|مهام|متاخر|استحقاق|توزيع|اسناد|إسناد|عاجل)/.test(p)) selected.add('tasks');
-  if (/(مشروع|مبادره|مبادرة|هدف|اهداف|أهداف|معيار|معايير|خطة عمل|خطه عمل)/.test(p)) selected.add('projects');
-  if (/(موظف|موظفين|فريق|حمل|سعه|سعة|اداء موظف|أداء موظف|طاقه|طاقة)/.test(p)) selected.add('employees');
-  if (/(اجتماع|اجتماعات|محضر|قرار اجتماع|قرارات الاجتماع|اجنده|أجندة)/.test(p)) selected.add('meetings');
-  if (/(سياسه|سياسة|اجراء|إجراء|دليل|ملف|وثيقه|وثيقة|معرفه|معرفة|مركز المعرفة)/.test(p)) selected.add('knowledge');
-  if (/(تحليل|احصائ|إحصائ|مؤشر|مؤشرات|kpi|تقرير|اتجاه|مقارنه|مقارنة)/.test(p)) selected.add('analytics');
-  if (/(جوده|جودة|التزام|تدقيق|فجوه|فجوة|تصحيحي|مراجعه|مراجعة|اعتماد)/.test(p)) selected.add('quality');
+  if (/(مهمه|مهمة|مهام|متاخر|استحقاق|توزيع|اسناد|إسناد|عاجل|task|tasks|overdue|due date|deadline|assign|assignment|urgent|priority)/.test(p)) selected.add('tasks');
+  if (/(مشروع|مبادره|مبادرة|هدف|اهداف|أهداف|معيار|معايير|خطة عمل|خطه عمل|project|projects|initiative|initiatives|goal|goals|criterion|criteria|work plan)/.test(p)) selected.add('projects');
+  if (/(موظف|موظفين|فريق|حمل|سعه|سعة|اداء موظف|أداء موظف|طاقه|طاقة|employee|employees|team|workload|capacity|staff performance)/.test(p)) selected.add('employees');
+  if (/(اجتماع|اجتماعات|محضر|قرار اجتماع|قرارات الاجتماع|اجنده|أجندة|meeting|meetings|minutes|agenda|meeting decision)/.test(p)) selected.add('meetings');
+  if (/(سياسه|سياسة|اجراء|إجراء|دليل|ملف|وثيقه|وثيقة|معرفه|معرفة|مركز المعرفة|policy|procedure|guide|document|file|knowledge|knowledge center)/.test(p)) selected.add('knowledge');
+  if (/(تحليل|احصائ|إحصائ|مؤشر|مؤشرات|kpi|تقرير|اتجاه|مقارنه|مقارنة|analysis|analytics|metric|metrics|indicator|indicators|report|trend|comparison)/.test(p)) selected.add('analytics');
+  if (/(جوده|جودة|التزام|تدقيق|فجوه|فجوة|تصحيحي|مراجعه|مراجعة|اعتماد|quality|compliance|audit|gap|corrective|review|accreditation)/.test(p)) selected.add('quality');
   if (selected.size === 0) selected.add('tasks');
   return [...selected];
 }
@@ -349,13 +369,21 @@ async function checkOpenAiHealth({force = false} = {}) {
 }
 
 async function runSpecialist(id, context, today) {
-  const agent = AGENTS[id];
-  const instructions = `أنت ${agent.name} داخل NeoTask. ${agent.mission}\n` +
-    'TruthMode إلزامي: افصل الحقائق من NeoTask عن الاستنتاجات. لا تدّعِ تنفيذ أي تغيير. لا تخترع بيانات. ' +
-    `التاريخ في السعودية: ${today}. أجب بنقاط عربية قصيرة موجهة للوكيل التنفيذي.`;
-  const input = `طلب المدير: ${context.prompt}\nبيانات نطاقك الحية: ${JSON.stringify(agentContext(id, context))}`;
+  const languageCode = context.languageCode;
+  const name = agentName(id, languageCode);
+  const mission = agentMission(id, languageCode);
+  const instructions = languageCode === 'en'
+    ? `You are the ${name} inside NeoTask. ${mission}
+TruthMode is mandatory: separate NeoTask facts from inferences, never claim you executed a change, and never invent data. Saudi date: ${today}. Reply in concise English bullets for the Executive Agent.`
+    : `أنت ${name} داخل NeoTask. ${mission}
+TruthMode إلزامي: افصل الحقائق من NeoTask عن الاستنتاجات. لا تدّعِ تنفيذ أي تغيير. لا تخترع بيانات. التاريخ في السعودية: ${today}. أجب بنقاط عربية قصيرة موجهة للوكيل التنفيذي.`;
+  const input = languageCode === 'en'
+    ? `Manager request: ${context.prompt}
+Live scope data: ${JSON.stringify(agentContext(id, context))}`
+    : `طلب المدير: ${context.prompt}
+بيانات نطاقك الحية: ${JSON.stringify(agentContext(id, context))}`;
   const result = await openAiResponse({instructions, input, maxOutputTokens: 650});
-  return {id, name: agent.name, status: 'completed-ai', report: result.text};
+  return {id, name, status: 'completed-ai', report: result.text};
 }
 
 function addDays(isoDate, days) {
@@ -368,9 +396,11 @@ function requestedDueDate(prompt, today) {
   const p = normalizeText(prompt);
   const explicit = p.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
   if (explicit) return explicit[1];
-  if (/(غدا|غد|بكره|بكرة)/.test(p)) return addDays(today, 1);
-  const relative = p.match(/بعد\s+(\d{1,3})\s+(?:يوم|ايام)/);
-  return relative ? addDays(today, Math.max(1, Number(relative[1]))) : '';
+  if (/(غدا|غد|بكره|بكرة|tomorrow)/.test(p)) return addDays(today, 1);
+  const relativeAr = p.match(/بعد\s+(\d{1,3})\s+(?:يوم|ايام)/);
+  if (relativeAr) return addDays(today, Math.max(1, Number(relativeAr[1])));
+  const relativeEn = p.match(/(?:after|in)\s+(\d{1,3})\s+days?/);
+  return relativeEn ? addDays(today, Math.max(1, Number(relativeEn[1]))) : '';
 }
 
 function matchEmployee(prompt, team) {
@@ -386,27 +416,46 @@ function matchEmployee(prompt, team) {
 
 function deterministicAction(context, today) {
   const p = normalizeText(context.prompt);
-  if (/(قاعده|قاعدة|من الان|دائما|تذكر)/.test(p)) {
+  const en = context.languageCode === 'en';
+  if (/(قاعده|قاعدة|من الان|دائما|تذكر|rule|from now on|always|remember)/.test(p)) {
     return {
-      reply: 'جهزت القاعدة كمسودة وتنتظر اعتمادك؛ لم تُحفظ بعد.',
+      reply: en
+        ? 'I prepared the rule as a draft awaiting your approval; it has not been saved yet.'
+        : 'جهزت القاعدة كمسودة وتنتظر اعتمادك؛ لم تُحفظ بعد.',
       action: {
         type: 'update_agent_rule',
-        title: 'قاعدة دائمة للوكيل',
+        title: en ? 'Permanent agent rule' : 'قاعدة دائمة للوكيل',
         payload: context.prompt,
         employeeUid: '', employeeNumber: '', employeeName: '', dueDate: '',
-        priority: 'medium', plannedHours: 1, category: 'عام', requiresApproval: true,
+        priority: 'medium', plannedHours: 1, category: en ? 'General' : 'عام', requiresApproval: true,
       },
     };
   }
-  const wantsTask = /(مهمه|مهمة|كلف|اسند|إسناد)/.test(p);
-  const wantsInitiative = /(مبادره|مبادرة|فكره|فكرة)/.test(p);
+  const wantsTask = /(مهمه|مهمة|كلف|اسند|إسناد|task|assign|delegate)/.test(p);
+  const wantsInitiative = /(مبادره|مبادرة|فكره|فكرة|initiative|idea)/.test(p);
   if (!wantsTask && !wantsInitiative) return null;
   const employee = matchEmployee(context.prompt, context.team);
-  if (!employee) return {reply: 'حدد اسم الموظف أو رقمه الوظيفي قبل تجهيز الإجراء.', action: null};
+  if (!employee) {
+    return {
+      reply: en
+        ? 'Specify the employee name or employee ID before I prepare the action.'
+        : 'حدد اسم الموظف أو رقمه الوظيفي قبل تجهيز الإجراء.',
+      action: null,
+    };
+  }
   const dueDate = requestedDueDate(context.prompt, today);
-  if (!dueDate) return {reply: `حدد موعد الاستحقاق لـ ${employee.name} قبل تجهيز الإجراء.`, action: null};
+  if (!dueDate) {
+    return {
+      reply: en
+        ? `Specify a due date for ${employee.name} before I prepare the action.`
+        : `حدد موعد الاستحقاق لـ ${employee.name} قبل تجهيز الإجراء.`,
+      action: null,
+    };
+  }
   return {
-    reply: `جهزت ${wantsInitiative ? 'المبادرة' : 'المهمة'} كمسودة لـ ${employee.name}. لم تُنشأ بعد؛ اعتمادك هو الذي ينفذها.`,
+    reply: en
+      ? `I prepared the ${wantsInitiative ? 'initiative' : 'task'} as a draft for ${employee.name}. It has not been created yet; your approval executes it.`
+      : `جهزت ${wantsInitiative ? 'المبادرة' : 'المهمة'} كمسودة لـ ${employee.name}. لم تُنشأ بعد؛ اعتمادك هو الذي ينفذها.`,
     action: {
       type: wantsInitiative ? 'create_initiative' : 'create_task_draft',
       title: context.prompt.slice(0, 160),
@@ -415,16 +464,17 @@ function deterministicAction(context, today) {
       employeeNumber: employee.employeeNumber,
       employeeName: employee.name,
       dueDate,
-      priority: /(عاجل|ضروري|عاليه|عالية)/.test(p) ? 'high' : 'medium',
+      priority: /(عاجل|ضروري|عاليه|عالية|urgent|high priority|critical)/.test(p) ? 'high' : 'medium',
       plannedHours: 1,
-      category: 'عام',
+      category: en ? 'General' : 'عام',
       requiresApproval: true,
     },
   };
 }
 
-function parseExecutive(text) {
+function parseExecutive(text, languageCode = 'ar') {
   const cleaned = String(text || '').trim().replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+  const en = languageCode === 'en';
   try {
     const parsed = JSON.parse(cleaned);
     const rawAction = parsed.action;
@@ -440,28 +490,36 @@ function parseExecutive(text) {
           dueDate: String(rawAction.dueDate || '').slice(0, 10),
           priority: ['low', 'medium', 'high'].includes(rawAction.priority) ? rawAction.priority : 'medium',
           plannedHours: Math.min(168, Math.max(0.25, Number(rawAction.plannedHours) || 1)),
-          category: String(rawAction.category || 'عام').slice(0, 80),
+          category: String(rawAction.category || (en ? 'General' : 'عام')).slice(0, 80),
           requiresApproval: true,
         }
       : null;
-    return {reply: String(parsed.reply || 'تم تحليل طلبك.').slice(0, 4000), action};
+    return {reply: String(parsed.reply || (en ? 'Your request was analyzed.' : 'تم تحليل طلبك.')).slice(0, 4000), action};
   } catch {
     return {reply: String(text || '').slice(0, 4000), action: null};
   }
 }
 
 async function runExecutive(context, user, specialistReports, today) {
-  const instructions = `أنت ${AGENTS.executive.name} داخل NeoTask. ${AGENTS.executive.mission}\n` +
-    'TruthMode إلزامي: لا تقل تم التنفيذ أو تم الحفظ أو تم الإرسال إلا إذا ورد دليل تنفيذ فعلي من NeoTask. ' +
-    'تقارير الوكلاء تحليل وليست تنفيذًا. افصل الحقائق عن الاستنتاجات. لا تخترع أي بيانات. ' +
-    `التاريخ في السعودية: ${today}. أعد JSON فقط بالشكل ` +
-    '{"reply":"رد عربي واضح","action":null}. استخدم action فقط إذا كان الإجراء قابلاً للاعتماد داخل NeoTask.';
-  const input = `اسم المدير: ${user.name || 'المدير'}\n` +
-    `طلب المدير: ${context.prompt}\n` +
-    `قواعد المدير: ${JSON.stringify(context.rules)}\n` +
-    `تقارير الوكلاء: ${JSON.stringify(specialistReports)}`;
+  const en = context.languageCode === 'en';
+  const name = agentName('executive', context.languageCode);
+  const mission = agentMission('executive', context.languageCode);
+  const instructions = en
+    ? `You are the ${name} inside NeoTask. ${mission}
+TruthMode is mandatory: never say an action was executed, saved, or sent unless there is actual NeoTask execution evidence. Specialist reports are analysis, not execution. Separate facts from inferences and never invent data. Saudi date: ${today}. Return JSON only in this shape {"reply":"clear English reply","action":null}. Use action only when it can be presented for manager approval inside NeoTask.`
+    : `أنت ${name} داخل NeoTask. ${mission}
+TruthMode إلزامي: لا تقل تم التنفيذ أو تم الحفظ أو تم الإرسال إلا إذا ورد دليل تنفيذ فعلي من NeoTask. تقارير الوكلاء تحليل وليست تنفيذًا. افصل الحقائق عن الاستنتاجات. لا تخترع أي بيانات. التاريخ في السعودية: ${today}. أعد JSON فقط بالشكل {"reply":"رد عربي واضح","action":null}. استخدم action فقط إذا كان الإجراء قابلاً للاعتماد داخل NeoTask.`;
+  const input = en
+    ? `Manager name: ${user.name || 'Manager'}
+Manager request: ${context.prompt}
+Manager rules: ${JSON.stringify(context.rules)}
+Specialist reports: ${JSON.stringify(specialistReports)}`
+    : `اسم المدير: ${user.name || 'المدير'}
+طلب المدير: ${context.prompt}
+قواعد المدير: ${JSON.stringify(context.rules)}
+تقارير الوكلاء: ${JSON.stringify(specialistReports)}`;
   const result = await openAiResponse({instructions, input, maxOutputTokens: 1100});
-  return {...parseExecutive(result.text), requestId: result.requestId};
+  return {...parseExecutive(result.text, context.languageCode), requestId: result.requestId};
 }
 
 export default async function handler(req, res) {
@@ -475,7 +533,7 @@ export default async function handler(req, res) {
       provider: health.ready ? 'openai-direct' : 'unavailable',
       model: OPENAI_MODEL,
       count: 8,
-      agents: Object.values(AGENTS).map(({id, name}) => ({id, name})),
+      agents: Object.values(AGENTS).map(({id}) => ({id, name: agentName(id, req.query?.lang === 'en' ? 'en' : 'ar')})),
       error: health.ready ? undefined : health.code || 'openai-unavailable',
     });
   }
@@ -521,7 +579,7 @@ export default async function handler(req, res) {
     return json(res, 200, {
       ...finalResult,
       delegatedAgents: [
-        {id: 'executive', name: AGENTS.executive.name, status: 'completed-ai'},
+        {id: 'executive', name: agentName('executive', context.languageCode), status: 'completed-ai'},
         ...specialistReports.map(({id, name, status}) => ({id, name, status})),
       ],
       requestId,

@@ -16,12 +16,13 @@ def replace_once(old: str, new: str, label: str) -> None:
 
 def regex_once(pattern: str, replacement: str, label: str) -> None:
     global text
-    updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
-    if count == 0:
+    compiled = re.compile(pattern, re.S)
+    match = compiled.search(text)
+    if match is None:
         if replacement in text:
             return
         raise SystemExit(f'missing regex target: {label}')
-    text = updated
+    text = text[:match.start()] + replacement + text[match.end():]
 
 
 replace_once(
