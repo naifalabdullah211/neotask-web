@@ -3,6 +3,9 @@
   "functions": {
     "api/agent.js": {
       "maxDuration": 30
+    },
+    "api/multi-agent.js": {
+      "maxDuration": 60
     }
   },
   "headers": [
