@@ -1,5 +1,6 @@
 name: Audit NeoTask UI Language
 
+# Release trigger: audit every refreshed production workspace before Firebase publication.
 on:
   push:
     branches: [main]
