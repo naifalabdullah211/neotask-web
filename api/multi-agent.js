@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
+import { generateText } from 'ai';
 
 const FIREBASE_PROJECT_ID = 'neotask1-ff5a4';
 const FIREBASE_ISSUER = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
 const FIREBASE_CERTS_URL =
   'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
-const GATEWAY_BASE_URL = 'https://ai-gateway.vercel.sh/v1';
-const GATEWAY_MODEL = process.env.AI_GATEWAY_MODEL || 'openai/gpt-5.6-sol';
+const MODEL = process.env.AI_GATEWAY_MODEL || 'openai/gpt-5.6-sol';
 const ALLOWED_ORIGINS = new Set([
   'https://neotask1-ff5a4.web.app',
   'https://neotask1-ff5a4.firebaseapp.com',
@@ -16,56 +16,49 @@ const ALLOWED_ORIGINS = new Set([
 const AGENTS = Object.freeze({
   executive: {
     id: 'executive',
-    name: 'Executive Agent',
     nameAr: 'الوكيل التنفيذي',
-    mission: 'ينسّق بقية الوكلاء، يجمع النتائج، ويحوّل طلب المدير إلى قرار أو إجراء قابل للاعتماد.',
+    mission: 'ينسق عمل الوكلاء المتخصصين، يجمع نتائجهم، ويحوّل طلب المدير إلى قرار أو إجراء واضح وقابل للاعتماد.',
   },
   tasks: {
     id: 'tasks',
-    name: 'Task Agent',
     nameAr: 'وكيل المهام',
-    mission: 'يتابع المهام والتأخير والأولويات والتوزيع والاستحقاقات ويقترح إجراءات تشغيلية دقيقة.',
+    mission: 'يحلل المهام والتأخير والاستحقاقات والأولويات والتوزيع ويقترح إجراءات تشغيلية دقيقة.',
   },
   projects: {
     id: 'projects',
-    name: 'Projects Agent',
     nameAr: 'وكيل المشاريع',
     mission: 'يتابع الأهداف والمبادرات والمعايير ونسب الإنجاز والمخاطر الزمنية وخطط العمل.',
   },
   employees: {
     id: 'employees',
-    name: 'Employees Agent',
     nameAr: 'وكيل الموظفين',
-    mission: 'يحلل حمل الموظفين والسعة الأسبوعية والتوزيع والإنجاز ومؤشرات الأداء التشغيلية.',
+    mission: 'يحلل حمل الموظفين والسعة الأسبوعية وتوزيع العمل ومؤشرات الأداء التشغيلية.',
   },
   meetings: {
     id: 'meetings',
-    name: 'Meetings Agent',
     nameAr: 'وكيل الاجتماعات',
     mission: 'يراجع الاجتماعات والمحاضر والقرارات والمسؤولين والمواعيد والقرارات غير المرتبطة بمهام.',
   },
   knowledge: {
     id: 'knowledge',
-    name: 'Knowledge Agent',
     nameAr: 'وكيل المعرفة',
-    mission: 'يبحث في السياسات والإجراءات والأدلة وصفحات المعرفة ويجيب من المحتوى المتاح فقط.',
+    mission: 'يبحث في السياسات والإجراءات والأدلة وصفحات المعرفة ويجيب من المحتوى المتاح في NeoTask فقط.',
   },
   analytics: {
     id: 'analytics',
-    name: 'Analytics Agent',
     nameAr: 'وكيل التحليلات',
-    mission: 'يحوّل بيانات NeoTask إلى مؤشرات واتجاهات ومقارنات وأسباب محتملة مع فصل الحقائق عن الاستنتاجات.',
+    mission: 'يحوّل بيانات NeoTask إلى مؤشرات واتجاهات ومقارنات، ويفصل الحقائق عن الاستنتاجات.',
   },
   quality: {
     id: 'quality',
-    name: 'Quality Agent',
     nameAr: 'وكيل الجودة',
-    mission: 'يراقب فجوات الالتزام والتأخير والمعايير والمراجعات والوثائق ويقترح إجراءات تصحيحية.',
+    mission: 'يراقب فجوات الالتزام والتأخير والمعايير ومراجعات الوثائق ويقترح إجراءات تصحيحية.',
   },
 });
 
 const requestWindows = new Map();
-let firebaseCertCache = {certs: null, expiresAt: 0};
+let firebaseCertCache = { certs: null, expiresAt: 0 };
+let aiHealthCache = { ready: false, checkedAt: 0, error: '' };
 
 function setCors(req, res) {
   const origin = req.headers.origin;
@@ -92,15 +85,6 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
-function normalizeCredential(value) {
-  return String(value || '').replace(/\s+/g, '');
-}
-
-function gatewayCredential(env = process.env) {
-  return normalizeCredential(env.VERCEL_OIDC_TOKEN) ||
-    normalizeCredential(env.AI_GATEWAY_API_KEY);
-}
-
 function bearerToken(req) {
   const value = req.headers.authorization || '';
   return value.startsWith('Bearer ') ? value.slice(7).trim() : '';
@@ -120,7 +104,7 @@ async function getFirebasePublicCerts() {
     return firebaseCertCache.certs;
   }
   const response = await fetch(FIREBASE_CERTS_URL, {
-    headers: {'Cache-Control': 'no-cache'},
+    headers: { 'Cache-Control': 'no-cache' },
     signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error('token-verification-unavailable');
@@ -147,34 +131,33 @@ async function verifyFirebaseIdentity(token) {
   const certs = await getFirebasePublicCerts();
   const certificate = certs[header.kid];
   if (typeof certificate !== 'string' || !certificate) throw new Error('invalid-token');
-  const signatureValid = crypto.verify(
+  const valid = crypto.verify(
     'RSA-SHA256',
     Buffer.from(`${encodedHeader}.${encodedPayload}`, 'utf8'),
     certificate,
     Buffer.from(encodedSignature, 'base64url'),
   );
-  if (!signatureValid) throw new Error('invalid-token');
+  if (!valid) throw new Error('invalid-token');
   const now = Math.floor(Date.now() / 1000);
   const subject = typeof claims.sub === 'string' ? claims.sub : '';
   if (
     claims.aud !== FIREBASE_PROJECT_ID ||
     claims.iss !== FIREBASE_ISSUER ||
-    !subject ||
-    subject.length > 128 ||
+    !subject || subject.length > 128 ||
     typeof claims.exp !== 'number' || claims.exp <= now ||
     typeof claims.iat !== 'number' || claims.iat > now + 300 ||
     typeof claims.auth_time !== 'number' || claims.auth_time > now + 300
   ) {
     throw new Error('invalid-token');
   }
-  return {uid: subject, email: claims.email || ''};
+  return { uid: subject, email: claims.email || '' };
 }
 
 async function loadNeoTaskUser(token, uid) {
   const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}` +
     `/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
   const response = await fetch(url, {
-    headers: {Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store'},
+    headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store' },
     signal: AbortSignal.timeout(8000),
   });
   if (response.status === 401 || response.status === 403) throw new Error('invalid-token');
@@ -200,9 +183,8 @@ function enforceManager(user) {
 
 function enforceRateLimit(uid) {
   const now = Date.now();
-  const windowMs = 60_000;
-  const active = (requestWindows.get(uid) || []).filter((time) => now - time < windowMs);
-  if (active.length >= 10) throw new Error('rate-limit');
+  const active = (requestWindows.get(uid) || []).filter((time) => now - time < 60_000);
+  if (active.length >= 8) throw new Error('rate-limit');
   active.push(now);
   requestWindows.set(uid, active);
 }
@@ -226,15 +208,14 @@ function sanitizeBody(body = {}) {
     quality: body.qualityContext && typeof body.qualityContext === 'object'
       ? body.qualityContext
       : {},
-    rules: list(body.agentRules, 20).map((item) => String(item || '').slice(0, 500)),
+    rules: list(body.agentRules, 20).map((item) => String(item || '').trim().slice(0, 500)).filter(Boolean),
     truthMode: body.truthMode === true,
   };
 }
 
 function routeAgents(prompt) {
   const p = normalizeText(prompt);
-  const broad = /(تقرير شامل|الوضع العام|وضع القسم|حلل القسم|كل شيء|كل شي|نظره شامله|نظرة شاملة)/.test(p);
-  if (broad) {
+  if (/(تقرير شامل|الوضع العام|وضع القسم|حلل القسم|كل شيء|كل شي|نظره شامله|نظرة شاملة)/.test(p)) {
     return ['tasks', 'projects', 'employees', 'meetings', 'knowledge', 'analytics', 'quality'];
   }
   const selected = new Set();
@@ -251,106 +232,95 @@ function routeAgents(prompt) {
 
 function agentContext(id, context) {
   switch (id) {
-    case 'tasks': return {tasks: context.tasks, team: context.team};
-    case 'projects': return {projects: context.projects, team: context.team};
-    case 'employees': return {team: context.team, tasks: context.tasks.slice(0, 60)};
-    case 'meetings': return {meetings: context.meetings, team: context.team};
-    case 'knowledge': return {knowledge: context.knowledge};
-    case 'analytics': return {
-      team: context.team,
-      tasks: context.tasks,
-      projects: context.projects,
-      meetings: context.meetings,
-      quality: context.quality,
-    };
-    case 'quality': return {
-      quality: context.quality,
-      projects: context.projects,
-      knowledge: context.knowledge.map((doc) => ({
-        title: doc.title,
-        status: doc.status,
-        reviewDueDate: doc.reviewDueDate,
-        department: doc.department,
-      })),
-    };
-    default: return {};
+    case 'tasks':
+      return { tasks: context.tasks, team: context.team };
+    case 'projects':
+      return { projects: context.projects, team: context.team };
+    case 'employees':
+      return { team: context.team, tasks: context.tasks.slice(0, 60) };
+    case 'meetings':
+      return { meetings: context.meetings, team: context.team };
+    case 'knowledge':
+      return { knowledge: context.knowledge };
+    case 'analytics':
+      return {
+        team: context.team,
+        tasks: context.tasks,
+        projects: context.projects,
+        meetings: context.meetings,
+        quality: context.quality,
+      };
+    case 'quality':
+      return {
+        quality: context.quality,
+        projects: context.projects,
+        knowledge: context.knowledge.map((doc) => ({
+          title: doc.title,
+          status: doc.status,
+          reviewDueDate: doc.reviewDueDate,
+          department: doc.department,
+        })),
+      };
+    default:
+      return {};
   }
 }
 
-async function callGateway(credential, instructions, input, maxOutputTokens = 900) {
-  const response = await fetch(`${GATEWAY_BASE_URL}/responses`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${credential}`,
-      'Content-Type': 'application/json',
-    },
-    signal: AbortSignal.timeout(25_000),
-    body: JSON.stringify({
-      model: GATEWAY_MODEL,
-      instructions,
-      input,
-      max_output_tokens: maxOutputTokens,
-    }),
+async function aiText({ system, prompt, maxOutputTokens = 800 }) {
+  const result = await generateText({
+    model: MODEL,
+    system,
+    prompt,
+    maxOutputTokens,
+    abortSignal: AbortSignal.timeout(22000),
   });
-  const body = await response.json();
-  if (!response.ok) throw new Error(`gateway-${response.status}`);
-  let text = body.output_text || '';
-  if (!text) {
-    for (const item of body.output || []) {
-      if (item.type !== 'message') continue;
-      for (const part of item.content || []) {
-        if (part.type === 'output_text' && typeof part.text === 'string') text += part.text;
-      }
-    }
-  }
-  return {text: text.trim(), requestId: body.id || null};
+  const text = String(result.text || '').trim();
+  if (!text) throw new Error('empty-ai-response');
+  return {
+    text,
+    requestId: result.response?.id || null,
+  };
 }
 
-async function runSpecialist(id, credential, context, user, today) {
-  const agent = AGENTS[id];
-  const truth = 'TruthMode: افصل الحقائق المستخرجة من NeoTask عن الاستنتاجات. لا تدّعِ تنفيذ أي تغيير. إذا لم توجد بيانات كافية فقل غير متحقق.';
-  const instructions = `أنت ${agent.nameAr} داخل NeoTask. ${agent.mission}\n${truth}\nالتاريخ في السعودية: ${today}. أجب بنقاط عملية قصيرة للوكيل التنفيذي، دون مخاطبة المدير مباشرة.`;
-  const input = [{
-    role: 'user',
-    content: `طلب المدير: ${context.prompt}\nبيانات نطاقك: ${JSON.stringify(agentContext(id, context))}`,
-  }];
-  const result = await callGateway(credential, instructions, input, 700);
-  return {id, name: agent.nameAr, status: 'completed', report: result.text};
+async function checkAiHealth({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && now - aiHealthCache.checkedAt < 60_000) return aiHealthCache;
+  try {
+    const result = await aiText({
+      system: 'Return exactly OK.',
+      prompt: 'health',
+      maxOutputTokens: 8,
+    });
+    aiHealthCache = {
+      ready: result.text.toUpperCase().includes('OK'),
+      checkedAt: now,
+      error: '',
+    };
+  } catch (error) {
+    const message = String(error?.message || error?.name || 'unknown').slice(0, 240);
+    console.error('NeoTask AI Gateway health failed', { code: message });
+    aiHealthCache = { ready: false, checkedAt: now, error: message };
+  }
+  return aiHealthCache;
 }
 
-function fallbackSpecialist(id, context) {
+async function runSpecialist(id, context, today) {
   const agent = AGENTS[id];
-  const tasks = context.tasks;
-  const projects = context.projects;
-  const meetings = context.meetings;
-  const knowledge = context.knowledge;
-  let report = 'لا توجد بيانات كافية للتحليل.';
-  if (id === 'tasks') {
-    const overdue = tasks.filter((item) => item.isOverdue).length;
-    const active = tasks.filter((item) => item.status !== 'approved').length;
-    report = `الحقائق: ${tasks.length} مهمة فريق، ${active} غير مكتملة، ${overdue} متأخرة.`;
-  } else if (id === 'projects') {
-    const criteria = projects.reduce((sum, item) => sum + Number(item.criteriaTotal || 0), 0);
-    const completed = projects.reduce((sum, item) => sum + Number(item.criteriaCompleted || 0), 0);
-    report = `الحقائق: ${projects.length} هدف/مشروع، ${criteria} معيارًا، ${completed} معيارًا مكتملًا.`;
-  } else if (id === 'employees') {
-    const busiest = [...context.team].sort((a, b) => Number(b.plannedHours || 0) - Number(a.plannedHours || 0))[0];
-    report = `الحقائق: ${context.team.length} موظفًا نشطًا.` + (busiest ? ` أعلى حمل مخطط لدى ${busiest.name}: ${Number(busiest.plannedHours || 0).toFixed(1)} ساعة.` : '');
-  } else if (id === 'meetings') {
-    const openDecisions = meetings.reduce((sum, meeting) => sum + list(meeting.decisions, 100).filter((decision) => !decision.isCompleted).length, 0);
-    report = `الحقائق: ${meetings.length} اجتماعًا في السياق، ${openDecisions} قرارًا غير مكتمل.`;
-  } else if (id === 'knowledge') {
-    const approved = knowledge.filter((item) => item.status === 'approved').length;
-    const inReview = knowledge.filter((item) => item.status === 'inReview').length;
-    report = `الحقائق: ${knowledge.length} عنصر معرفة، ${approved} معتمد، ${inReview} تحت المراجعة.`;
-  } else if (id === 'analytics') {
-    const overdue = tasks.filter((item) => item.isOverdue).length;
-    report = `الحقائق: ${context.team.length} موظفًا، ${tasks.length} مهمة، ${projects.length} هدفًا، ${meetings.length} اجتماعًا، ${overdue} مهمة متأخرة.`;
-  } else if (id === 'quality') {
-    const q = context.quality || {};
-    report = `الحقائق: مهام متأخرة ${Number(q.overdueTasks || 0)}، معايير لم تبدأ ${Number(q.criteriaNotStarted || 0)}، مراجعات وثائق متأخرة ${Number(q.documentReviewsOverdue || 0)}.`;
-  }
-  return {id, name: agent.nameAr, status: 'completed-local', report};
+  const system = `أنت ${agent.nameAr} داخل NeoTask. ${agent.mission}\n` +
+    `TruthMode إلزامي: افصل الحقائق المستخرجة من بيانات NeoTask عن الاستنتاجات. ` +
+    `لا تدّعِ تنفيذ أي تغيير، ولا تخترع أسماء أو أرقامًا أو حالات غير موجودة في البيانات. ` +
+    `إذا كانت البيانات غير كافية فقل غير متحقق. التاريخ في السعودية: ${today}. ` +
+    `أجب للوكيل التنفيذي بنقاط عملية قصيرة.`;
+  const prompt = `طلب المدير: ${context.prompt}\n` +
+    `بيانات نطاقك الحية من NeoTask: ${JSON.stringify(agentContext(id, context))}`;
+  const result = await aiText({ system, prompt, maxOutputTokens: 700 });
+  return {
+    id,
+    name: agent.nameAr,
+    status: 'completed-ai',
+    report: result.text,
+    requestId: result.requestId,
+  };
 }
 
 function addDays(isoDate, days) {
@@ -383,73 +353,121 @@ function deterministicAction(context, today) {
   const p = normalizeText(context.prompt);
   if (/(قاعده|قاعدة|من الان|دائما|تذكر)/.test(p)) {
     return {
-      reply: 'تم تجهيز القاعدة كمسودة وتنتظر اعتمادك؛ لم تُحفظ بعد.',
-      action: {
-        type: 'update_agent_rule', title: 'قاعدة دائمة للوكيل', payload: context.prompt,
-        employeeUid: '', employeeNumber: '', employeeName: '', dueDate: '',
-        priority: 'medium', plannedHours: 1, category: 'عام', requiresApproval: true,
-      },
+      type: 'update_agent_rule',
+      title: 'قاعدة دائمة للوكيل',
+      payload: context.prompt,
+      employeeUid: '', employeeNumber: '', employeeName: '', dueDate: '',
+      priority: 'medium', plannedHours: 1, category: 'عام', requiresApproval: true,
     };
   }
   const wantsTask = /(مهمه|مهمة|كلف|اسند|إسناد)/.test(p);
   const wantsInitiative = /(مبادره|مبادرة|فكره|فكرة)/.test(p);
-  if (wantsTask || wantsInitiative) {
-    const employee = matchEmployee(context.prompt, context.team);
-    if (!employee) return {reply: 'حدد اسم الموظف أو رقمه الوظيفي قبل تجهيز الإجراء.', action: null};
-    const dueDate = requestedDueDate(context.prompt, today);
-    if (!dueDate) return {reply: `حدد موعد الاستحقاق لـ ${employee.name} قبل تجهيز الإجراء.`, action: null};
-    return {
-      reply: `تم تجهيز ${wantsInitiative ? 'المبادرة' : 'المهمة'} كمسودة لـ ${employee.name}. لم تُنشأ بعد؛ اعتمادك هو الذي ينفذها.`,
-      action: {
-        type: wantsInitiative ? 'create_initiative' : 'create_task_draft',
-        title: context.prompt.slice(0, 160), payload: context.prompt.slice(0, 3000),
-        employeeUid: employee.uid, employeeNumber: employee.employeeNumber,
-        employeeName: employee.name, dueDate,
-        priority: /(عاجل|ضروري|عاليه|عالية)/.test(p) ? 'high' : 'medium',
-        plannedHours: 1, category: 'عام', requiresApproval: true,
-      },
-    };
-  }
-  return null;
+  if (!wantsTask && !wantsInitiative) return null;
+  const employee = matchEmployee(context.prompt, context.team);
+  const dueDate = requestedDueDate(context.prompt, today);
+  if (!employee || !dueDate) return null;
+  return {
+    type: wantsInitiative ? 'create_initiative' : 'create_task_draft',
+    title: context.prompt.slice(0, 160),
+    payload: context.prompt.slice(0, 3000),
+    employeeUid: employee.uid,
+    employeeNumber: employee.employeeNumber,
+    employeeName: employee.name,
+    dueDate,
+    priority: /(عاجل|ضروري|عاليه|عالية)/.test(p) ? 'high' : 'medium',
+    plannedHours: 1,
+    category: 'عام',
+    requiresApproval: true,
+  };
 }
 
 function parseExecutive(text) {
-  const cleaned = String(text || '').trim().replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+  const cleaned = String(text || '').trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/\s*```$/, '');
   try {
     const parsed = JSON.parse(cleaned);
-    const action = parsed.action && typeof parsed.action === 'object'
+    const allowed = new Set([
+      'create_task_draft',
+      'create_initiative',
+      'update_agent_rule',
+      'team_summary',
+    ]);
+    const raw = parsed.action;
+    const action = raw && typeof raw === 'object' && allowed.has(String(raw.type || ''))
       ? {
-          type: String(parsed.action.type || ''),
-          title: String(parsed.action.title || '').slice(0, 160),
-          payload: String(parsed.action.payload || '').slice(0, 3000),
-          employeeUid: String(parsed.action.employeeUid || '').slice(0, 128),
-          employeeNumber: String(parsed.action.employeeNumber || '').slice(0, 40),
-          employeeName: String(parsed.action.employeeName || '').slice(0, 120),
-          dueDate: String(parsed.action.dueDate || '').slice(0, 10),
-          priority: ['low', 'medium', 'high'].includes(parsed.action.priority) ? parsed.action.priority : 'medium',
-          plannedHours: Math.min(168, Math.max(0.25, Number(parsed.action.plannedHours) || 1)),
-          category: String(parsed.action.category || 'عام').slice(0, 80),
+          type: String(raw.type),
+          title: String(raw.title || '').slice(0, 160),
+          payload: String(raw.payload || '').slice(0, 3000),
+          employeeUid: String(raw.employeeUid || '').slice(0, 128),
+          employeeNumber: String(raw.employeeNumber || '').slice(0, 40),
+          employeeName: String(raw.employeeName || '').slice(0, 120),
+          dueDate: String(raw.dueDate || '').slice(0, 10),
+          priority: ['low', 'medium', 'high'].includes(raw.priority) ? raw.priority : 'medium',
+          plannedHours: Math.min(168, Math.max(0.25, Number(raw.plannedHours) || 1)),
+          category: String(raw.category || 'عام').slice(0, 80),
           requiresApproval: true,
         }
       : null;
-    return {reply: String(parsed.reply || 'تم تحليل طلبك.').slice(0, 4000), action};
+    return {
+      reply: String(parsed.reply || 'تم تحليل طلبك.').slice(0, 4000),
+      action,
+    };
   } catch {
-    return {reply: String(text || '').slice(0, 4000), action: null};
+    return { reply: String(text || '').slice(0, 4000), action: null };
   }
+}
+
+function validateAction(action, context, today) {
+  if (!action) return null;
+  if (action.type === 'create_task_draft' || action.type === 'create_initiative') {
+    const employee = context.team.find((item) => item.uid === action.employeeUid);
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(action.dueDate) && action.dueDate >= today;
+    if (!employee || !validDate) return null;
+    return {
+      ...action,
+      employeeNumber: String(employee.employeeNumber || ''),
+      employeeName: String(employee.name || ''),
+      requiresApproval: true,
+    };
+  }
+  return { ...action, requiresApproval: true };
+}
+
+async function runExecutive({ context, user, specialistReports, today }) {
+  const system = `${AGENTS.executive.nameAr}: ${AGENTS.executive.mission}\n` +
+    `TruthMode إلزامي: تقارير الوكلاء هي تحليل وليست تنفيذًا. لا تقل تم التنفيذ أو تم الحفظ أو تم الإرسال ` +
+    `إلا إذا كان هناك دليل تنفيذ فعلي من NeoTask، وهو غير موجود في هذه المرحلة قبل اعتماد المدير. ` +
+    `اعتمد فقط على بيانات NeoTask وتقارير الوكلاء. إذا كان هناك نقص فاذكره بوضوح.\n` +
+    `أعد JSON فقط بالشكل: {"reply":"رد عربي واضح","action":null} أو ` +
+    `{"reply":"شرح مختصر","action":{"type":"create_task_draft|create_initiative|update_agent_rule|team_summary",` +
+    `"title":"عنوان","payload":"تفاصيل","employeeUid":"","employeeNumber":"","employeeName":"",` +
+    `"dueDate":"YYYY-MM-DD","priority":"low|medium|high","plannedHours":1,"category":"عام"}}.`;
+  const prompt = `اسم المدير: ${user.name || 'المدير'}\n` +
+    `التاريخ في السعودية: ${today}\n` +
+    `طلب المدير: ${context.prompt}\n` +
+    `قواعد المدير الدائمة: ${JSON.stringify(context.rules)}\n` +
+    `تقارير الوكلاء المتخصصين: ${JSON.stringify(specialistReports)}`;
+  const result = await aiText({ system, prompt, maxOutputTokens: 1200 });
+  return { ...parseExecutive(result.text), requestId: result.requestId };
 }
 
 export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
+
   if (req.method === 'GET') {
-    return json(res, 200, {
-      status: 'ready',
-      agents: Object.values(AGENTS).map(({id, nameAr}) => ({id, name: nameAr})),
+    const health = await checkAiHealth();
+    return json(res, health.ready ? 200 : 503, {
+      status: health.ready ? 'ready' : 'degraded',
+      provider: health.ready ? 'ai-gateway' : 'unavailable',
+      model: MODEL,
+      agents: Object.values(AGENTS).map(({ id, nameAr }) => ({ id, name: nameAr })),
       count: 8,
-      provider: gatewayCredential() ? 'ai-gateway' : 'resilient-local',
     });
   }
-  if (req.method !== 'POST') return json(res, 405, {error: 'method-not-allowed'});
+
+  if (req.method !== 'POST') return json(res, 405, { error: 'method-not-allowed' });
 
   try {
     const token = bearerToken(req);
@@ -459,72 +477,75 @@ export default async function handler(req, res) {
     enforceRateLimit(user.uid);
 
     const context = sanitizeBody(req.body || {});
-    if (!context.prompt) return json(res, 400, {error: 'invalid-message'});
+    if (!context.prompt) return json(res, 400, { error: 'invalid-message' });
+
+    const health = await checkAiHealth();
+    if (!health.ready) {
+      return json(res, 502, { error: 'agent-provider-error' });
+    }
+
     const today = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit',
+      timeZone: 'Asia/Riyadh',
+      year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date());
+
     const selected = routeAgents(context.prompt);
-    const credential = gatewayCredential();
-
-    let specialistReports;
-    let mode = 'resilient-local';
-    if (credential) {
-      const attempts = await Promise.all(selected.map(async (id) => {
-        try {
-          return await runSpecialist(id, credential, context, user, today);
-        } catch {
-          return fallbackSpecialist(id, context);
-        }
-      }));
-      specialistReports = attempts;
-      if (attempts.some((item) => item.status === 'completed')) mode = 'multi-agent';
-    } else {
-      specialistReports = selected.map((id) => fallbackSpecialist(id, context));
-    }
-
-    const deterministic = deterministicAction(context, today);
-    let finalResult = deterministic;
-    let requestId = null;
-
-    if (!finalResult && credential) {
+    const specialistReports = await Promise.all(selected.map(async (id) => {
       try {
-        const executiveInstructions = `أنت ${AGENTS.executive.nameAr} داخل NeoTask. ${AGENTS.executive.mission}\nTruthMode إلزامي: لا تقل تم التنفيذ إلا إذا كان لديك دليل تنفيذ فعلي من NeoTask. تقارير الوكلاء أدناه تحليل فقط.\nإذا كان الطلب يحتاج إجراءً، أعد JSON فقط: {"reply":"...","action":{"type":"create_task_draft|create_initiative|update_agent_rule|team_summary","title":"...","payload":"...","employeeUid":"","employeeNumber":"","employeeName":"","dueDate":"YYYY-MM-DD","priority":"low|medium|high","plannedHours":1,"category":"عام"}}. وإلا أعد {"reply":"...","action":null}.`;
-        const executiveInput = [{
-          role: 'user',
-          content: `اسم المدير: ${user.name || 'المدير'}\nطلب المدير: ${context.prompt}\nقواعد المدير: ${JSON.stringify(context.rules)}\nتقارير الوكلاء المتخصصين: ${JSON.stringify(specialistReports)}`,
-        }];
-        const executive = await callGateway(credential, executiveInstructions, executiveInput, 1200);
-        finalResult = parseExecutive(executive.text);
-        requestId = executive.requestId;
-      } catch {
-        finalResult = null;
+        return await runSpecialist(id, context, today);
+      } catch (error) {
+        const code = String(error?.message || error?.name || 'unknown').slice(0, 160);
+        console.error('NeoTask specialist failed', { agent: id, code });
+        return {
+          id,
+          name: AGENTS[id].nameAr,
+          status: 'failed',
+          report: 'تعذر تشغيل هذا الوكيل بالذكاء الاصطناعي في هذه المحاولة.',
+          requestId: null,
+        };
       }
+    }));
+
+    const completed = specialistReports.filter((item) => item.status === 'completed-ai');
+    if (completed.length === 0) {
+      return json(res, 502, { error: 'agent-provider-error' });
     }
 
-    if (!finalResult) {
-      const combined = specialistReports.map((item) => `• ${item.name}: ${item.report}`).join('\n');
-      finalResult = {
-        reply: combined || 'لا توجد بيانات كافية للتحليل.',
-        action: null,
-      };
-    }
+    const executive = await runExecutive({ context, user, specialistReports, today });
+    const deterministic = deterministicAction(context, today);
+    const action = deterministic || validateAction(executive.action, context, today);
 
     const delegatedAgents = [
-      {id: 'executive', name: AGENTS.executive.nameAr, status: 'completed'},
-      ...specialistReports.map(({id, name, status}) => ({id, name, status})),
+      { id: 'executive', name: AGENTS.executive.nameAr, status: 'completed-ai' },
+      ...specialistReports.map(({ id, name, status }) => ({ id, name, status })),
     ];
 
+    const truthStatus = action ? 'proposal' : 'analysis';
+    const truthNote = action
+      ? 'الإجراء مقترح ولم يُنفذ بعد؛ يحتاج اعتماد المدير داخل NeoTask.'
+      : 'النتيجة تحليل بالذكاء الاصطناعي مبني على بيانات NeoTask المرسلة في هذا الطلب.';
+
     return json(res, 200, {
-      ...finalResult,
+      reply: executive.reply,
+      action,
       delegatedAgents,
-      requestId,
-      mode,
+      requestId: executive.requestId,
+      mode: 'multi-agent-ai',
+      provider: 'ai-gateway',
+      model: MODEL,
+      truthStatus,
+      truthNote,
     });
   } catch (error) {
-    const raw = error?.message || '';
+    const raw = String(error?.message || 'internal');
     const known = new Set([
-      'manager-only', 'rate-limit', 'missing-token', 'invalid-token',
-      'profile-unavailable', 'token-verification-unavailable',
+      'manager-only',
+      'rate-limit',
+      'missing-token',
+      'invalid-token',
+      'profile-unavailable',
+      'token-verification-unavailable',
+      'invalid-message',
     ]);
     const code = known.has(raw) ? raw : 'internal';
     const status = code === 'manager-only' ? 403
@@ -532,8 +553,9 @@ export default async function handler(req, res) {
       : ['missing-token', 'invalid-token'].includes(code) ? 401
       : code === 'profile-unavailable' ? 403
       : code === 'token-verification-unavailable' ? 503
+      : code === 'invalid-message' ? 400
       : 500;
-    if (status >= 500) console.error('NeoTask multi-agent error', {code});
-    return json(res, status, {error: code});
+    if (status >= 500) console.error('NeoTask multi-agent AI error', { code: raw.slice(0, 240) });
+    return json(res, status, { error: code });
   }
 }
