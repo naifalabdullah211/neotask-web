@@ -1,0 +1,38 @@
+name: Apply NeoTask OpenAI Agent Language
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tool/patch_openai_agent_language.py'
+      - '.github/workflows/apply-openai-agent-language.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: neotask-openai-agent-language
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply bilingual agent patch
+        run: python tool/patch_openai_agent_language.py
+      - name: Verify Node syntax
+        run: |
+          node --check api/openai-agent.js
+          node --check api/multi-agent.js
+      - name: Run agent unit tests
+        run: node --test api/agent.test.js
+      - name: Commit verified backend
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/openai-agent.js
+          git commit -m 'Make NeoTask AI agents fully bilingual' || true
+          git push || true
