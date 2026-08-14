@@ -64,6 +64,7 @@ jobs:
             exit 0
           fi
           git commit -m 'Harden NeoTask premium workspaces and bilingual runtime copy'
+          git reset --hard HEAD
           git fetch origin main
           git rebase origin/main
           git push origin HEAD:main
