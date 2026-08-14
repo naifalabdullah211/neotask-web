@@ -12,6 +12,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/digest_provider.dart';
 import '../../providers/goal_provider.dart';
 import '../../providers/meeting_provider.dart';
+import '../../providers/locale_provider.dart';
 import '../../providers/poll_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
@@ -63,7 +64,7 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
     });
   }
 
-  String get _rangeLabel {
+  String _rangeLabel(String languageCode) {
     final formatter = intl.DateFormat('yyyy/MM/dd');
     return switch (_range) {
       _LuxuryRange.day => formatter.format(_anchor),
@@ -73,7 +74,7 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
         return '${formatter.format(start)} — ${formatter.format(end)}';
       }(),
       _LuxuryRange.month =>
-        '${_arabicMonths[_anchor.month - 1]} ${_anchor.year}',
+        '${languageCode == 'en' ? _englishMonths[_anchor.month - 1] : _arabicMonths[_anchor.month - 1]} ${_anchor.year}',
     };
   }
 
@@ -108,6 +109,7 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
     final manager = context.watch<AuthProvider>().currentUser!;
+    final languageCode = context.watch<LocaleProvider>().languageCode;
     final meetings = context.watch<MeetingProvider>().upcoming.toList()
       ..sort((a, b) => a.startTime.compareTo(b.startTime));
     final employees = FirestoreService.getAllEmployees()
@@ -154,7 +156,7 @@ class _LuxuryManagerDashboardState extends State<LuxuryManagerDashboard> {
                       employees: employees,
                       meetings: meetings,
                       range: _range,
-                      rangeLabel: _rangeLabel,
+                      rangeLabel: _rangeLabel(languageCode),
                       kanban: _kanban,
                       onRangeChanged: (value) => setState(() => _range = value),
                       onShiftRange: _shiftRange,
@@ -190,10 +192,13 @@ class _Hero extends StatelessWidget {
     final nameParts = managerName.trim().split(RegExp(r'\s+'));
     final firstName = nameParts.isEmpty ? managerName : nameParts.first;
     final now = DateTime.now();
-    final greeting = now.hour < 12 ? 'صباح الخير' : 'مساء الخير';
-    final date =
-        '${_weekdays[now.weekday - 1]} ${now.day} '
-        '${_arabicMonths[now.month - 1]} ${now.year}';
+    final english = context.watch<LocaleProvider>().languageCode == 'en';
+    final greeting = english
+        ? (now.hour < 12 ? 'Good morning' : 'Good evening')
+        : (now.hour < 12 ? 'صباح الخير' : 'مساء الخير');
+    final date = english
+        ? '${_englishWeekdays[now.weekday - 1]}, ${_englishMonths[now.month - 1]} ${now.day}, ${now.year}'
+        : '${_weekdays[now.weekday - 1]} ${now.day} ${_arabicMonths[now.month - 1]} ${now.year}';
 
     final welcome = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,25 +284,25 @@ class _Hero extends StatelessWidget {
             ),
           )
         : SizedBox(
-      width: desktop ? 240 : double.infinity,
-      height: 60,
-      child: OutlinedButton.icon(
-        onPressed: () => QuickAddTaskSheet.show(context),
-        icon: const Icon(Icons.add, size: 30),
-        label: const Text(
-          'مهمة جديدة',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: _LuxuryColors.gold,
-          side: const BorderSide(color: _LuxuryColors.gold, width: 2),
-          backgroundColor: _LuxuryColors.deepNavy.withValues(alpha: 0.12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
+            width: desktop ? 240 : double.infinity,
+            height: 60,
+            child: OutlinedButton.icon(
+              onPressed: () => QuickAddTaskSheet.show(context),
+              icon: const Icon(Icons.add, size: 30),
+              label: const Text(
+                'مهمة جديدة',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _LuxuryColors.gold,
+                side: const BorderSide(color: _LuxuryColors.gold, width: 2),
+                backgroundColor: _LuxuryColors.deepNavy.withValues(alpha: 0.12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          );
 
     return Container(
       width: double.infinity,
@@ -458,9 +463,7 @@ class _DashboardSurface extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(desktop ? 24 : 0),
-        border: desktop
-            ? Border.all(color: const Color(0x0D082A55))
-            : null,
+        border: desktop ? Border.all(color: const Color(0x0D082A55)) : null,
         boxShadow: desktop
             ? const [
                 BoxShadow(
@@ -620,11 +623,8 @@ class _ExecutionPanel extends StatelessWidget {
               child: TaskKanbanBoard(
                 tasks: tasks,
                 canDrag: !readOnly,
-                onTapTask: (task) => _openTask(
-                  context,
-                  task,
-                  readOnly: readOnly,
-                ),
+                onTapTask: (task) =>
+                    _openTask(context, task, readOnly: readOnly),
                 onStatusChanged: readOnly
                     ? null
                     : (task, status) {
@@ -692,11 +692,7 @@ class _DashboardControls extends StatelessWidget {
           child: stack
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    picker,
-                    const SizedBox(height: 9),
-                    navigation,
-                  ],
+                  children: [picker, const SizedBox(height: 9), navigation],
                 )
               : Row(
                   children: [
@@ -1414,7 +1410,9 @@ class _MeetingRow extends StatelessWidget {
                 ),
               ),
               Text(
-                _arabicMonths[meeting.startTime.month - 1],
+                context.watch<LocaleProvider>().languageCode == 'en'
+                    ? _englishMonths[meeting.startTime.month - 1]
+                    : _arabicMonths[meeting.startTime.month - 1],
                 style: TextStyle(color: dateColor, fontSize: 11),
               ),
             ],
@@ -1505,14 +1503,8 @@ class _EmptyTasks extends StatelessWidget {
   }
 }
 
-void _openTask(
-  BuildContext context,
-  AppTask task, {
-  bool readOnly = false,
-}) {
-  Navigator.of(
-    context,
-  ).push(
+void _openTask(BuildContext context, AppTask task, {bool readOnly = false}) {
+  Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => readOnly
           ? DesignerTaskViewScreen(task: task)
@@ -1559,4 +1551,29 @@ const _weekdays = [
   'الجمعة',
   'السبت',
   'الأحد',
+];
+
+const _englishMonths = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const _englishWeekdays = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
 ];

@@ -12,6 +12,7 @@ import '../../services/cloudinary_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/voice_message_recorder_button.dart';
+import '../../widgets/neo_workspace_chrome.dart';
 import '../../widgets/voice_message_player.dart';
 import 'voice_call_screen.dart';
 
@@ -374,11 +375,10 @@ class _ChatThreadBodyState extends State<ChatThreadBody> {
             builder: (context, snapshot) {
               final messages = snapshot.data ?? [];
               if (messages.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'لا توجد رسائل بعد — ابدأ المحادثة',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
+                return const NeoWorkspaceEmptyState(
+                  icon: Icons.forum_outlined,
+                  title: 'لا توجد رسائل بعد — ابدأ المحادثة',
+                  message: 'ابدأ المحادثة بإرسال أول رسالة.',
                 );
               }
               if (!widget.readOnly) {

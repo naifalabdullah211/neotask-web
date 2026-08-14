@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 import '../../models/poll_report_model.dart';
@@ -8,6 +9,7 @@ import '../../providers/poll_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/status_chip.dart' show AppPill;
+import '../../widgets/neo_workspace_chrome.dart';
 
 /// The PERMANENT final voting report screen — per the explicit
 /// requirement §6: title, description, start/end date-time, creating
@@ -74,9 +76,9 @@ class PollReportScreen extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('تعذّر حفظ القرار: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.tr('تعذّر حفظ القرار')}: $e')),
+        );
       }
     }
   }
@@ -85,7 +87,13 @@ class PollReportScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('التقرير النهائي للتصويت')),
+      appBar: AppBar(
+        centerTitle: false,
+        title: const Text(
+          'التقرير النهائي للتصويت',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
+      ),
       body: SafeArea(
         child: StreamBuilder<PollReport?>(
           stream: context.read<PollProvider>().watchPollReport(pollId),
@@ -95,8 +103,10 @@ class PollReportScreen extends StatelessWidget {
             }
             final report = snapshot.data;
             if (report == null) {
-              return const Center(
-                child: Text('لا يوجد تقرير نهائي لهذا التصويت'),
+              return const NeoWorkspaceEmptyState(
+                icon: Icons.poll_outlined,
+                title: 'لا يوجد تقرير نهائي لهذا التصويت',
+                message: 'سيظهر التقرير هنا بعد إغلاق التصويت وحساب النتيجة.',
               );
             }
             final manager = FirestoreService.getUser(
@@ -106,71 +116,108 @@ class PollReportScreen extends StatelessWidget {
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text(
-                  report.title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppColors.deepBlue.withValues(alpha: .08),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                            ),
+                            child: const Icon(
+                              Icons.how_to_vote_outlined,
+                              color: AppColors.deepBlue,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  report.title,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                if (report.description.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    report.description,
+                                    style: AppTextStyles.bodySecondary.copyWith(
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (report.privacyWasEnabled) ...[
+                        const SizedBox(height: 14),
+                        AppPill(
+                          color: AppColors.deepBlue,
+                          label: 'الخصوصية كانت مفعّلة عند إجراء التصويت',
+                          icon: Icons.privacy_tip_outlined,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                if (report.description.isNotEmpty) ...[
-                  Text(report.description),
-                  const SizedBox(height: 12),
-                ],
-                if (report.privacyWasEnabled)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: AppPill(
-                      color: AppColors.deepBlue,
-                      label: 'الخصوصية كانت مفعّلة عند إجراء التصويت',
-                      icon: Icons.privacy_tip_outlined,
-                    ),
-                  ),
+                const SizedBox(height: 14),
 
-                // ---- summary cards ----
-                Row(
-                  children: [
-                    _SummaryCard(
+                // ---- summary metrics ----
+                NeoWorkspaceMetricsBar(
+                  items: [
+                    NeoWorkspaceMetric(
                       label: 'إجمالي المستحقّين',
                       value: '${report.totalEligible}',
-                      color: AppColors.deepBlue,
                       icon: Icons.groups_outlined,
+                      color: AppColors.deepBlue,
                     ),
-                    const SizedBox(width: 10),
-                    _SummaryCard(
+                    NeoWorkspaceMetric(
                       label: 'صوّتوا',
                       value: '${report.totalVoted}',
-                      color: AppColors.statusApproved,
                       icon: Icons.check_circle_outline,
+                      color: AppColors.statusApproved,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    _SummaryCard(
+                    NeoWorkspaceMetric(
                       label: 'لم يصوّتوا',
                       value: '${report.totalNotVoted}',
-                      color: AppColors.statusRejected,
                       icon: Icons.remove_circle_outline,
+                      color: AppColors.statusRejected,
                     ),
-                    const SizedBox(width: 10),
-                    _SummaryCard(
+                    NeoWorkspaceMetric(
                       label: 'نسبة المشاركة',
                       value:
                           '${report.participationPercent.toStringAsFixed(1)}%',
-                      color: AppColors.statusPending,
                       icon: Icons.pie_chart_outline,
+                      color: AppColors.statusPending,
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
                   child: LinearProgressIndicator(
                     value: (report.participationPercent / 100).clamp(0, 1),
-                    minHeight: 10,
+                    minHeight: 8,
                     backgroundColor: AppColors.divider,
                     color: AppColors.statusApproved,
                   ),
@@ -194,11 +241,10 @@ class PollReportScreen extends StatelessWidget {
                 const SizedBox(height: 20),
 
                 // ---- per-choice bars ----
-                const Text(
-                  'نتائج كل اختيار',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                const NeoWorkspaceSectionHeader(
+                  title: 'نتائج كل اختيار',
+                  subtitle: 'توزيع الأصوات ونسب كل اختيار',
                 ),
-                const SizedBox(height: 10),
                 ...List.generate(report.choices.length, (i) {
                   return _ChoiceResultBar(
                     label: report.choices[i],
@@ -240,14 +286,16 @@ class PollReportScreen extends StatelessWidget {
 
                 // ---- voters / non-voters lists ----
                 _EmployeeListSection(
-                  title: 'قائمة من صوّت (${report.voterUids.length})',
+                  title:
+                      '${context.tr('قائمة من صوّت')} (${report.voterUids.length})',
                   uids: report.voterUids,
                   color: AppColors.statusApproved,
                   icon: Icons.check_circle_outline,
                 ),
                 const SizedBox(height: 12),
                 _EmployeeListSection(
-                  title: 'قائمة من لم يصوّت (${report.nonVoterUids.length})',
+                  title:
+                      '${context.tr('قائمة من لم يصوّت')} (${report.nonVoterUids.length})',
                   uids: report.nonVoterUids,
                   color: AppColors.statusRejected,
                   icon: Icons.remove_circle_outline,
@@ -343,8 +391,8 @@ class _WinnerCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'تعادل بين: '
-                  '${report.tiedChoiceIndexes.map((i) => report.choices[i]).join(' و ')}',
+                  '${context.tr('تعادل بين')}: '
+                  '${report.tiedChoiceIndexes.map((i) => report.choices[i]).join(Localizations.localeOf(context).languageCode == 'en' ? ', ' : ' و ')}',
                   style: const TextStyle(
                     color: AppColors.statusPending,
                     fontWeight: FontWeight.bold,
@@ -358,7 +406,7 @@ class _WinnerCard extends StatelessWidget {
     }
     final winnerLabel = report.winningChoiceIndex != null
         ? report.choices[report.winningChoiceIndex!]
-        : 'غير محدد';
+        : context.tr('غير محدد');
     return Card(
       color: AppColors.statusApproved.withValues(alpha: 0.1),
       child: Padding(
@@ -372,7 +420,7 @@ class _WinnerCard extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'الاختيار الفائز: $winnerLabel',
+                '${context.tr('الاختيار الفائز')}: $winnerLabel',
                 style: const TextStyle(
                   color: AppColors.statusApproved,
                   fontWeight: FontWeight.bold,
@@ -429,7 +477,7 @@ class _ChoiceResultBar extends StatelessWidget {
                   ),
                 ),
               Text(
-                '$count صوت (${percent.toStringAsFixed(1)}%)',
+                '$count ${context.tr('صوت')} (${percent.toStringAsFixed(1)}%)',
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.textSecondary,
@@ -473,7 +521,7 @@ class _InfoRow extends StatelessWidget {
           Icon(icon, size: 18, color: AppColors.textSecondary),
           const SizedBox(width: 8),
           Text(
-            '$label: ',
+            '${context.tr(label)}: ',
             style: const TextStyle(color: AppColors.textSecondary),
           ),
           Expanded(

@@ -224,11 +224,11 @@ class _PublicFormScreenState extends State<PublicFormScreen> {
           if (field.type == CustomFieldType.number &&
               value!.isNotEmpty &&
               num.tryParse(value) == null)
-            return 'أدخل رقمًا صحيحًا';
+            return context.tr('أدخل رقمًا صحيحًا');
           if (field.type == CustomFieldType.date &&
               value!.isNotEmpty &&
               DateTime.tryParse(value) == null)
-            return 'استخدم صيغة YYYY-MM-DD';
+            return context.tr('استخدم صيغة YYYY-MM-DD');
           return null;
         },
       );

@@ -12,6 +12,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/goal_style_options.dart';
 import '../../widgets/status_chip.dart';
+import '../../widgets/neo_workspace_chrome.dart';
 import 'create_criterion_screen.dart';
 import 'criterion_detail_screen.dart';
 import 'edit_goal_dialog.dart';
@@ -78,6 +79,36 @@ class GoalDetailScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            NeoWorkspaceMetricsBar(
+              items: [
+                NeoWorkspaceMetric(
+                  label: 'إجمالي المعايير',
+                  value: '${progress.total}',
+                  icon: Icons.checklist_rtl_outlined,
+                  color: AppColors.deepBlue,
+                ),
+                NeoWorkspaceMetric(
+                  label: 'مكتملة',
+                  value: '${progress.completed}',
+                  icon: Icons.task_alt_rounded,
+                  color: AppColors.statusApproved,
+                ),
+                NeoWorkspaceMetric(
+                  label: 'المتبقية',
+                  value:
+                      '${(progress.total - progress.completed).clamp(0, progress.total)}',
+                  icon: Icons.pending_actions_outlined,
+                  color: AppColors.statusPending,
+                ),
+                NeoWorkspaceMetric(
+                  label: 'نسبة التقدم',
+                  value: '$percent%',
+                  icon: Icons.donut_large_rounded,
+                  color: goalColor,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
             // ---- Goal header card: colored border + icon avatar + large
             // Bold title (24-28px per the typography-hierarchy
             // requirement) + thicker progress bar w/ numeric %. ----
@@ -193,11 +224,10 @@ class GoalDetailScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'المعايير',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            const NeoWorkspaceSectionHeader(
+              title: 'المعايير',
+              subtitle: 'المعايير المرتبطة بالهدف وحالة تنفيذ كل منها',
             ),
-            const SizedBox(height: 10),
             if (criteria.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
@@ -241,7 +271,7 @@ class _CriterionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final assigneeNames = criterion.assignees
-        .map((uid) => FirestoreService.getUser(uid)?.name ?? 'موظف')
+        .map((uid) => FirestoreService.getUser(uid)?.name ?? context.tr('موظف'))
         .join('، ');
     final ratio = criterion.completionRatio;
     final aggregate = criterion.aggregateStatus;
@@ -285,7 +315,7 @@ class _CriterionTile extends StatelessWidget {
             children: [
               const SizedBox(height: 4),
               Text(
-                assigneeNames.isEmpty ? 'بدون موظف' : assigneeNames,
+                assigneeNames.isEmpty ? context.tr('بدون موظف') : assigneeNames,
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.textSecondary,
@@ -355,11 +385,10 @@ class _GoalCommentsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'تعليقات',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        const NeoWorkspaceSectionHeader(
+          title: 'تعليقات',
+          subtitle: 'ملاحظات ومتابعات مرتبطة بالهدف',
         ),
-        const SizedBox(height: 10),
         if (sorted.isEmpty)
           const Text(
             'لا توجد تعليقات بعد',
@@ -382,7 +411,8 @@ class _GoalCommentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authorName =
-        FirestoreService.getUser(comment.authorUid)?.name ?? 'مستخدم';
+        FirestoreService.getUser(comment.authorUid)?.name ??
+        context.tr('مستخدم');
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       color: AppColors.statusPending.withValues(alpha: 0.05),
