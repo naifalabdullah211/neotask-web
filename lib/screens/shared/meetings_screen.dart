@@ -11,6 +11,7 @@ import '../../providers/task_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/neo_selection_field.dart';
+import '../../widgets/neo_workspace_chrome.dart';
 
 class MeetingsScreen extends StatefulWidget {
   const MeetingsScreen({
@@ -36,117 +37,173 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<MeetingProvider>();
     final list = _showPast ? provider.past : provider.upcoming;
+    final compact = MediaQuery.sizeOf(context).width < 620;
+    final totalDecisions = provider.meetings.fold<int>(
+      0,
+      (sum, meeting) => sum + meeting.decisions.length,
+    );
+
     return Scaffold(
-      appBar: AppBar(title: const Text('محاضر الاجتماعات')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        centerTitle: false,
+        title: const Text(
+          'محاضر الاجتماعات',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          if (!widget.readOnly)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 12),
+              child: compact
+                  ? IconButton.filled(
+                      tooltip: context.tr('اجتماع جديد'),
+                      onPressed: _createMeeting,
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
+                      ),
+                      icon: const Icon(Icons.add_rounded),
+                    )
+                  : FilledButton.icon(
+                      onPressed: _createMeeting,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.mintAccent,
+                        foregroundColor: AppColors.navy,
+                      ),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('اجتماع جديد'),
+                    ),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
+            NeoWorkspaceMetricsBar(
+              items: [
+                NeoWorkspaceMetric(
+                  label: 'إجمالي الاجتماعات',
+                  value: '${provider.meetings.length}',
+                  icon: Icons.groups_2_outlined,
+                  color: AppColors.deepBlue,
+                ),
+                NeoWorkspaceMetric(
+                  label: 'اجتماعات قادمة',
+                  value: '${provider.upcoming.length}',
+                  icon: Icons.event_available_outlined,
+                  color: AppColors.mintAccent,
+                ),
+                NeoWorkspaceMetric(
+                  label: 'محاضر سابقة',
+                  value: '${provider.past.length}',
+                  icon: Icons.history_rounded,
+                  color: AppColors.gold,
+                ),
+                NeoWorkspaceMetric(
+                  label: 'إجمالي القرارات',
+                  value: '$totalDecisions',
+                  icon: Icons.rule_folder_outlined,
+                  color: const Color(0xFF7656C8),
+                ),
+              ],
+            ),
             Container(
-              width: double.infinity,
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-              ),
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.groups_2_outlined,
-                    color: AppColors.goldLight,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'من الاجتماع إلى التنفيذ',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 330),
+                      child: NeoSelectionField<bool>(
+                        label: 'عرض الاجتماعات',
+                        value: _showPast,
+                        options: const [
+                          NeoSelectionOption(
+                            value: false,
+                            label: 'القادمة',
+                            icon: Icons.event_available_outlined,
                           ),
-                        ),
-                        Text(
-                          'سجّل القرارات وحوّلها إلى مهام قابلة للمتابعة',
-                          style: AppTextStyles.bodySm,
-                        ),
-                      ],
+                          NeoSelectionOption(
+                            value: true,
+                            label: 'السابقة والمحاضر',
+                            icon: Icons.history,
+                          ),
+                        ],
+                        onChanged: (value) => setState(() => _showPast = value),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: NeoSelectionField<bool>(
-                label: 'عرض الاجتماعات',
-                value: _showPast,
-                options: const [
-                  NeoSelectionOption(
-                    value: false,
-                    label: 'القادمة',
-                    icon: Icons.event_available_outlined,
-                  ),
-                  NeoSelectionOption(
-                    value: true,
-                    label: 'السابقة والمحاضر',
-                    icon: Icons.history,
-                  ),
-                ],
-                onChanged: (value) => setState(() => _showPast = value),
-              ),
-            ),
-            const SizedBox(height: 8),
             Expanded(
-              child: list.isEmpty
-                  ? Center(
-                      child: Text(
-                        _showPast
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: AppColors.divider)),
+                ),
+                child: list.isEmpty
+                    ? NeoWorkspaceEmptyState(
+                        icon: _showPast
+                            ? Icons.history_toggle_off_rounded
+                            : Icons.event_busy_outlined,
+                        title: _showPast
                             ? 'لا توجد محاضر سابقة'
                             : 'لا توجد اجتماعات قادمة',
-                        style: AppTextStyles.bodySecondary,
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: list.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) => _MeetingCard(
-                        meeting: list[index],
-                        onOpen: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => MeetingMinutesScreen(
-                              initialMeeting: list[index],
-                              currentUserUid: widget.currentUserUid,
-                              currentUserName: widget.currentUserName,
-                              isManager: widget.isManager,
-                              readOnly: widget.readOnly,
+                        message: _showPast
+                            ? 'ستظهر هنا الاجتماعات المكتملة ومحاضرها للرجوع إليها.'
+                            : 'أنشئ اجتماعًا جديدًا وحدد المشاركين والموعد لبدء المتابعة.',
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          NeoWorkspaceSectionHeader(
+                            title: _showPast
+                                ? 'أرشيف الاجتماعات'
+                                : 'مساحة الاجتماعات',
+                            subtitle: _showPast
+                                ? 'المحاضر والقرارات السابقة في مكان واحد'
+                                : 'اختر اجتماعًا لفتح المحضر والقرارات والإجراءات',
+                          ),
+                          const Divider(height: 1),
+                          Expanded(
+                            child: ListView.separated(
+                              padding: const EdgeInsets.all(AppSpacing.lg),
+                              itemCount: list.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: AppSpacing.md),
+                              itemBuilder: (context, index) => _MeetingCard(
+                                meeting: list[index],
+                                onOpen: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => MeetingMinutesScreen(
+                                      initialMeeting: list[index],
+                                      currentUserUid: widget.currentUserUid,
+                                      currentUserName: widget.currentUserName,
+                                      isManager: widget.isManager,
+                                      readOnly: widget.readOnly,
+                                    ),
+                                  ),
+                                ),
+                                onDelete:
+                                    !widget.readOnly &&
+                                        (widget.isManager ||
+                                            list[index].createdBy ==
+                                                widget.currentUserUid)
+                                    ? () => _delete(list[index])
+                                    : null,
+                              ),
                             ),
                           ),
-                        ),
-                        onDelete:
-                            !widget.readOnly &&
-                                (widget.isManager ||
-                                    list[index].createdBy ==
-                                        widget.currentUserUid)
-                            ? () => _delete(list[index])
-                            : null,
+                        ],
                       ),
-                    ),
+              ),
             ),
           ],
         ),
       ),
-      floatingActionButton: widget.readOnly
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _createMeeting,
-              icon: const Icon(Icons.add),
-              label: const Text('اجتماع جديد'),
-            ),
     );
   }
 
@@ -319,42 +376,200 @@ class _MeetingCard extends StatelessWidget {
     required this.onOpen,
     this.onDelete,
   });
+
   final MeetingItem meeting;
   final VoidCallback onOpen;
   final VoidCallback? onDelete;
+
   @override
-  Widget build(BuildContext context) => Card(
-    child: ListTile(
-      contentPadding: const EdgeInsets.all(12),
-      leading: CircleAvatar(
-        backgroundColor: meeting.status == MeetingStatus.completed
-            ? const Color(0xFFE6F6EC)
-            : const Color(0xFFFFF4D9),
-        child: Icon(
-          meeting.status == MeetingStatus.completed
-              ? Icons.fact_check_outlined
-              : Icons.groups_outlined,
-          color: meeting.status == MeetingStatus.completed
-              ? AppColors.emerald
-              : AppColors.gold,
+  Widget build(BuildContext context) {
+    final statusColor = switch (meeting.status) {
+      MeetingStatus.completed => AppColors.statusApproved,
+      MeetingStatus.cancelled => AppColors.statusRejected,
+      MeetingStatus.scheduled => AppColors.gold,
+    };
+    final statusLabel = switch (meeting.status) {
+      MeetingStatus.completed => 'مكتمل',
+      MeetingStatus.cancelled => 'ملغى',
+      MeetingStatus.scheduled => 'قادم',
+    };
+    final locationLabel = meeting.location.isEmpty
+        ? context.tr('المكان غير محدد')
+        : meeting.location;
+
+    return Material(
+      color: const Color(0xFFF9FBFD),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Icon(
+                  meeting.status == MeetingStatus.completed
+                      ? Icons.fact_check_outlined
+                      : Icons.groups_2_outlined,
+                  color: statusColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            meeting.title,
+                            style: AppTextStyles.cardTitle.copyWith(
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: .10),
+                            borderRadius: BorderRadius.circular(AppRadius.pill),
+                          ),
+                          child: Text(
+                            statusLabel,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.schedule_outlined,
+                          size: 15,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          intl.DateFormat(
+                            'yyyy/MM/dd HH:mm',
+                          ).format(meeting.startTime),
+                          style: AppTextStyles.bodySecondary,
+                        ),
+                        const SizedBox(width: 12),
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 15,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            locationLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.bodySecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 7,
+                      children: [
+                        _MeetingFact(
+                          icon: Icons.rule_folder_outlined,
+                          label:
+                              '${meeting.decisions.length} ${context.tr('قرارات')}',
+                        ),
+                        _MeetingFact(
+                          icon: Icons.group_outlined,
+                          label:
+                              '${meeting.participantUids.length} ${context.tr('مشاركون')}',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              if (onDelete == null)
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                )
+              else
+                PopupMenuButton<String>(
+                  tooltip: context.tr('إجراءات المدير'),
+                  onSelected: (_) => onDelete!(),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'delete', child: Text('حذف')),
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
-      title: Text(meeting.title, style: AppTextStyles.cardTitle),
-      subtitle: Text(
-        '${intl.DateFormat('yyyy/MM/dd HH:mm').format(meeting.startTime)}\n${meeting.decisions.length} قرار · ${meeting.participantUids.length} مشارك',
+    );
+  }
+}
+
+class _MeetingFact extends StatelessWidget {
+  const _MeetingFact({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.divider),
       ),
-      isThreeLine: true,
-      onTap: onOpen,
-      trailing: onDelete == null
-          ? const Icon(Icons.chevron_left)
-          : PopupMenuButton<String>(
-              onSelected: (_) => onDelete!(),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'delete', child: Text('حذف')),
-              ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.deepBlue),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
             ),
-    ),
-  );
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class MeetingMinutesScreen extends StatelessWidget {
@@ -399,7 +614,7 @@ class MeetingMinutesScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${intl.DateFormat('yyyy/MM/dd HH:mm').format(meeting.startTime)} · ${meeting.location.isEmpty ? 'المكان غير محدد' : meeting.location}',
+                  '${intl.DateFormat('yyyy/MM/dd HH:mm').format(meeting.startTime)} · ${meeting.location.isEmpty ? context.tr('المكان غير محدد') : meeting.location}',
                   style: AppTextStyles.bodySm,
                 ),
               ],
@@ -562,7 +777,9 @@ class MeetingMinutesScreen extends StatelessWidget {
                 TextField(
                   controller: text,
                   maxLines: 3,
-                  decoration: InputDecoration(labelText: context.tr('نص القرار *')),
+                  decoration: InputDecoration(
+                    labelText: context.tr('نص القرار *'),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 NeoSelectionField<AppUser>(

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'package:neotask_pro/widgets/localized_text.dart';
+import 'package:neotask_pro/l10n/app_i18n.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -14,6 +15,7 @@ import '../../services/workflow_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/import_table_parser.dart';
 import '../../widgets/neo_selection_field.dart';
+import '../../widgets/neo_workspace_chrome.dart';
 
 enum _ImportType { employees, tasks }
 
@@ -36,142 +38,224 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
   Widget build(BuildContext context) {
     final validCount = _preview.where((row) => row.errors.isEmpty).length;
     final errorCount = _preview.length - validCount;
+    final totalCount = _preview.length;
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('استيراد Excel / CSV')),
-      body: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Row(
-              children: [
-                Icon(
-                  Icons.upload_file_outlined,
-                  color: AppColors.gold,
-                  size: 40,
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'استيراد حقيقي مع فحص قبل الحفظ',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(height: 6),
-                      Text(
-                        'لن يُحفظ أي صف خاطئ أو مكرر، وسترى نتيجة كل صف أولًا',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                    ],
+      appBar: AppBar(
+        centerTitle: false,
+        title: const Text(
+          'استيراد Excel / CSV',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (_table != null)
+              NeoWorkspaceMetricsBar(
+                items: [
+                  NeoWorkspaceMetric(
+                    label: 'إجمالي الصفوف',
+                    value: '$totalCount',
+                    icon: Icons.table_rows_outlined,
+                    color: AppColors.deepBlue,
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          NeoSelectionField<_ImportType>(
-            label: 'نوع البيانات',
-            value: _type,
-            enabled: !widget.readOnly,
-            options: const [
-              NeoSelectionOption(
-                value: _ImportType.employees,
-                label: 'الموظفون',
-                icon: Icons.groups_outlined,
+                  NeoWorkspaceMetric(
+                    label: 'صفوف صالحة',
+                    value: '$validCount',
+                    icon: Icons.check_circle_outline,
+                    color: AppColors.statusApproved,
+                  ),
+                  NeoWorkspaceMetric(
+                    label: 'صفوف بها أخطاء',
+                    value: '$errorCount',
+                    icon: Icons.error_outline_rounded,
+                    color: AppColors.statusRejected,
+                  ),
+                ],
               ),
-              NeoSelectionOption(
-                value: _ImportType.tasks,
-                label: 'المهام',
-                icon: Icons.task_alt_outlined,
-              ),
-            ],
-            onChanged: widget.readOnly
-                ? null
-                : (value) => setState(() {
-                    _type = value;
-                    _fileName = null;
-                    _table = null;
-                    _preview = const [];
-                  }),
-          ),
-          const SizedBox(height: 12),
-          _TemplateCard(type: _type),
-          const SizedBox(height: 12),
-          if (!widget.readOnly)
-            OutlinedButton.icon(
-              onPressed: _busy ? null : _pickFile,
-              icon: const Icon(Icons.attach_file),
-              label: Text(
-                _fileName == null
-                    ? 'اختيار ملف CSV أو XLSX'
-                    : 'الملف: $_fileName',
-              ),
-            ),
-          if (_table != null) ...[
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'معاينة الصفوف',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.primaryGradient,
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.upload_file_outlined,
+                          color: AppColors.goldLight,
+                          size: 38,
+                        ),
+                        SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'استيراد حقيقي مع فحص قبل الحفظ',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              SizedBox(height: 5),
+                              Text(
+                                'لن يُحفظ أي صف خاطئ أو مكرر، وسترى نتيجة كل صف أولًا',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                Chip(
-                  label: Text('$validCount صالح'),
-                  avatar: const Icon(
-                    Icons.check_circle,
-                    color: AppColors.mintAccent,
-                    size: 18,
+                  const SizedBox(height: AppSpacing.lg),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const NeoWorkspaceSectionHeader(
+                          title: 'إعداد الاستيراد',
+                          subtitle:
+                              'اختر نوع البيانات وارفع الملف ثم راجع النتيجة قبل الحفظ',
+                        ),
+                        const Divider(height: 1),
+                        Padding(
+                          padding: const EdgeInsets.all(AppSpacing.xl),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              NeoSelectionField<_ImportType>(
+                                label: 'نوع البيانات',
+                                value: _type,
+                                enabled: !widget.readOnly,
+                                options: const [
+                                  NeoSelectionOption(
+                                    value: _ImportType.employees,
+                                    label: 'الموظفون',
+                                    icon: Icons.groups_outlined,
+                                  ),
+                                  NeoSelectionOption(
+                                    value: _ImportType.tasks,
+                                    label: 'المهام',
+                                    icon: Icons.task_alt_outlined,
+                                  ),
+                                ],
+                                onChanged: widget.readOnly
+                                    ? null
+                                    : (value) => setState(() {
+                                        _type = value;
+                                        _fileName = null;
+                                        _table = null;
+                                        _preview = const [];
+                                      }),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              _TemplateCard(type: _type),
+                              if (!widget.readOnly) ...[
+                                const SizedBox(height: AppSpacing.md),
+                                OutlinedButton.icon(
+                                  onPressed: _busy ? null : _pickFile,
+                                  icon: const Icon(Icons.attach_file_rounded),
+                                  label: Text(
+                                    _fileName == null
+                                        ? 'اختيار ملف CSV أو XLSX'
+                                        : '${context.tr('الملف')}: $_fileName',
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Chip(
-                  label: Text('$errorCount خطأ'),
-                  avatar: const Icon(
-                    Icons.error,
-                    color: AppColors.statusRejected,
-                    size: 18,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ..._preview.asMap().entries.map(
-              (entry) => _PreviewRowCard(
-                index: entry.key,
-                row: entry.value,
-                type: _type,
+                  const SizedBox(height: AppSpacing.lg),
+                  if (_table == null)
+                    SizedBox(
+                      height: 250,
+                      child: NeoWorkspaceEmptyState(
+                        icon: Icons.table_view_outlined,
+                        title: _fileName == null
+                            ? 'لم يتم اختيار ملف بعد'
+                            : 'ملف جاهز للمراجعة',
+                        message:
+                            'اختر ملف CSV أو XLSX لبدء المعاينة والتحقق قبل الحفظ.',
+                      ),
+                    )
+                  else
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const NeoWorkspaceSectionHeader(
+                            title: 'مراجعة البيانات',
+                            subtitle:
+                                'راجع الصفوف الصالحة والأخطاء قبل تنفيذ الاستيراد',
+                          ),
+                          const Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            child: Column(
+                              children: [
+                                for (final entry in _preview.asMap().entries)
+                                  _PreviewRowCard(
+                                    index: entry.key,
+                                    row: entry.value,
+                                    type: _type,
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.lg,
+                              0,
+                              AppSpacing.lg,
+                              AppSpacing.lg,
+                            ),
+                            child: FilledButton.icon(
+                              onPressed: _busy || validCount == 0
+                                  ? null
+                                  : _importValidRows,
+                              icon: _busy
+                                  ? const SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.cloud_upload_outlined),
+                              label: Text('استيراد $validCount صف صالح'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
               ),
             ),
-            const SizedBox(height: 14),
-            FilledButton.icon(
-              onPressed: _busy || validCount == 0 ? null : _importValidRows,
-              icon: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.cloud_upload_outlined),
-              label: Text('استيراد $validCount صف صالح'),
-            ),
           ],
-          const SizedBox(height: 40),
-        ],
+        ),
       ),
     );
   }
@@ -357,44 +441,69 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
   }
 
   void _show(String message) {
-    if (mounted)
+    if (mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ).showSnackBar(SnackBar(content: Text(context.tr(message))));
+    }
   }
 }
 
 class _TemplateCard extends StatelessWidget {
   const _TemplateCard({required this.type});
+
   final _ImportType type;
+
   @override
   Widget build(BuildContext context) {
     final columns = type == _ImportType.employees
         ? 'الاسم | الرقم الوظيفي | كلمة المرور'
         : 'عنوان المهمة | الرقم الوظيفي | تاريخ الاستحقاق | الوصف | تاريخ البداية | الساعات | الأولوية | التصنيف';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'عناوين الصف الأول',
-              style: TextStyle(fontWeight: FontWeight.w800),
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FBFD),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.deepBlue.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            const SizedBox(height: 7),
-            SelectableText(
-              columns,
-              textDirection: Directionality.of(context),
-              style: const TextStyle(color: AppColors.textSecondary),
+            child: const Icon(
+              Icons.view_column_outlined,
+              color: AppColors.deepBlue,
+              size: 20,
             ),
-            const SizedBox(height: 6),
-            const Text(
-              'تُقبل العناوين العربية أو الإنجليزية، والتاريخ بصيغة YYYY-MM-DD',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('عناوين الصف الأول', style: AppTextStyles.cardTitle),
+                const SizedBox(height: 6),
+                SelectableText(
+                  context.tr(columns),
+                  textDirection: Directionality.of(context),
+                  style: AppTextStyles.bodySecondary,
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  'تُقبل العناوين العربية أو الإنجليزية، والتاريخ بصيغة YYYY-MM-DD',
+                  style: AppTextStyles.bodySecondary,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -406,9 +515,11 @@ class _PreviewRowCard extends StatelessWidget {
     required this.row,
     required this.type,
   });
+
   final int index;
   final _ValidatedRow row;
   final _ImportType type;
+
   @override
   Widget build(BuildContext context) {
     final ok = row.errors.isEmpty;
@@ -416,28 +527,66 @@ class _PreviewRowCard extends StatelessWidget {
         ? row.data['name']
         : row.data['title'];
     final displayTitle = title == null || title.isEmpty
-        ? 'صف بلا عنوان'
+        ? context.tr('صف بلا عنوان')
         : title;
-    return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor:
-              (ok ? AppColors.mintAccent : AppColors.statusRejected).withValues(
-                alpha: .15,
-              ),
-          child: Icon(
-            ok ? Icons.check : Icons.close,
-            color: ok ? AppColors.navy : AppColors.statusRejected,
+    final accent = ok ? AppColors.statusApproved : AppColors.statusRejected;
+    final details = ok
+        ? context.tr('صالح للاستيراد')
+        : row.errors.map(context.tr).join(' · ');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FBFD),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: accent.withValues(alpha: .28)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(
+              ok ? Icons.check_rounded : Icons.close_rounded,
+              color: accent,
+              size: 20,
+            ),
           ),
-        ),
-        title: Text('${index + 2}. $displayTitle'),
-        subtitle: Text(
-          ok ? 'صالح للاستيراد' : row.errors.join(' · '),
-          style: TextStyle(
-            color: ok ? AppColors.textSecondary : AppColors.statusRejected,
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${index + 2}. $displayTitle',
+                  style: AppTextStyles.cardTitle,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  details,
+                  style: AppTextStyles.bodySecondary.copyWith(
+                    color: ok
+                        ? AppColors.textSecondary
+                        : AppColors.statusRejected,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        trailing: Text(row.data['employeeNumber'] ?? ''),
+          const SizedBox(width: 10),
+          Text(
+            row.data['employeeNumber'] ?? '',
+            style: AppTextStyles.bodySecondary.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
