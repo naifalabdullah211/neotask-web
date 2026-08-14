@@ -1,0 +1,56 @@
+name: Apply NeoTask Runtime I18n Templates
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tool/add_runtime_i18n_templates.py'
+      - 'test/runtime_i18n_templates_test.dart'
+      - '.github/workflows/apply-runtime-i18n-templates.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: neotask-runtime-i18n-templates
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.4'
+          channel: stable
+          cache: true
+      - name: Apply runtime translation templates
+        run: |
+          python tool/add_runtime_i18n_templates.py
+          python tool/dedupe_i18n_keys.py
+          dart format lib/l10n/app_i18n.dart test/runtime_i18n_templates_test.dart
+      - name: Verify bilingual runtime copy
+        run: |
+          flutter pub get
+          flutter test test/runtime_i18n_templates_test.dart
+          flutter test test/workflow_features_test.dart
+          flutter build web --release --pwa-strategy=none
+      - name: Commit verified runtime translations
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/l10n/app_i18n.dart test/runtime_i18n_templates_test.dart
+          if git diff --cached --quiet; then
+            echo 'No runtime i18n changes to commit'
+            exit 0
+          fi
+          git commit -m 'Cover NeoTask runtime-composed bilingual UI copy'
+          git reset --hard HEAD
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
