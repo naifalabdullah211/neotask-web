@@ -20,36 +20,78 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Decode existing Firebase credential
+      - name: Select available Mirsad credential
+        id: credential
         env:
-          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
+          MIRSAD_1: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MIRSAD_211 }}
+          MIRSAD_2: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MIRSAD }}
+          MIRSAD_3: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MIRSAD211 }}
+          FIREBASE_TOKEN_VALUE: ${{ secrets.FIREBASE_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "$FIREBASE_SERVICE_ACCOUNT_BASE64"
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
-          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+          selected=''
+          value=''
+          for item in MIRSAD_1 MIRSAD_2 MIRSAD_3; do
+            candidate="${!item}"
+            if [ -n "$candidate" ]; then
+              selected="$item"
+              value="$candidate"
+              break
+            fi
+          done
+          if [ -n "$value" ]; then
+            if printf '%s' "$value" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json" 2>/dev/null && jq -e '.project_id' "$RUNNER_TEMP/firebase-service-account.json" >/dev/null 2>&1; then
+              :
+            else
+              printf '%s' "$value" > "$RUNNER_TEMP/firebase-service-account.json"
+              jq -e '.project_id' "$RUNNER_TEMP/firebase-service-account.json" >/dev/null
+            fi
+            chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+            echo "mode=service-account" >> "$GITHUB_OUTPUT"
+            echo "selected=$selected" >> "$GITHUB_OUTPUT"
+          elif [ -n "$FIREBASE_TOKEN_VALUE" ]; then
+            printf '%s' "$FIREBASE_TOKEN_VALUE" > "$RUNNER_TEMP/firebase-token.txt"
+            chmod 600 "$RUNNER_TEMP/firebase-token.txt"
+            echo "mode=token" >> "$GITHUB_OUTPUT"
+            echo "selected=FIREBASE_TOKEN" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=none" >> "$GITHUB_OUTPUT"
+            echo "selected=none" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Check Mirsad project access
-        id: check
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Check Mirsad with service account
+        if: steps.credential.outputs.mode == 'service-account'
+        id: check_sa
         continue-on-error: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-        run: |
-          set -o pipefail
-          npm install --global firebase-tools
-          firebase hosting:sites:list --project mirsad-211 --json > mirsad-access-output.txt 2>&1
+        run: firebase hosting:sites:list --project mirsad-211 --json > mirsad-access-output.txt 2>&1
+
+      - name: Check Mirsad with Firebase token
+        if: steps.credential.outputs.mode == 'token'
+        id: check_token
+        continue-on-error: true
+        env:
+          FIREBASE_TOKEN_VALUE: ${{ secrets.FIREBASE_TOKEN }}
+        run: firebase hosting:sites:list --project mirsad-211 --token "$FIREBASE_TOKEN_VALUE" --json > mirsad-access-output.txt 2>&1
 
       - name: Record result
         if: always()
         run: |
+          status='failure'
+          if [ "${{ steps.check_sa.outcome }}" = 'success' ] || [ "${{ steps.check_token.outcome }}" = 'success' ]; then status='success'; fi
           {
-            printf 'status=%s\n' "${{ steps.check.outcome }}"
+            printf 'status=%s\n' "$status"
+            printf 'credential=%s\n' "${{ steps.credential.outputs.selected }}"
             printf 'checked=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             printf '%s\n' '---'
-            sed -n '1,120p' mirsad-access-output.txt 2>/dev/null || true
+            sed -n '1,120p' mirsad-access-output.txt 2>/dev/null || printf 'No Mirsad credential found in repository secrets.\n'
           } > mirsad-access-result.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f mirsad-access-result.txt
-          git commit -m "chore: record Mirsad Firebase access check [skip ci]" || true
+          git commit -m "chore: record Mirsad credential check [skip ci]" || true
           git push origin HEAD:agent/mirsad-firebase-deploy || true
