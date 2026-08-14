@@ -44,9 +44,11 @@ jobs:
         run: |
           npm run apply:master-data
           npm run apply:warehouse
+          npm run apply:employee-access
           npm run test:master-data
           npm run test:security
           npm run test:warehouse
+          npm run test:employee-access
 
       - name: Reject high or critical dependency vulnerabilities
         working-directory: mirsad
@@ -103,6 +105,8 @@ jobs:
             -o "$RUNNER_TEMP/mirsad-security.css"
           grep -q 'function MirsadWarehousePanel' "$RUNNER_TEMP/mirsad-app.js"
           grep -q 'warehouse-overview' "$RUNNER_TEMP/mirsad-security.css"
+          grep -q '__MIRSAD_EMPLOYEE_ACCESS_V2__' "$RUNNER_TEMP/mirsad-app.js"
+          grep -q 'EMPLOYEE_PASSWORD_RESET' "$RUNNER_TEMP/mirsad-app.js"
           echo 'Live MIRSAD warehouse follow-up verification: PASS'
 
       - name: Remove temporary Firebase credential
