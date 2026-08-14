@@ -74,5 +74,37 @@ if sentinel not in text:
 '''
     text = text.replace(marker, block + marker, 1)
 
+exact_entries = {
+    'بيانات المعيار': 'Criterion information',
+    'عرّف المعيار بوضوح قبل توزيعه على فريق التنفيذ':
+        'Define the criterion clearly before assigning it to the delivery team',
+    'فريق التنفيذ': 'Delivery team',
+    'أضف موظفين من تبويب الموظفين ثم عُد لإسناد المعيار.':
+        'Add employees from the Employees tab, then return to assign the criterion.',
+    'حدد بيانات المعيار وفريق التنفيذ ثم احفظه لبدء المتابعة.':
+        'Complete the criterion information and delivery team, then save to begin tracking.',
+    'تعذر حفظ المعيار، حاول مجددًا': 'Could not save the criterion. Try again.',
+}
+
+map_marker = "    // Extended screen copy\n"
+missing = []
+for key, value in exact_entries.items():
+    if f"    {key!r}:" not in text:
+        missing.append(f"    {key!r}: {value!r},")
+if missing:
+    if map_marker not in text:
+        raise SystemExit('AppI18n map insertion marker not found')
+    text = text.replace(
+        map_marker,
+        "    // Criterion workspace refresh\n" + "\n".join(missing) + "\n\n" + map_marker,
+        1,
+    )
+
 path.write_text(text, encoding='utf-8')
-print('Added NeoTask runtime translation templates')
+
+invite = Path('lib/screens/auth/register_via_invite_screen.dart')
+invite_text = invite.read_text(encoding='utf-8')
+invite_text = invite_text.replace("context.tr('تأكيح الرقم السري')", "context.tr('تأكيد الرقم السري')")
+invite.write_text(invite_text, encoding='utf-8')
+
+print('Added NeoTask runtime translation templates and criterion copy')
