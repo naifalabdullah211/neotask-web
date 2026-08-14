@@ -95,19 +95,27 @@ jobs:
           if (new Set(window.__MIRSAD_MASTER_MEDICATIONS__.map(item => item.caseId)).size !== 55) throw new Error('Live case IDs are not unique');
           console.log('Live MIRSAD verification: PASS (55 unique medication records)');
           NODE
-          curl --fail --silent --show-error \
-            -H 'Cache-Control: no-cache' \
-            "https://mirsad.web.app/assets/index-D_ed9xY4.js?commit=${GITHUB_SHA}" \
-            -o "$RUNNER_TEMP/mirsad-app.js"
-          curl --fail --silent --show-error \
-            -H 'Cache-Control: no-cache' \
-            "https://mirsad.web.app/mirsad-security.css?commit=${GITHUB_SHA}" \
-            -o "$RUNNER_TEMP/mirsad-security.css"
-          grep -q 'function MirsadWarehousePanel' "$RUNNER_TEMP/mirsad-app.js"
-          grep -q 'warehouse-overview' "$RUNNER_TEMP/mirsad-security.css"
-          grep -q '__MIRSAD_EMPLOYEE_ACCESS_V2__' "$RUNNER_TEMP/mirsad-app.js"
-          grep -q 'EMPLOYEE_PASSWORD_RESET' "$RUNNER_TEMP/mirsad-app.js"
-          echo 'Live MIRSAD warehouse follow-up verification: PASS'
+          release_verified=false
+          for attempt in {1..12}; do
+            curl --fail --silent --show-error \
+              -H 'Cache-Control: no-cache' \
+              "https://mirsad.web.app/assets/index-D_ed9xY4.js?commit=${GITHUB_SHA}-${attempt}" \
+              -o "$RUNNER_TEMP/mirsad-app.js"
+            curl --fail --silent --show-error \
+              -H 'Cache-Control: no-cache' \
+              "https://mirsad.web.app/mirsad-security.css?commit=${GITHUB_SHA}-${attempt}" \
+              -o "$RUNNER_TEMP/mirsad-security.css"
+            if grep -q 'function MirsadWarehousePanel' "$RUNNER_TEMP/mirsad-app.js" \
+              && grep -q 'warehouse-overview' "$RUNNER_TEMP/mirsad-security.css" \
+              && grep -q '__MIRSAD_EMPLOYEE_ACCESS_V2__' "$RUNNER_TEMP/mirsad-app.js" \
+              && grep -q 'EMPLOYEE_PASSWORD_RESET' "$RUNNER_TEMP/mirsad-app.js"; then
+              release_verified=true
+              break
+            fi
+            sleep 5
+          done
+          test "$release_verified" = true
+          echo 'Live MIRSAD employee access and warehouse verification: PASS'
 
       - name: Remove temporary Firebase credential
         if: always()
