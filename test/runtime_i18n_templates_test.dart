@@ -26,10 +26,7 @@ void main() {
       AppI18n.translate('سبب الرفض: Missing attachment', english),
       'Rejection reason: Missing attachment',
     );
-    expect(
-      AppI18n.translate('الملف: stock.xlsx', english),
-      'File: stock.xlsx',
-    );
+    expect(AppI18n.translate('الملف: stock.xlsx', english), 'File: stock.xlsx');
     expect(
       AppI18n.translate('Quarter Review - نسخة', english),
       'Quarter Review - Copy',

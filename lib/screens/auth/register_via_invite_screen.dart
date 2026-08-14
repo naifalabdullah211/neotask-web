@@ -225,7 +225,7 @@ class _RegisterViaInviteScreenState extends State<RegisterViaInviteScreen> {
                           textDirection: TextDirection.ltr,
                           textAlign: TextAlign.left,
                           decoration: InputDecoration(
-                            labelText: context.tr('تأكيح الرقم السري'),
+                            labelText: context.tr('تأكيد الرقم السري'),
                             prefixIcon: Icon(Icons.lock_outline),
                           ),
                           validator: (v) => (v != _passwordCtrl.text)
