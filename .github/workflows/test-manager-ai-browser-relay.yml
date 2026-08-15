@@ -1,0 +1,37 @@
+name: Test NeoTask Manager AI Browser Relay
+
+on:
+  workflow_run:
+    workflows: ['Deploy NeoTask Agent Hosting']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare isolated browser smoke runtime
+        env:
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/neotask-browser-smoke"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          npm install --prefix "$RUNNER_TEMP/neotask-browser-smoke" firebase-admin@13 playwright@1.54.2
+          "$RUNNER_TEMP/neotask-browser-smoke/node_modules/.bin/playwright" install chromium
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+      - name: Prove Firebase origin to AI response end-to-end
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          NODE_PATH: ${{ runner.temp }}/neotask-browser-smoke/node_modules
+        run: node tool/test_manager_ai_browser_relay.cjs
