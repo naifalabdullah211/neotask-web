@@ -39,7 +39,7 @@ jobs:
           set -o pipefail
           flutter pub get 2>&1 | tee -a agent-hosting-error.txt
           flutter test test/workflow_features_test.dart 2>&1 | tee -a agent-hosting-error.txt
-          flutter build web --release --pwa-strategy=none --dart-define=NEOTASK_AI_API_URL=https://neotask-agent-bridge-xo992u.v2.appdeploy.ai/api/multi-agent 2>&1 | tee -a agent-hosting-error.txt
+          flutter build web --release --pwa-strategy=none --dart-define=NEOTASK_AI_API_URL=https://neotask-ai.rcmc.workers.dev/api/multi-agent 2>&1 | tee -a agent-hosting-error.txt
 
       - name: Decode Firebase credential
         env:
@@ -69,7 +69,7 @@ jobs:
       - name: Record Hosting success
         if: success()
         run: |
-          printf 'Commit: %s\nDeployed: %s\nSite: https://neotask1-ff5a4.web.app\nStatus: success\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > agent-hosting-success.txt
+          printf 'Commit: %s\nDeployed: %s\nSite: https://neotask1-ff5a4.web.app\nAI: https://neotask-ai.rcmc.workers.dev/api/multi-agent\nStatus: success\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > agent-hosting-success.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f agent-hosting-success.txt
