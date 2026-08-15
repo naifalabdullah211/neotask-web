@@ -1,0 +1,38 @@
+name: Sync NeoTask Manager Claims
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tool/sync_manager_claims.cjs'
+      - '.github/workflows/sync-manager-claims.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare Firebase Admin runtime
+        env:
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/neotask-claims"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          npm install --prefix "$RUNNER_TEMP/neotask-claims" firebase-admin@13
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Synchronize trusted manager claims
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          NODE_PATH: ${{ runner.temp }}/neotask-claims/node_modules
+        run: node tool/sync_manager_claims.cjs
