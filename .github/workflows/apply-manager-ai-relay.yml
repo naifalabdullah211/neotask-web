@@ -1,0 +1,65 @@
+name: Apply NeoTask Manager AI Relay
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tool/apply_manager_ai_relay.py'
+      - '.github/workflows/apply-manager-ai-relay.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: neotask-manager-ai-relay
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.4'
+          channel: stable
+          cache: true
+      - name: Apply iframe relay transport
+        run: |
+          python tool/apply_manager_ai_relay.py
+          dart format \
+            lib/services/manager_ai_transport.dart \
+            lib/services/manager_ai_transport_stub.dart \
+            lib/services/manager_ai_transport_web.dart \
+            lib/services/manager_ai_service.dart \
+            lib/screens/manager/manager_ideas_screen.dart
+      - name: Verify Flutter relay build
+        run: |
+          flutter pub get
+          flutter test test/workflow_features_test.dart
+          flutter build web --release --pwa-strategy=none
+          grep -R "neotask-agent-bridge-xo992u.v2.appdeploy.ai" build/web >/dev/null
+          grep -R "neotask-ai-request" build/web >/dev/null
+      - name: Commit verified relay migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            lib/services/manager_ai_transport.dart \
+            lib/services/manager_ai_transport_stub.dart \
+            lib/services/manager_ai_transport_web.dart \
+            lib/services/manager_ai_service.dart \
+            lib/screens/manager/manager_ideas_screen.dart
+          if git diff --cached --quiet; then
+            echo 'Relay migration already applied'
+            exit 0
+          fi
+          git commit -m 'Route NeoTask Manager AI through secure browser relay'
+          git reset --hard HEAD
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
