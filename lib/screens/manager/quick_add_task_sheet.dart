@@ -13,8 +13,8 @@ import '../../widgets/neo_selection_field.dart';
 
 /// Quick "add task" bottom sheet opened from the circular FAB on the
 /// manager home screen. Deliberately a REDUCED field set compared to
-/// [ManagerCreateTaskScreen] (title/assignee/category/priority/date only —
-/// no description, no recurrence) per the explicit request: this is meant
+/// [ManagerCreateTaskScreen] (title/assignee/details/priority/date only —
+/// no recurrence or advanced planning fields). This is meant
 /// as a fast quick-add path, not a replacement for the full creation
 /// screen (which remains reachable from the review tab's FAB).
 ///
@@ -42,7 +42,7 @@ class QuickAddTaskSheet extends StatefulWidget {
 class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
-  final _categoryCtrl = TextEditingController(text: 'عام');
+  final _detailsCtrl = TextEditingController();
 
   AppUser? _selectedEmployee;
   // Manager personal tasks (المهام الشخصية للمدير) — NEW. See the same
@@ -55,7 +55,7 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
   @override
   void dispose() {
     _titleCtrl.dispose();
-    _categoryCtrl.dispose();
+    _detailsCtrl.dispose();
     super.dispose();
   }
 
@@ -83,14 +83,14 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
     try {
       await context.read<TaskProvider>().createTask(
         title: _titleCtrl.text.trim(),
-        description: '',
+        description: _detailsCtrl.text.trim(),
         assignedTo: _isPersonal ? managerUid : _selectedEmployee!.uid,
         assignedBy: managerUid,
         dueDate: _dueDate,
         priority: _priority,
-        category: _categoryCtrl.text.trim().isEmpty
-            ? 'عام'
-            : _categoryCtrl.text.trim(),
+        // Keep the legacy field internally for compatibility with existing
+        // reports and saved tasks; quick-add no longer asks the user to type it.
+        category: 'عام',
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -113,9 +113,9 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
       duration: const Duration(milliseconds: 150),
       padding: EdgeInsets.only(bottom: bottomInset),
       child: DraggableScrollableSheet(
-        initialChildSize: 0.62,
+        initialChildSize: 0.7,
         minChildSize: 0.4,
-        maxChildSize: 0.92,
+        maxChildSize: 0.95,
         expand: false,
         builder: (context, scrollController) {
           return Container(
@@ -219,8 +219,14 @@ class _QuickAddTaskSheetState extends State<QuickAddTaskSheet> {
                         ),
                     const SizedBox(height: 14),
                     TextFormField(
-                      controller: _categoryCtrl,
-                      decoration: InputDecoration(labelText: context.tr('التصنيف')),
+                      controller: _detailsCtrl,
+                      minLines: 3,
+                      maxLines: 5,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        labelText: context.tr('تفاصيل المهمة'),
+                        alignLabelWithHint: true,
+                      ),
                     ),
                     const SizedBox(height: 18),
                     NeoSelectionField<TaskPriority>(
