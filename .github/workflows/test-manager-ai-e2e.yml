@@ -1,0 +1,35 @@
+name: Test NeoTask Manager AI E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tool/test_manager_ai_e2e.cjs'
+      - '.github/workflows/test-manager-ai-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare Firebase Admin runtime
+        env:
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/neotask-ai-e2e"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          npm install --prefix "$RUNNER_TEMP/neotask-ai-e2e" firebase-admin@13
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+      - name: Run production authenticated AI request
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          NODE_PATH: ${{ runner.temp }}/neotask-ai-e2e/node_modules
+        run: node tool/test_manager_ai_e2e.cjs
