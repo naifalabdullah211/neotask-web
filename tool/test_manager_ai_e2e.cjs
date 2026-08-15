@@ -3,18 +3,10 @@ const fs = require('node:fs');
 
 const projectId = 'neotask1-ff5a4';
 const apiKey = 'AIzaSyAH4nvOmEuBXlYmSgTvVedEyGGqcVhXcZ4';
-const baseUrl = 'https://neotask-agent-bridge-xo992u.v2.appdeploy.ai/';
-const endpoint = `${baseUrl}api/multi-agent`;
+const endpoint = 'https://neotask-ai.rcmc.workers.dev/api/multi-agent';
+const origin = 'https://neotask1-ff5a4.web.app';
 
 async function main() {
-  const root = await fetch(baseUrl, {redirect: 'manual'});
-  console.log(JSON.stringify({
-    stage: 'frame-headers',
-    status: root.status,
-    xFrameOptions: root.headers.get('x-frame-options'),
-    csp: root.headers.get('content-security-policy'),
-  }));
-
   const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   if (!credentialsPath) throw new Error('missing-service-account');
   const serviceAccount = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
@@ -44,12 +36,24 @@ async function main() {
     throw new Error(`firebase-signin-${signInResponse.status}-${signInBody.error?.message || 'unknown'}`);
   }
 
+  const healthResponse = await fetch(`${endpoint}?lang=en`, {
+    headers: {Origin: origin},
+    signal: AbortSignal.timeout(20000),
+  });
+  const health = await healthResponse.json().catch(() => ({}));
+  if (!healthResponse.ok || health.status !== 'ready' || health.count !== 8 || health.provider !== 'cloudflare-workers-ai') {
+    console.log(JSON.stringify({stage:'health',ok:false,status:healthResponse.status,error:health.error||null,provider:health.provider||null,count:health.count||0}));
+    process.exitCode = 1;
+    return;
+  }
+
   const started = Date.now();
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${signInBody.idToken}`,
       'Content-Type': 'application/json',
+      Origin: origin,
     },
     body: JSON.stringify({message:'Hi',history:[],teamContext:[],taskContext:[],projectContext:[],meetingContext:[],knowledgeContext:[],qualityContext:{},agentRules:[],truthMode:true,languageCode:'en'}),
     signal: AbortSignal.timeout(90000),
@@ -57,20 +61,25 @@ async function main() {
   const text = await response.text();
   let body = {};
   try { body = JSON.parse(text); } catch {}
-  console.log(JSON.stringify({
-    stage: 'production-ai-post-server-to-server',
+  const safe = {
+    stage: 'cloudflare-manager-ai-post',
     ok: response.ok,
     status: response.status,
     elapsedMs: Date.now() - started,
     error: body.error || null,
+    provider: body.provider || null,
+    model: body.model || null,
     mode: body.mode || null,
     delegatedAgentCount: Array.isArray(body.delegatedAgents) ? body.delegatedAgents.length : 0,
     replyLength: typeof body.reply === 'string' ? body.reply.length : 0,
-  }));
-  if (!response.ok) process.exitCode = 1;
+    corsOrigin: response.headers.get('access-control-allow-origin'),
+  };
+  console.log(JSON.stringify(safe));
+  const valid = response.ok && body.provider === 'cloudflare-workers-ai' && body.mode === 'multi-agent' && safe.replyLength > 2 && safe.delegatedAgentCount >= 2 && safe.corsOrigin === origin;
+  if (!valid) process.exitCode = 1;
 }
 
 main().catch((error) => {
-  console.log(JSON.stringify({stage: 'fatal', ok: false, error: error.message}));
+  console.log(JSON.stringify({stage:'fatal',ok:false,error:error.message}));
   process.exitCode = 1;
 });
