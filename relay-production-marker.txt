@@ -1,0 +1,3 @@
+NeoTask Manager AI transport: secure browser relay
+Verified source commit: de4421de6860a448f31ee68a0a6e0359e0eb6621
+Production rollout requested: 2026-08-15
