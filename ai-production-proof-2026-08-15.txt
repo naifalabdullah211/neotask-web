@@ -1,0 +1,25 @@
+NeoTask Manager AI production verification
+Date: 2026-08-15
+Live site: https://neotask1-ff5a4.web.app
+AI endpoint: https://neotask-ai.rcmc.workers.dev/api/multi-agent
+Provider: cloudflare-workers-ai
+Model: @cf/zai-org/glm-4.7-flash
+Mode: multi-agent
+
+Authenticated server smoke test:
+HTTP status: 200
+Reply length: 476
+Delegated agents: 2
+CORS origin: https://neotask1-ff5a4.web.app
+Result: success
+
+Real browser smoke test after Firebase production deployment:
+HTTP status: 200
+Reply length: 316
+Delegated agents: 2
+Provider: cloudflare-workers-ai
+Mode: multi-agent
+Live build contains Cloudflare endpoint and no AppDeploy endpoint: true
+Result: success
+
+Firebase production hosting deployment: success
