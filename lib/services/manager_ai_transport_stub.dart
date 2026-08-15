@@ -15,7 +15,7 @@ class ManagerAiTransportResponse {
 class ManagerAiTransport {
   static const String _endpoint = String.fromEnvironment(
     'NEOTASK_AI_API_URL',
-    defaultValue: 'https://project-0wvza.vercel.app/api/multi-agent',
+    defaultValue: 'https://neotask-ai.rcmc.workers.dev/api/multi-agent',
   );
 
   static Future<ManagerAiTransportResponse> get({
@@ -24,7 +24,7 @@ class ManagerAiTransport {
     final uri = Uri.parse(_endpoint).replace(
       queryParameters: languageCode == 'en' ? const {'lang': 'en'} : null,
     );
-    final response = await http.get(uri).timeout(const Duration(seconds: 12));
+    final response = await http.get(uri).timeout(const Duration(seconds: 15));
     return ManagerAiTransportResponse(
       statusCode: response.statusCode,
       body: _decode(response.body),
