@@ -3,9 +3,18 @@ const fs = require('node:fs');
 
 const projectId = 'neotask1-ff5a4';
 const apiKey = 'AIzaSyAH4nvOmEuBXlYmSgTvVedEyGGqcVhXcZ4';
-const endpoint = 'https://neotask-agent-bridge-xo992u.v2.appdeploy.ai/api/multi-agent';
+const baseUrl = 'https://neotask-agent-bridge-xo992u.v2.appdeploy.ai/';
+const endpoint = `${baseUrl}api/multi-agent`;
 
 async function main() {
+  const root = await fetch(baseUrl, {redirect: 'manual'});
+  console.log(JSON.stringify({
+    stage: 'frame-headers',
+    status: root.status,
+    xFrameOptions: root.headers.get('x-frame-options'),
+    csp: root.headers.get('content-security-policy'),
+  }));
+
   const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   if (!credentialsPath) throw new Error('missing-service-account');
   const serviceAccount = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
@@ -36,38 +45,19 @@ async function main() {
   }
 
   const started = Date.now();
-  let response;
-  try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${signInBody.idToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: 'Hi',
-        history: [],
-        teamContext: [],
-        taskContext: [],
-        projectContext: [],
-        meetingContext: [],
-        knowledgeContext: [],
-        qualityContext: {},
-        agentRules: [],
-        truthMode: true,
-        languageCode: 'en',
-      }),
-      signal: AbortSignal.timeout(90000),
-    });
-  } catch (error) {
-    console.log(JSON.stringify({stage: 'bridge-fetch', ok: false, error: error.name, elapsedMs: Date.now() - started}));
-    process.exitCode = 1;
-    return;
-  }
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${signInBody.idToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({message:'Hi',history:[],teamContext:[],taskContext:[],projectContext:[],meetingContext:[],knowledgeContext:[],qualityContext:{},agentRules:[],truthMode:true,languageCode:'en'}),
+    signal: AbortSignal.timeout(90000),
+  });
   const text = await response.text();
   let body = {};
   try { body = JSON.parse(text); } catch {}
-  const safe = {
+  console.log(JSON.stringify({
     stage: 'production-ai-post-server-to-server',
     ok: response.ok,
     status: response.status,
@@ -76,8 +66,7 @@ async function main() {
     mode: body.mode || null,
     delegatedAgentCount: Array.isArray(body.delegatedAgents) ? body.delegatedAgents.length : 0,
     replyLength: typeof body.reply === 'string' ? body.reply.length : 0,
-  };
-  console.log(JSON.stringify(safe));
+  }));
   if (!response.ok) process.exitCode = 1;
 }
 
