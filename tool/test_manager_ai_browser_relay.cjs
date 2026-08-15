@@ -45,6 +45,17 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
+    const backendResponses = [];
+    page.on('response', async (response) => {
+      if (!response.url().includes('/api/multi-agent')) return;
+      let code = null;
+      try {
+        const text = await response.text();
+        const body = JSON.parse(text);
+        code = body && typeof body === 'object' ? body.error || null : null;
+      } catch {}
+      backendResponses.push({ status: response.status(), code });
+    });
     await page.goto(`${site}/?aiRelaySmoke=1`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     const started = Date.now();
     const result = await page.evaluate(async ({ relayOrigin, relayUrl, idToken }) => {
@@ -103,12 +114,15 @@ async function main() {
       });
     }, { relayOrigin, relayUrl, idToken });
 
+    await page.waitForTimeout(300);
     const data = result && result.data && typeof result.data === 'object' ? result.data : {};
     const safe = {
       ok: result?.ok === true,
       deployedRelayCode,
       elapsedMs: Date.now() - started,
-      status: result?.status || 200,
+      relayStatus: result?.status ?? null,
+      backendResponses,
+      relayError: data.error || null,
       mode: data.mode || null,
       replyLength: typeof data.reply === 'string' ? data.reply.length : 0,
       delegatedAgentCount: Array.isArray(data.delegatedAgents) ? data.delegatedAgents.length : 0,
