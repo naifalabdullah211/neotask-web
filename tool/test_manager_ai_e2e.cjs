@@ -43,7 +43,6 @@ async function main() {
       headers: {
         Authorization: `Bearer ${signInBody.idToken}`,
         'Content-Type': 'application/json',
-        Origin: 'https://neotask1-ff5a4.web.app',
       },
       body: JSON.stringify({
         message: 'Hi',
@@ -69,7 +68,7 @@ async function main() {
   let body = {};
   try { body = JSON.parse(text); } catch {}
   const safe = {
-    stage: 'production-ai-post',
+    stage: 'production-ai-post-server-to-server',
     ok: response.ok,
     status: response.status,
     elapsedMs: Date.now() - started,
@@ -77,7 +76,6 @@ async function main() {
     mode: body.mode || null,
     delegatedAgentCount: Array.isArray(body.delegatedAgents) ? body.delegatedAgents.length : 0,
     replyLength: typeof body.reply === 'string' ? body.reply.length : 0,
-    corsOrigin: response.headers.get('access-control-allow-origin'),
   };
   console.log(JSON.stringify(safe));
   if (!response.ok) process.exitCode = 1;
