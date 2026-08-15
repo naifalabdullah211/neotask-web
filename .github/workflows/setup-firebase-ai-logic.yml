@@ -1,0 +1,30 @@
+name: Setup NeoTask Firebase AI Logic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tool/setup_firebase_ai_logic.sh'
+      - '.github/workflows/setup-firebase-ai-logic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Decode Firebase credential
+        env:
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_BASE64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+      - name: Configure and verify Firebase AI Logic
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: bash tool/setup_firebase_ai_logic.sh
