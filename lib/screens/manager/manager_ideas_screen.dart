@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide Text;
 import 'package:neotask_pro/widgets/localized_text.dart';
 import 'package:neotask_pro/l10n/app_i18n.dart';
@@ -39,6 +41,7 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   ManagerAiAction? _pendingAction;
   bool _working = false;
   bool? _agentOnline;
+  Timer? _statusRetryTimer;
   _HistoryFilter _historyFilter = _HistoryFilter.all;
 
   @override
@@ -56,13 +59,28 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
   }
 
   Future<void> _checkAgentStatus() async {
-    final online = await ManagerAiService.isAvailable();
+    final languageCode = context.read<LocaleProvider>().languageCode;
+    final online = await ManagerAiService.isAvailable(
+      languageCode: languageCode,
+    );
     if (!mounted) return;
     setState(() => _agentOnline = online);
+    if (online) {
+      _statusRetryTimer?.cancel();
+      _statusRetryTimer = null;
+    } else {
+      _scheduleStatusRetry();
+    }
+  }
+
+  void _scheduleStatusRetry() {
+    _statusRetryTimer?.cancel();
+    _statusRetryTimer = Timer(const Duration(seconds: 8), _checkAgentStatus);
   }
 
   @override
   void dispose() {
+    _statusRetryTimer?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -105,17 +123,24 @@ class _ManagerIdeasScreenState extends State<ManagerIdeasScreen> {
     } on ManagerAiException catch (error) {
       if (!mounted) return;
       setState(() {
-        _agentOnline = false;
+        _agentOnline = error.connectionFailure ? false : true;
         _messages.add(_ChatMessage.error(error.message));
       });
+      if (error.connectionFailure) _scheduleStatusRetry();
     } catch (_) {
       if (!mounted) return;
+      final english = context.read<LocaleProvider>().languageCode == 'en';
       setState(() {
-        _agentOnline = false;
+        _agentOnline = null;
         _messages.add(
-          _ChatMessage.error('تعذر الاتصال بالمساعد. حاول مرة أخرى.'),
+          _ChatMessage.error(
+            english
+                ? 'An unexpected assistant error occurred. NeoTask will recheck automatically.'
+                : 'حدث خطأ غير متوقع في المساعد. سيعيد NeoTask الفحص تلقائيًا.',
+          ),
         );
       });
+      _scheduleStatusRetry();
     } finally {
       if (mounted) setState(() => _working = false);
       _scrollToBottom();

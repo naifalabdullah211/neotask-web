@@ -1,10 +1,10 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
 
 import '../models/task_model.dart';
 import 'firestore_service.dart';
+import 'manager_ai_transport.dart';
 
 class ManagerAiAction {
   const ManagerAiAction({
@@ -100,11 +100,6 @@ class ManagerAiResult {
 }
 
 class ManagerAiService {
-  static const String _endpoint = String.fromEnvironment(
-    'NEOTASK_AI_API_URL',
-    defaultValue: 'https://project-0wvza.vercel.app/api/multi-agent',
-  );
-
   static const String _truthModeRule =
       'TRUTHMODE إلزامي: لا تدّعِ أن إجراءً تم تنفيذه أو حفظه أو إرساله أو '
       'تعديله إلا إذا كانت لديك نتيجة تنفيذ فعلية من NeoTask في نفس السياق. '
@@ -114,14 +109,10 @@ class ManagerAiService {
       'مهام أو أرقامًا أو حالات. بيانات NeoTask الحية هي المصدر الوحيد للحقائق '
       'التشغيلية داخل النظام.';
 
-  static Future<bool> isAvailable() async {
+  static Future<bool> isAvailable({String languageCode = 'ar'}) async {
     try {
-      final response = await http
-          .get(Uri.parse(_endpoint))
-          .timeout(const Duration(seconds: 10));
-      if (response.statusCode != 200) return false;
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      return body['status'] == 'ready';
+      final response = await ManagerAiTransport.get(languageCode: languageCode);
+      return response.statusCode == 200 && response.body['status'] == 'ready';
     } catch (_) {
       return false;
     }
@@ -149,39 +140,49 @@ class ManagerAiService {
       _truthModeRule,
     ];
 
-    final response = await http
-        .post(
-          Uri.parse(_endpoint),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'message': message,
-            'history': history,
-            'teamContext': teamContext,
-            'taskContext': _buildTaskContext(),
-            'projectContext': _buildProjectContext(),
-            'meetingContext': _buildMeetingContext(),
-            'knowledgeContext': _buildKnowledgeContext(),
-            'qualityContext': _buildQualityContext(),
-            'agentRules': effectiveRules,
-            'truthMode': true,
-            'languageCode': languageCode == 'en' ? 'en' : 'ar',
-          }),
-        )
-        .timeout(const Duration(seconds: 55));
-
-    Map<String, dynamic> body;
+    ManagerAiTransportResponse response;
     try {
-      body = jsonDecode(response.body) as Map<String, dynamic>;
+      response = await ManagerAiTransport.post(
+        firebaseToken: token,
+        body: {
+          'message': message,
+          'history': history,
+          'teamContext': teamContext,
+          'taskContext': _buildTaskContext(),
+          'projectContext': _buildProjectContext(),
+          'meetingContext': _buildMeetingContext(),
+          'knowledgeContext': _buildKnowledgeContext(),
+          'qualityContext': _buildQualityContext(),
+          'agentRules': effectiveRules,
+          'truthMode': true,
+          'languageCode': languageCode == 'en' ? 'en' : 'ar',
+        },
+      );
+    } on TimeoutException {
+      throw ManagerAiException(
+        languageCode == 'en'
+            ? 'The AI relay timed out. NeoTask will retry automatically.'
+            : 'انتهت مهلة اتصال الوكيل. سيعيد NeoTask المحاولة تلقائيًا.',
+        connectionFailure: true,
+      );
     } catch (_) {
-      throw const ManagerAiException('وصل رد غير صالح من خدمة المساعد');
+      throw ManagerAiException(
+        languageCode == 'en'
+            ? 'NeoTask could not reach the AI relay right now.'
+            : 'تعذر وصول NeoTask إلى قناة الوكيل الآن.',
+        connectionFailure: true,
+      );
     }
+
+    final body = response.body;
 
     if (response.statusCode != 200) {
       final code = body['error']?.toString() ?? '';
-      throw ManagerAiException(_messageForCode(code, languageCode));
+      throw ManagerAiException(
+        _messageForCode(code, languageCode),
+        connectionFailure:
+            response.statusCode == 0 || response.statusCode >= 500,
+      );
     }
 
     final rawAction = body['action'];
@@ -490,9 +491,10 @@ class _TruthClassification {
 }
 
 class ManagerAiException implements Exception {
-  const ManagerAiException(this.message);
+  const ManagerAiException(this.message, {this.connectionFailure = false});
 
   final String message;
+  final bool connectionFailure;
 
   @override
   String toString() => message;
