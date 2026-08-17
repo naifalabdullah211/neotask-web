@@ -446,12 +446,9 @@
       if (error) error.textContent = text || '';
     }
 
-    // Retire Flutter's legacy offline-first worker. Unregistering a worker
-    // does not release the page it currently controls until the next
-    // navigation. Starting Flutter in that half-migrated page can mix a new
-    // index.html with stale runtime files and leave iOS on a white canvas.
-    // When a legacy worker still controls this page, migrate once and reload
-    // with a build id. Firebase/Auth/Firestore browser storage is untouched.
+    // Retire Flutter's legacy offline-first worker in the background.
+    // Cleanup must never navigate, reload, or block the current page.
+    // Firebase/Auth/Firestore browser storage is untouched.
     async function retireLegacyFlutterWorker() {
       if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
         return false;
@@ -485,25 +482,9 @@
     async function startFlutter() {
       if (flutterStarted) return;
       flutterStarted = true;
-      let mustReload = false;
-      try {
-        // Normal refreshes skip this completely. It only runs once while an
-        // old Flutter worker still controls the page.
-        mustReload = await retireLegacyFlutterWorker();
-      } catch (error) {
-        // Cache cleanup must never become a new startup blocker. Loading the
-        // network build is still safer than leaving the user on the spinner.
+      retireLegacyFlutterWorker().catch(function (error) {
         console.warn('Legacy Flutter cache cleanup failed:', error);
-      }
-
-      const currentUrl = new URL(window.location.href);
-      if (mustReload) {
-        const message = document.getElementById('boot-message');
-        if (message) message.textContent = bootText('جارٍ تحديث NeoTask', 'Updating NeoTask');
-        currentUrl.searchParams.set('_build', NEO_TASK_BUILD_ID);
-        window.location.replace(currentUrl.toString());
-        return;
-      }
+      });
 
       const script = document.createElement('script');
       script.src = `flutter_bootstrap.js?v=${NEO_TASK_BUILD_ID}`;
