@@ -1,12 +1,6 @@
 name: Deploy MIRSAD to Firebase Hosting
 
 on:
-  push:
-    branches:
-      - mirsad-production
-    paths:
-      - 'mirsad-package/**'
-      - '.github/workflows/firebase-hosting-live.yml'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +28,14 @@ jobs:
           actual_sha256="$(sha256sum "$RUNNER_TEMP/mirsad-site.tar.gz" | cut -d' ' -f1)"
           test "$actual_sha256" = "$expected_sha256"
           tar -xzf "$RUNNER_TEMP/mirsad-site.tar.gz" -C mirsad
+
+      - name: Block legacy MIRSAD PWA package
+        run: |
+          set -euo pipefail
+          if grep -q 'mirsad-pwa-v5' mirsad/sw.js; then
+            echo 'Legacy MIRSAD PWA v5 deployment is disabled. Publish v16 from the isolated MIRSAD publisher.'
+            exit 1
+          fi
 
       - name: Install integrity-locked Firebase tools
         working-directory: mirsad
