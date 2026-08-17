@@ -1,4 +1,5 @@
-Commit: a4fd69c876b2cfa5ca69c12377e23ea8f3e4f3d1
-Deployed: 2026-08-15T07:59:15Z
+Commit: fb76d21710a1414a20c4c27818fff07f5ee9eda8
+Deployed: 2026-08-17T20:04:02Z
 Site: https://neotask1-ff5a4.web.app
+AI: https://neotask-ai.rcmc.workers.dev/api/multi-agent
 Status: success
