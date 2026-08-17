@@ -610,10 +610,9 @@
           startFlutter();
         });
 
-        // First launch only: check the public manager sentinel before
-        // waiting for credentials. If it is positively absent, hand off to
-        // Flutter's one-time ManagerSetupScreen. Any network/permission
-        // failure fails closed and leaves the normal login screen visible.
+        // Keep normal visitors on the resilient HTML login screen. Manager setup
+        // is available only through an explicit managerSetup=1 request;
+        // a missing sentinel must never replace login with a blank Flutter canvas.
         try {
           // /login is the explicit sign-in route for an existing account.
           // It intentionally skips the first-run manager sentinel without
@@ -633,7 +632,7 @@
             signal: controller.signal,
           });
           clearTimeout(timeout);
-          if (lockResponse.status === 404 && !auth.currentUser) {
+          if (lockResponse.status === 404 && !auth.currentUser && currentUrl.searchParams.get('managerSetup') === '1') {
             window.__neotaskAllowFirstFrameFallback = true;
             setBootLoading(true, bootText('جارٍ فتح إعداد المدير', 'Opening manager setup'));
             await startFlutter();
