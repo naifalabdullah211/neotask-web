@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/invitation_model.dart';
+import '../services/biometric_unlock_service.dart';
 import '../services/firestore_service.dart';
 
 /// AuthProvider — backed by real Firebase Authentication (email/password
@@ -61,10 +62,21 @@ class AuthProvider extends ChangeNotifier {
     return '$cleaned@neotask.local';
   }
 
+  /// Waits only for Firebase Auth to hydrate its persisted browser identity.
+  /// No Firestore listener is started here. SplashRouter uses this lightweight
+  /// check to place the device-local biometric gate in front of application
+  /// data when Face ID is enabled for the restored uid.
+  Future<String?> restoredFirebaseUid() async {
+    final currentUid = _fbAuth.currentUser?.uid;
+    if (currentUid != null) return currentUid;
+    final user = await _fbAuth.authStateChanges().first;
+    return user?.uid;
+  }
+
   /// Restores the session from Firebase Auth's own persisted state (it keeps
   /// the user signed in across reloads on Web/Android by itself — no manual
   /// SharedPreferences caching is needed anymore).
-  Future<void> restoreSession() async {
+  Future<void> restoreSession({String? expectedUid}) async {
     // On Web, especially iOS Safari, Firebase Auth may still be hydrating its
     // IndexedDB-backed session when this provider is created. Waiting for the
     // first auth-state event avoids incorrectly treating that short window as
@@ -76,6 +88,11 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    if (expectedUid != null && fbUser.uid != expectedUid) {
+      _currentUser = null;
+      notifyListeners();
+      throw StateError('restored-user-mismatch');
+    }
 
     // The `users`/`tasks`/`messages`/... listeners require an authenticated
     // session under the security rules — must be started (and awaited for
@@ -83,12 +100,19 @@ class AuthProvider extends ChangeNotifier {
     await FirestoreService.initAuthenticated();
 
     final user = FirestoreService.getUser(fbUser.uid);
-    // A previously-active session must not be honored if the manager has
-    // since soft-deleted this account — force it back to the login screen.
-    if (user == null || user.accountStatus == AccountStatus.deleted) {
+    // A previously persisted session must not be honored if the manager has
+    // since rejected or soft-deleted the account — force it back to login.
+    if (user == null ||
+        user.accountStatus == AccountStatus.rejected ||
+        user.accountStatus == AccountStatus.deleted) {
       await _fbAuth.signOut();
       await FirestoreService.resetAuthenticatedState();
       _currentUser = null;
+      if (user?.accountStatus == AccountStatus.rejected) {
+        _authError = 'تم رفض طلب انضمامك من قِبل المدير';
+      } else if (user?.accountStatus == AccountStatus.deleted) {
+        _authError = 'هذا الحساب تم حذفه من قِبل المدير';
+      }
     } else {
       _currentUser = user;
       await _repairMissingManagerLock(user);
@@ -252,6 +276,7 @@ class AuthProvider extends ChangeNotifier {
     }
 
     if (user.accountStatus == AccountStatus.pendingApproval) {
+      await _markInteractiveLoginBestEffort(fbUid);
       _currentUser = user;
       _isLoading = false;
       notifyListeners();
@@ -276,6 +301,10 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
 
+    // Write the one-navigation marker before publishing the authenticated
+    // provider state. This prevents startup listeners from racing ahead and
+    // asking for Face ID immediately after this password was just accepted.
+    await _markInteractiveLoginBestEffort(fbUid);
     _currentUser = user;
     await _repairMissingManagerLock(user);
     _isLoading = false;
@@ -509,6 +538,28 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Verifies the password of the currently restored Firebase account.
+  ///
+  /// Used only as the fallback for the device-local Face ID gate. A successful
+  /// reauthentication unlocks the current app session without changing the
+  /// password or writing any secret to Firestore/local storage.
+  Future<String?> verifyCurrentPassword(String password) async {
+    final user = _fbAuth.currentUser;
+    if (user == null || user.email == null) {
+      return 'جلسة الدخول منتهية، يرجى تسجيل الدخول مرة أخرى';
+    }
+    try {
+      final credential = fb_auth.EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+      return null;
+    } on fb_auth.FirebaseAuthException catch (error) {
+      return _mapAuthError(error);
+    }
+  }
+
   /// Updates only the signed-in account's personal profile photo.
   Future<void> updateOwnProfilePhoto(String profilePhotoUrl) async {
     final user = _currentUser;
@@ -544,6 +595,15 @@ class AuthProvider extends ChangeNotifier {
       if (kDebugMode) {
         debugPrint('Manager lock repair deferred: $error');
       }
+    }
+  }
+
+  Future<void> _markInteractiveLoginBestEffort(String uid) async {
+    try {
+      await BiometricUnlockService.markInteractiveLogin(uid);
+    } catch (_) {
+      // Password authentication has already succeeded. The optional
+      // one-navigation biometric marker must never block that core flow.
     }
   }
 

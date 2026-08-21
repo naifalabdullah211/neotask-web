@@ -320,6 +320,7 @@
     </div>
   </div>
 
+  <script src="biometric_unlock.js?v=20260821-1"></script>
   <script>
     let bootLanguage = 'ar';
     try {
@@ -428,7 +429,7 @@
       window.location.reload();
     });
 
-    const NEO_TASK_BUILD_ID = '20260802-1';
+    const NEO_TASK_BUILD_ID = '20260821-1';
     let flutterStarted = false;
 
     function setBootLoading(loading, text) {
@@ -520,10 +521,16 @@
     async function startInstantLogin() {
       const currentUrl = new URL(window.location.href);
       const inviteToken = currentUrl.searchParams.get('invite');
+      const publicFormId = currentUrl.searchParams.get('form');
       const forceLogin = currentUrl.pathname.replace(/\/+$/, '') === '/login';
-      if (inviteToken) {
+      if (inviteToken || publicFormId) {
         window.__neotaskAllowFirstFrameFallback = true;
-        setBootLoading(true, bootText('جارٍ فتح الدعوة', 'Opening invitation'));
+        setBootLoading(
+          true,
+          publicFormId
+            ? bootText('جارٍ فتح النموذج', 'Opening form')
+            : bootText('جارٍ فتح الدعوة', 'Opening invitation'),
+        );
         await startFlutter();
         return;
       }
@@ -564,11 +571,14 @@
         setBootLoading(true, bootText('جارٍ التحقق', 'Verifying'));
         try {
           const { auth, authSdk } = await authReady;
-          await authSdk.signInWithEmailAndPassword(
+          const credential = await authSdk.signInWithEmailAndPassword(
             auth,
             `${cleaned}@neotask.local`,
             password,
           );
+          if (window.neoTaskBiometrics && credential.user) {
+            await window.neoTaskBiometrics.markInteractiveLogin(credential.user.uid);
+          }
           setBootLoading(true, bootText('جارٍ فتح مساحة العمل', 'Opening workspace'));
           await startFlutter();
         } catch (error) {

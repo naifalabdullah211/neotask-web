@@ -6,27 +6,42 @@ import 'package:provider/provider.dart';
 
 import '../models/voice_call_model.dart';
 import '../providers/auth_provider.dart';
+import '../services/biometric_unlock_service.dart';
 import '../services/firestore_service.dart';
 import '../services/voice_call_service.dart';
 import '../theme/app_theme.dart';
 import 'user_avatar.dart';
 import '../screens/shared/voice_call_screen.dart';
 
-class IncomingCallGate extends StatelessWidget {
+class IncomingCallGate extends StatefulWidget {
   const IncomingCallGate({super.key, required this.child});
 
   final Widget child;
+
+  @override
+  State<IncomingCallGate> createState() => _IncomingCallGateState();
+}
+
+class _IncomingCallGateState extends State<IncomingCallGate> {
+  // The authenticated listener is inserted/removed as AuthProvider hydrates.
+  // A GlobalKey lets Flutter reparent the routed application subtree instead
+  // of disposing SplashRouter and accidentally running its startup gates twice.
+  final GlobalKey _persistentChildKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
     final userUid = context.select<AuthProvider, String?>(
       (provider) => provider.currentUser?.uid,
     );
-    if (userUid == null) return child;
+    final persistentChild = KeyedSubtree(
+      key: _persistentChildKey,
+      child: widget.child,
+    );
+    if (userUid == null) return persistentChild;
     return _IncomingCallListener(
       key: ValueKey(userUid),
       userUid: userUid,
-      child: child,
+      child: persistentChild,
     );
   }
 }
@@ -49,15 +64,29 @@ class _IncomingCallListener extends StatefulWidget {
 class _IncomingCallListenerState extends State<_IncomingCallListener> {
   final Set<String> _handledCallIds = <String>{};
   StreamSubscription<List<VoiceCall>>? _subscription;
+  List<VoiceCall> _latestCalls = const [];
   bool _dialogOpen = false;
   bool _callScreenOpen = false;
 
   @override
   void initState() {
     super.initState();
-    _subscription = VoiceCallService.watchIncomingCalls(widget.userUid).listen(
-      _handleCalls,
+    BiometricUnlockService.applicationLocked.addListener(
+      _handleApplicationLockChanged,
     );
+    _subscription = VoiceCallService.watchIncomingCalls(widget.userUid).listen(
+      (calls) {
+        _latestCalls = List<VoiceCall>.unmodifiable(calls);
+        unawaited(_handleCalls(_latestCalls));
+      },
+    );
+  }
+
+  void _handleApplicationLockChanged() {
+    if (!BiometricUnlockService.applicationLocked.value &&
+        _latestCalls.isNotEmpty) {
+      unawaited(_handleCalls(_latestCalls));
+    }
   }
 
   Future<void> _handleCalls(List<VoiceCall> calls) async {
@@ -76,7 +105,12 @@ class _IncomingCallListenerState extends State<_IncomingCallListener> {
       }
     }
 
-    if (!mounted || _dialogOpen || _callScreenOpen) return;
+    if (!mounted ||
+        BiometricUnlockService.applicationLocked.value ||
+        _dialogOpen ||
+        _callScreenOpen) {
+      return;
+    }
     final fresh = calls.where(
       (call) =>
           now.difference(call.createdAt) <= const Duration(seconds: 45) &&
@@ -84,11 +118,15 @@ class _IncomingCallListenerState extends State<_IncomingCallListener> {
     );
     if (fresh.isEmpty) return;
     final call = fresh.first;
-    _handledCallIds.add(call.callId);
     _dialogOpen = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      if (BiometricUnlockService.applicationLocked.value) {
+        _dialogOpen = false;
+        return;
+      }
+      _handledCallIds.add(call.callId);
       final accepted = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -123,6 +161,9 @@ class _IncomingCallListenerState extends State<_IncomingCallListener> {
 
   @override
   void dispose() {
+    BiometricUnlockService.applicationLocked.removeListener(
+      _handleApplicationLockChanged,
+    );
     unawaited(_subscription?.cancel());
     super.dispose();
   }

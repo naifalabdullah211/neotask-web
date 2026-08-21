@@ -6,16 +6,16 @@ import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/locale_provider.dart';
-import '../../services/firestore_service.dart';
+import '../../services/biometric_unlock_service.dart';
 import '../../services/cloudinary_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/neo_selection_field.dart';
 import '../../widgets/user_avatar.dart';
 
 /// "الإعدادات" (Settings) — previously a completely empty placeholder
 /// wired to a "قريبًا" (coming soon) snackbar (see app_drawer.dart doc
-/// comment, gap #2). This is the first real implementation, containing
-/// three sections per the explicit 3-part feature request:
+/// comment, gap #2). Its persisted preference sections now cover:
 ///
 ///   (أ) "الإشعارات الصوتية" — two independent sound on/off toggles
 ///       (messages, tasks), persisted per-user on `users/{uid}` via
@@ -32,7 +32,10 @@ import '../../widgets/user_avatar.dart';
 ///       due-soon/overdue task reminder feature (see
 ///       TaskProvider._maybeDispatchReminders, which now checks this
 ///       user's `remindersEnabled` flag before dispatching to them).
-///   (ج) "الحساب" — personal password self-change (current password +
+///   (ج) "الدخول البيومتري" — device-local Face ID/WebAuthn enrollment
+///       for unlocking an already-saved Firebase session on this device.
+///       Signing out still requires a normal password sign-in.
+///   (د) "الحساب" — personal password self-change (current password +
 ///       new password + confirmation), using
 ///       AuthProvider.changeOwnPassword (reauthenticateWithCredential +
 ///       updatePassword). Explicitly DISTINCT from the manager-driven
@@ -50,6 +53,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _savingSoundTasks = false;
   bool _savingReminders = false;
   bool _uploadingProfilePhoto = false;
+  bool _biometricLoadScheduled = false;
+  bool _biometricLoaded = false;
+  bool _biometricSupported = false;
+  bool _biometricEnabled = false;
+  bool _savingBiometric = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_biometricLoadScheduled) return;
+    _biometricLoadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _loadBiometricState();
+    });
+  }
+
+  Future<void> _loadBiometricState() async {
+    if (!mounted) return;
+    final user = context.read<AuthProvider>().currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _biometricLoaded = true);
+      return;
+    }
+
+    final supported = await BiometricUnlockService.isSupported();
+    // Read the saved record even when this browser cannot currently invoke
+    // WebAuthn, so a previously enrolled user can still disable the gate.
+    final enabled = await BiometricUnlockService.isEnabled(user.uid);
+    if (!mounted) return;
+    setState(() {
+      _biometricSupported = supported;
+      _biometricEnabled = enabled;
+      _biometricLoaded = true;
+    });
+  }
+
+  Future<void> _setBiometric(bool enabled) async {
+    if (_savingBiometric || (enabled && !_biometricSupported)) return;
+    final user = context.read<AuthProvider>().currentUser;
+    if (user == null) return;
+
+    setState(() => _savingBiometric = true);
+    try {
+      if (enabled) {
+        await BiometricUnlockService.enroll(
+          uid: user.uid,
+          employeeNumber: user.employeeNumber,
+          displayName: user.name,
+        );
+      } else {
+        await BiometricUnlockService.disable(user.uid);
+      }
+      if (!mounted) return;
+      setState(() => _biometricEnabled = enabled);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            enabled
+                ? 'تم تفعيل Face ID على هذا الجهاز'
+                : 'تم إيقاف Face ID على هذا الجهاز',
+          ),
+          backgroundColor: AppColors.statusApproved,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_biometricPreferenceError(error, enabling: enabled)),
+          backgroundColor: AppColors.statusRejected,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingBiometric = false);
+    }
+  }
+
+  String _biometricPreferenceError(
+    Object error, {
+    required bool enabling,
+  }) {
+    if (!enabling) {
+      return 'تعذّر إيقاف Face ID على هذا الجهاز. حاول مرة أخرى.';
+    }
+    return switch (BiometricUnlockService.failureFrom(error)) {
+      BiometricFailure.cancelled =>
+        'لم يكتمل تفعيل Face ID. يمكنك تفعيله لاحقًا من الإعدادات.',
+      BiometricFailure.unsupported =>
+        'Face ID غير مدعوم في هذا المتصفح أو الجهاز.',
+      BiometricFailure.invalidOrigin =>
+        'افتح نيوتاسك من رابطه الآمن المعتمد لتفعيل Face ID.',
+      BiometricFailure.storageUnavailable =>
+        'تعذّر حفظ إعداد Face ID على هذا الجهاز.',
+      _ => 'تعذّر تفعيل Face ID. حاول مرة أخرى من الإعدادات.',
+    };
+  }
 
   Future<void> _pickAndUploadProfilePhoto(AuthProvider auth) async {
     final picked = await ImagePicker().pickImage(
@@ -288,6 +388,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const SizedBox(height: AppSpacing.xxl),
+            _SectionHeader(
+              icon: Icons.face_rounded,
+              title: 'الدخول البيومتري',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _SettingsCard(
+              children: [
+                _ToggleRow(
+                  label: 'فتح بـ Face ID',
+                  subtitle: !_biometricLoaded
+                      ? 'جارٍ التحقق من دعم الجهاز...'
+                      : !_biometricSupported && _biometricEnabled
+                      ? 'Face ID غير مدعوم حاليًا؛ يمكنك إيقافه على هذا الجهاز.'
+                      : !_biometricSupported
+                      ? 'Face ID غير مدعوم في هذا المتصفح أو الجهاز.'
+                      : _biometricEnabled
+                      ? 'مفعّل لفتح جلسة نيوتاسك المحفوظة على هذا الجهاز'
+                      : 'استخدم Face ID بدل الرقم السري لفتح جلستك المحفوظة',
+                  value: _biometricEnabled,
+                  loading: !_biometricLoaded || _savingBiometric,
+                  onChanged: !_biometricLoaded ||
+                          (!_biometricSupported && !_biometricEnabled)
+                      ? null
+                      : _setBiometric,
+                ),
+                const Divider(height: 1),
+                const Padding(
+                  padding: EdgeInsets.only(
+                    top: AppSpacing.md,
+                    bottom: AppSpacing.xs,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 17,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          'يعمل لفتح الجلسة المحفوظة فقط؛ بعد تسجيل الخروج ستحتاج إلى الرقم السري.',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            height: 1.45,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xxl),
             _SectionHeader(icon: Icons.lock_outline, title: 'الحساب'),
             const SizedBox(height: AppSpacing.sm),
             const _SettingsCard(children: [_ChangeOwnPasswordForm()]),
@@ -349,7 +505,7 @@ class _ToggleRow extends StatelessWidget {
   final String subtitle;
   final bool value;
   final bool loading;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -398,7 +554,7 @@ class _ToggleRow extends StatelessWidget {
   }
 }
 
-/// Part 3(ج) — self-service password change. Explicitly DIFFERENT from
+/// Part 3(د) — self-service password change. Explicitly DIFFERENT from
 /// the manager-driven Part 1 flow: here the CURRENTLY signed-in user
 /// (any role) changes THEIR OWN password by first proving they know the
 /// current one (Firebase Auth `reauthenticateWithCredential`), then
