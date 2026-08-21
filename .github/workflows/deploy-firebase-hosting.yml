@@ -28,6 +28,9 @@ jobs:
       - name: Check for embedded secrets and executable HTML sinks
         run: node scripts/security_check.js
 
+      - name: Test device-local biometric unlock
+        run: node --test web/biometric_unlock.test.js
+
       - name: Test Cloud Functions security controls
         run: |
           set -euo pipefail
@@ -58,6 +61,11 @@ jobs:
         run: |
           set -o pipefail
           flutter test test/workflow_features_test.dart 2>&1 | tee -a deploy-error.log
+
+      - name: Test biometric integration guards
+        run: |
+          set -o pipefail
+          flutter test test/biometric_unlock_test.dart 2>&1 | tee -a deploy-error.log
 
       - name: Build Flutter web
         run: |

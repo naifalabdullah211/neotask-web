@@ -806,6 +806,64 @@ class AppI18n {
     'تذكيرات المهام': 'Task reminders',
     'تلقّي تذكير عند اقتراب الاستحقاق أو تأخر المهمة':
         'Receive a reminder when a task is due soon or becomes overdue',
+    'الدخول البيومتري': 'Biometric access',
+    'فتح بـ Face ID': 'Unlock with Face ID',
+    'جارٍ التحقق من دعم الجهاز...': 'Checking device support…',
+    'Face ID غير مدعوم حاليًا؛ يمكنك إيقافه على هذا الجهاز.':
+        'Face ID is not currently supported; you can disable it on this device.',
+    'مفعّل لفتح جلسة نيوتاسك المحفوظة على هذا الجهاز':
+        'Enabled to unlock your saved NeoTask session on this device',
+    'استخدم Face ID بدل الرقم السري لفتح جلستك المحفوظة':
+        'Use Face ID instead of your password to unlock your saved session',
+    'يعمل لفتح الجلسة المحفوظة فقط؛ بعد تسجيل الخروج ستحتاج إلى الرقم السري.':
+        'This only unlocks your saved session; after signing out, you will need your password.',
+    'تم إيقاف Face ID على هذا الجهاز':
+        'Face ID was disabled on this device',
+    'تعذّر إيقاف Face ID على هذا الجهاز. حاول مرة أخرى.':
+        'Could not disable Face ID on this device. Try again.',
+    'تفعيل Face ID على هذا الجهاز؟': 'Enable Face ID on this device?',
+    'بعد التفعيل ستفتح جلسة نيوتاسك المحفوظة ببصمة الوجه بدل كتابة الرقم السري في كل مرة.':
+        'Once enabled, you can unlock your saved NeoTask session with Face ID instead of entering your password each time.',
+    'لاحقًا': 'Later',
+    'تفعيل Face ID': 'Enable Face ID',
+    'تم تفعيل Face ID على هذا الجهاز':
+        'Face ID was enabled on this device',
+    'لم يكتمل تفعيل Face ID. يمكنك تفعيله لاحقًا من الإعدادات.':
+        'Face ID setup was not completed. You can enable it later in Settings.',
+    'Face ID غير مدعوم في هذا المتصفح أو الجهاز.':
+        'Face ID is not supported in this browser or on this device.',
+    'افتح نيوتاسك من رابطه الآمن المعتمد لتفعيل Face ID.':
+        'Open NeoTask from its approved secure link to enable Face ID.',
+    'تعذّر حفظ إعداد Face ID على هذا الجهاز.':
+        'Could not save the Face ID setting on this device.',
+    'تعذّر تفعيل Face ID. حاول مرة أخرى من الإعدادات.':
+        'Could not enable Face ID. Try again from Settings.',
+    'حسابك في نيوتاسك': 'Your NeoTask account',
+    'افتح نيوتاسك بـ Face ID': 'Unlock NeoTask with Face ID',
+    'جارٍ التحقق...': 'Verifying…',
+    'استخدام الرقم السري بدلًا من ذلك': 'Use your password instead',
+    'فتح نيوتاسك': 'Unlock NeoTask',
+    'العودة إلى Face ID': 'Back to Face ID',
+    'لا تصل صورة وجهك أو بصمتك إلى نيوتاسك':
+        'NeoTask never receives your face image or biometric data',
+    'تم التحقق بنجاح، لكن تعذّر فتح الجلسة. تحقق من الاتصال وحاول مرة أخرى.':
+        'Verification succeeded, but the session could not be opened. Check your connection and try again.',
+    'لم يكتمل التحقق. اضغط الزر وحاول مرة أخرى.':
+        'Verification was not completed. Tap the button and try again.',
+    'هذا المتصفح لا يدعم Face ID. استخدم الرقم السري.':
+        'This browser does not support Face ID. Use your password.',
+    'Face ID غير مفعّل لهذا الحساب على هذا الجهاز.':
+        'Face ID is not enabled for this account on this device.',
+    'يتطلب Face ID فتح نيوتاسك من رابطه الآمن المعتمد.':
+        'Face ID requires opening NeoTask from its approved secure link.',
+    'تعذّر قراءة إعداد Face ID على هذا الجهاز.':
+        'Could not read the Face ID setting on this device.',
+    'مفتاح Face ID لا يطابق هذا الحساب. استخدم الرقم السري.':
+        'The Face ID credential does not match this account. Use your password.',
+    'تعذّر التحقق عبر Face ID. حاول مرة أخرى أو استخدم الرقم السري.':
+        'Face ID verification failed. Try again or use your password.',
+    'تعذّر تسجيل الخروج. أعد المحاولة.':
+        'Could not sign out. Try again.',
     'الحساب': 'Account',
     'جارٍ رفع الصورة...': 'Uploading photo…',
     'إضافة صورة شخصية': 'Add profile photo',

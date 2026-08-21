@@ -1,0 +1,57 @@
+name: Validate NeoTask Pull Request
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neotask-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for embedded secrets and executable HTML sinks
+        run: node scripts/security_check.js
+
+      - name: Test device-local biometric unlock
+        run: node --test web/biometric_unlock.test.js
+
+      - name: Test backend behavior
+        run: npm test
+
+      - name: Test Cloud Functions security controls
+        run: |
+          set -euo pipefail
+          npm ci --prefix functions
+          node --check functions/index.js
+          npm test --prefix functions
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.4'
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Test workflow models
+        run: flutter test test/workflow_features_test.dart
+
+      - name: Test biometric integration guards
+        run: flutter test test/biometric_unlock_test.dart
+
+      - name: Build Flutter web
+        run: flutter build web --release --pwa-strategy=none
