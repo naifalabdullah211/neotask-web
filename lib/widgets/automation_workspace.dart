@@ -1546,6 +1546,7 @@ String _runSourceLabel(String source) => switch (source) {
   'firestore-event' => 'فوري',
   'cloud-scheduler' => 'مجدول',
   'github-fallback' => 'احتياطي',
+  'manager-live' => 'فوري مباشر',
   _ => source,
 };
 
