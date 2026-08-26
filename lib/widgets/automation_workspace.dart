@@ -1497,6 +1497,22 @@ class _AutomationRunCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodySecondary,
                 ),
+                if (run.source.isNotEmpty || run.trigger.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    [
+                      if (run.source.isNotEmpty) _runSourceLabel(run.source),
+                      if (run.trigger.isNotEmpty)
+                        _runTriggerLabel(run.trigger),
+                      if (run.durationMs != null) '${run.durationMs}ms',
+                    ].join(' • '),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
                 if ((run.message ?? '').trim().isNotEmpty) ...[
                   const SizedBox(height: 5),
                   Text(run.message!, style: AppTextStyles.bodySecondary),
@@ -1525,6 +1541,21 @@ class _AutomationRunCard extends StatelessWidget {
     );
   }
 }
+
+String _runSourceLabel(String source) => switch (source) {
+  'firestore-event' => 'فوري',
+  'cloud-scheduler' => 'مجدول',
+  'github-fallback' => 'احتياطي',
+  _ => source,
+};
+
+String _runTriggerLabel(String trigger) => switch (trigger) {
+  'taskCreated' => 'إنشاء مهمة',
+  'statusChanged' => 'تغيير الحالة',
+  'dueSoon' => 'قرب الاستحقاق',
+  'overdue' => 'تأخر المهمة',
+  _ => trigger,
+};
 
 class _AutomationMetric {
   const _AutomationMetric({

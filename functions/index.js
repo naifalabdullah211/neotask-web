@@ -380,10 +380,17 @@ async function executeAutomationAction(rule, task, taskId) {
   }
 }
 
-async function reserveAndExecute(rule, task, taskId, eventKey) {
+async function reserveAndExecute(
+    rule,
+    task,
+    taskId,
+    eventKey,
+    {trigger, source},
+) {
   const safeKey = `${rule.ruleId}_${taskId}_${eventKey}`
       .replace(/[^a-zA-Z0-9_-]/g, "_");
   const runRef = db.collection("automation_runs").doc(safeKey);
+  const startedAt = new Date();
   const reserved = await db.runTransaction(async (transaction) => {
     const existing = await transaction.get(runRef);
     if (existing.exists) return false;
@@ -394,24 +401,35 @@ async function reserveAndExecute(rule, task, taskId, eventKey) {
       taskId,
       taskTitle: task.title || "",
       action: rule.action,
+      trigger,
+      source,
       status: "running",
-      executedAt: new Date().toISOString(),
+      executedAt: startedAt.toISOString(),
+      startedAt: startedAt.toISOString(),
     });
     return true;
   });
   if (!reserved) return;
   try {
     await executeAutomationAction(rule, task, taskId);
-    await runRef.update({status: "completed"});
+    const completedAt = new Date();
+    await runRef.update({
+      status: "completed",
+      completedAt: completedAt.toISOString(),
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+    });
   } catch (error) {
+    const completedAt = new Date();
     await runRef.update({
       status: "failed",
       message: error && error.message ? error.message : "فشل التنفيذ",
+      completedAt: completedAt.toISOString(),
+      durationMs: completedAt.getTime() - startedAt.getTime(),
     });
   }
 }
 
-async function processRules({task, taskId, trigger, eventKey, now}) {
+async function processRules({task, taskId, trigger, eventKey, now, source}) {
   const snapshot = await db.collection("automation_rules")
       .where("isActive", "==", true)
       .get();
@@ -420,7 +438,50 @@ async function processRules({task, taskId, trigger, eventKey, now}) {
     if (rule.trigger !== trigger) continue;
     if (!conditionMatches(rule, task)) continue;
     if (!temporalTriggerMatches(rule, task, now)) continue;
-    await reserveAndExecute(rule, task, taskId, eventKey);
+    await reserveAndExecute(rule, task, taskId, eventKey, {trigger, source});
+  }
+}
+
+async function processKnowledgeReviewReminders(now) {
+  const [documents, activeUsers] = await Promise.all([
+    db.collection("documents").where("status", "==", "approved").get(),
+    db.collection("users").where("accountStatus", "==", "active").get(),
+  ]);
+  const managerUids = activeUsers.docs
+      .filter((doc) => hasManagerAccess(doc.data()))
+      .map((doc) => doc.id);
+  for (const documentDoc of documents.docs) {
+    const document = documentDoc.data();
+    if (!document.reviewDueDate ||
+        document.reviewReminderForDate === document.reviewDueDate) continue;
+    const due = new Date(document.reviewDueDate);
+    if (Number.isNaN(due.getTime()) ||
+        (due.getTime() - now.getTime()) / 86400000 > 7) continue;
+
+    const recipients = new Set(managerUids);
+    if (document.ownerUid) recipients.add(document.ownerUid);
+    const batch = db.batch();
+    for (const recipientUid of recipients) {
+      const ref = db.collection("notifications").doc();
+      batch.set(ref, {
+        notificationId: ref.id,
+        recipientUid,
+        type: "knowledgeReviewDue",
+        title: due < now ? "تأخرت مراجعة وثيقة" : "اقترب موعد مراجعة وثيقة",
+        body: `الوثيقة «${document.title || "بدون عنوان"}» موعد مراجعتها ${String(document.reviewDueDate).slice(0, 10)}`,
+        relatedPollId: null,
+        relatedTaskId: null,
+        relatedDocumentId: documentDoc.id,
+        payload: {reviewDueDate: document.reviewDueDate},
+        createdAt: now.toISOString(),
+        readAt: null,
+      });
+    }
+    batch.update(documentDoc.ref, {
+      reviewReminderSentAt: now.toISOString(),
+      reviewReminderForDate: document.reviewDueDate,
+    });
+    await batch.commit();
   }
 }
 
@@ -435,6 +496,7 @@ exports.runAutomationsOnTaskCreated = onDocumentCreated(
         trigger: "taskCreated",
         eventKey: event.id,
         now: new Date(),
+        source: "firestore-event",
       });
     },
 );
@@ -452,6 +514,7 @@ exports.runAutomationsOnTaskStatusChanged = onDocumentUpdated(
         trigger: "statusChanged",
         eventKey: event.id,
         now: new Date(),
+        source: "firestore-event",
       });
     },
 );
@@ -469,6 +532,7 @@ exports.runScheduledAutomations = onSchedule(
           trigger: "dueSoon",
           eventKey: `dueSoon_${task.dueDate}`,
           now,
+          source: "cloud-scheduler",
         });
         await processRules({
           task,
@@ -476,7 +540,9 @@ exports.runScheduledAutomations = onSchedule(
           trigger: "overdue",
           eventKey: `overdue_${task.dueDate}`,
           now,
+          source: "cloud-scheduler",
         });
       }
+      await processKnowledgeReviewReminders(now);
     },
 );
