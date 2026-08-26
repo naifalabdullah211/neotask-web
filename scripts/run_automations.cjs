@@ -120,9 +120,10 @@ async function executeAction(rule, task, taskId) {
   }
 }
 
-async function reserveAndExecute(rule, task, taskId, eventKey) {
+async function reserveAndExecute(rule, task, taskId, eventKey, trigger) {
   const runId = `${rule.ruleId}_${taskId}_${eventKey}`.replace(/[^a-zA-Z0-9_-]/g, "_");
   const runRef = db.collection("automation_runs").doc(runId);
+  const startedAt = new Date();
   const reserved = await db.runTransaction(async (transaction) => {
     const existing = await transaction.get(runRef);
     if (existing.exists) return false;
@@ -133,17 +134,31 @@ async function reserveAndExecute(rule, task, taskId, eventKey) {
       taskId,
       taskTitle: task.title || "",
       action: rule.action,
+      trigger,
+      source: "github-fallback",
       status: "running",
-      executedAt: new Date().toISOString(),
+      executedAt: startedAt.toISOString(),
+      startedAt: startedAt.toISOString(),
     });
     return true;
   });
   if (!reserved) return;
   try {
     await executeAction(rule, task, taskId);
-    await runRef.update({status: "completed"});
+    const completedAt = new Date();
+    await runRef.update({
+      status: "completed",
+      completedAt: completedAt.toISOString(),
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+    });
   } catch (error) {
-    await runRef.update({status: "failed", message: error.message || "Execution failed"});
+    const completedAt = new Date();
+    await runRef.update({
+      status: "failed",
+      message: error.message || "Execution failed",
+      completedAt: completedAt.toISOString(),
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+    });
   }
 }
 
@@ -152,7 +167,7 @@ async function processRules(rules, task, taskId, trigger, eventKey, now) {
     if (rule.trigger !== trigger) continue;
     if (!conditionMatches(rule, task)) continue;
     if (!temporalTriggerMatches(rule, task, now)) continue;
-    await reserveAndExecute(rule, task, taskId, eventKey);
+    await reserveAndExecute(rule, task, taskId, eventKey, trigger);
   }
 }
 
