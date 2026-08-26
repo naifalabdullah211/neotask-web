@@ -912,8 +912,9 @@ service cloud.firestore {
     }
 
     // ---- manager-configurable workflow automations ----
-    // Rule definitions are manager-owned configuration. Execution logs are
-    // server-authored by Cloud Functions and immutable from every client.
+    // Rule definitions are manager-owned configuration. Execution logs may be
+    // reserved and finalized by the signed-in manager live runner. The
+    // deterministic runId prevents duplicate execution across open sessions.
     match /automation_rules/{ruleId} {
       allow read: if isManager() || isDesigner();
       allow create: if isManager() &&
@@ -947,7 +948,22 @@ service cloud.firestore {
 
     match /automation_runs/{runId} {
       allow read: if isManager() || isDesigner();
-      allow write: if false;
+      allow create: if isManager() &&
+        request.resource.data.runId == runId &&
+        request.resource.data.actorUid == request.auth.uid &&
+        request.resource.data.source == 'manager-live' &&
+        request.resource.data.status == 'running' &&
+        request.resource.data.ruleId is string &&
+        request.resource.data.taskId is string &&
+        request.resource.data.trigger in ['taskCreated', 'statusChanged'];
+      allow update: if isManager() &&
+        resource.data.actorUid == request.auth.uid &&
+        resource.data.source == 'manager-live' &&
+        resource.data.status == 'running' &&
+        request.resource.data.status in ['completed', 'failed'] &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'completedAt', 'durationMs', 'message']);
+      allow delete: if false;
     }
 
     // ---- custom forms and public response intake ----

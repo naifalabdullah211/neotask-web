@@ -9,6 +9,7 @@ import '../../providers/message_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/interface_style_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/automation_runtime_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/neo_bottom_nav_bar.dart';
@@ -35,6 +36,23 @@ class ManagerHomeScreen extends StatefulWidget {
 class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   int _index = 0;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _automationStarted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_automationStarted) return;
+    final managerUid = context.read<AuthProvider>().currentUser?.uid;
+    if (managerUid == null) return;
+    AutomationRuntimeService.instance.start(managerUid);
+    _automationStarted = true;
+  }
+
+  @override
+  void dispose() {
+    AutomationRuntimeService.instance.stop();
+    super.dispose();
+  }
 
   static const _titles = [
     'لوحة التحكم',
