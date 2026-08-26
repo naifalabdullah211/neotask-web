@@ -7,6 +7,7 @@ on:
     paths-ignore:
       - 'deploy-error.log'
       - 'hosting-sites.txt'
+      - 'production-deploy-success.txt'
   workflow_dispatch:
 
 permissions:
@@ -252,6 +253,15 @@ jobs:
         run: |
           set -o pipefail
           firebase deploy --only hosting --project neotask1-ff5a4 --non-interactive 2>&1 | tee -a deploy-error.log
+
+      - name: Record production deployment success
+        run: |
+          printf 'Commit: %s\nDeployed: %s\nSite: https://neotask1-ff5a4.web.app\nFirestoreRules: deployed\nStatus: success\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > production-deploy-success.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f production-deploy-success.txt
+          git commit -m "chore: record production deployment [skip ci]" || true
+          git push || true
 
       - name: Save actual Hosting site list
         if: always()
