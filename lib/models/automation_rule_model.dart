@@ -108,6 +108,10 @@ class AutomationRun {
     required this.action,
     required this.status,
     required this.executedAt,
+    this.trigger = '',
+    this.source = '',
+    this.completedAt,
+    this.durationMs,
     this.message,
   });
 
@@ -119,6 +123,10 @@ class AutomationRun {
   final String action;
   final String status;
   final DateTime executedAt;
+  final String trigger;
+  final String source;
+  final DateTime? completedAt;
+  final int? durationMs;
   final String? message;
 
   factory AutomationRun.fromMap(Map<String, dynamic> map) => AutomationRun(
@@ -131,6 +139,10 @@ class AutomationRun {
     status: map['status'] as String? ?? '',
     executedAt: DateTime.tryParse(map['executedAt'] as String? ?? '') ??
         DateTime.now(),
+    trigger: map['trigger'] as String? ?? '',
+    source: map['source'] as String? ?? '',
+    completedAt: DateTime.tryParse(map['completedAt'] as String? ?? ''),
+    durationMs: (map['durationMs'] as num?)?.toInt(),
     message: map['message'] as String?,
   );
 }
