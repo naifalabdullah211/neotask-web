@@ -1,4 +1,4 @@
-name: Run NeoTask automations
+name: Run NeoTask automation fallback
 
 on:
   push:
@@ -8,7 +8,9 @@ on:
       - 'scripts/run_automations.cjs'
       - '.github/workflows/run-automations.yml'
   schedule:
-    - cron: '*/15 * * * *'
+    # Temporary safety net for Spark-plan production. Event-driven automation
+    # is handled by the backend functions once they are deployed.
+    - cron: '7 * * * *'
   workflow_dispatch:
 
 permissions:
