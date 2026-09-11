@@ -1,0 +1,54 @@
+name: Check NeoTask short hosting name
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Google authentication client
+        run: pip install google-auth requests
+      - name: Verify name availability and deployment prerequisites
+        env:
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEOTASK1_FF5A4 }}
+        run: |
+          python - <<'PY'
+          import base64, json, os
+          import requests
+          from google.oauth2 import service_account
+          from google.auth.transport.requests import AuthorizedSession
+
+          info = json.loads(base64.b64decode(os.environ['FIREBASE_SERVICE_ACCOUNT_BASE64'], validate=True))
+          assert info['project_id'] == 'neotask1-ff5a4', 'Wrong Firebase project'
+          auth = AuthorizedSession(service_account.Credentials.from_service_account_info(
+              info, scopes=['https://www.googleapis.com/auth/cloud-platform']))
+          root = 'https://firebasehosting.googleapis.com/v1beta1'
+          result = auth.get(root + '/projects/neotask1-ff5a4/sites', timeout=30)
+          result.raise_for_status()
+          sites = result.json().get('sites', [])
+          print('Owned Hosting sites:', [s['name'] for s in sites])
+          if any(s['name'].endswith('/sites/neotask') for s in sites):
+              print('NAME_RESULT: neotask is already owned by this project')
+          else:
+              result = auth.post(root + '/projects/neotask1-ff5a4/sites',
+                  params={'siteId': 'neotask', 'validateOnly': 'true'}, json={}, timeout=30)
+              print('NAME_RESULT:', result.status_code, result.text)
+          release = auth.get(root + '/sites/neotask1-ff5a4/channels/live', timeout=30)
+          release.raise_for_status()
+          print('LIVE_RELEASE:', json.dumps(release.json().get('release', {})))
+          for origin in ['https://neotask1-ff5a4.web.app', 'https://neotask.web.app']:
+              response = requests.options('https://neotask-ai.rcmc.workers.dev/api/multi-agent',
+                  headers={'Origin': origin, 'Access-Control-Request-Method': 'POST',
+                           'Access-Control-Request-Headers': 'authorization,content-type'}, timeout=30)
+              print('AI_CORS:', origin, response.status_code,
+                    {k:v for k,v in response.headers.items() if k.lower().startswith('access-control-')})
+          print('Read-only check finished. No Hosting release or project data was changed.')
+          PY
