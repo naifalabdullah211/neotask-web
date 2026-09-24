@@ -60,6 +60,7 @@ class _StartupErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(fontFamily: 'Thmanyah Sans'),
       home: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
@@ -134,7 +135,7 @@ class NeoTaskApp extends StatelessWidget {
       child: Consumer2<InterfaceStyleProvider, LocaleProvider>(
         builder: (context, interfaceStyle, appLocale, _) {
           final baseTheme = interfaceStyle.theme;
-          final fontFamily = appLocale.isArabic ? 'Tajawal' : 'Roboto';
+          const fontFamily = 'Thmanyah Sans';
           final localizedTheme = baseTheme.copyWith(
             textTheme: baseTheme.textTheme.apply(fontFamily: fontFamily),
             primaryTextTheme: baseTheme.primaryTextTheme.apply(

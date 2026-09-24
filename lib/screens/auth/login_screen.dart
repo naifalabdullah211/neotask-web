@@ -322,7 +322,7 @@ class _TaglineBlock extends StatelessWidget {
           'مساحة عمل واحدة لإنجاز أوضح',
           textAlign: compact ? TextAlign.center : TextAlign.start,
           style: TextStyle(
-            fontFamily: 'Tajawal',
+            fontFamily: 'Thmanyah Sans',
             color: Colors.white,
             fontSize: compact ? 28 : 44,
             fontWeight: FontWeight.w700,
@@ -335,7 +335,7 @@ class _TaglineBlock extends StatelessWidget {
           'نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز',
           textAlign: compact ? TextAlign.center : TextAlign.start,
           style: TextStyle(
-            fontFamily: 'Tajawal',
+            fontFamily: 'Thmanyah Sans',
             color: Colors.white.withValues(alpha: 0.86),
             fontSize: compact ? 14 : 18,
             fontWeight: FontWeight.w500,

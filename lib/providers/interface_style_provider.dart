@@ -55,7 +55,7 @@ class InterfaceStyleProvider extends ChangeNotifier {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
-      fontFamily: 'Roboto',
+      fontFamily: 'Thmanyah Sans',
       visualDensity: VisualDensity.standard,
       splashFactory: InkSparkle.splashFactory,
       appBarTheme: const AppBarTheme(

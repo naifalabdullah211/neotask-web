@@ -328,7 +328,7 @@ class _AssistantIntro extends StatelessWidget {
                       : 'Hello $name, I’m the NeoTask Assistant',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontFamily: 'IBMPlexSansArabic',
+                    fontFamily: 'Thmanyah Sans',
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
                   ),
@@ -340,7 +340,7 @@ class _AssistantIntro extends StatelessWidget {
                       : 'Choose any tab or icon, or type its name. I’ll explain what it does, how to use it, and what happens next. $roleDescription',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: .72),
-                    fontFamily: 'IBMPlexSansArabic',
+                    fontFamily: 'Thmanyah Sans',
                     fontSize: 13,
                     height: 1.6,
                   ),
@@ -453,7 +453,7 @@ class _TopicGroup extends StatelessWidget {
                 label: Text(topic.title),
                 labelStyle: TextStyle(
                   color: selected ? Colors.white : AppColors.textPrimary,
-                  fontFamily: 'IBMPlexSansArabic',
+                  fontFamily: 'Thmanyah Sans',
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -527,7 +527,7 @@ class _TopicExplanation extends StatelessWidget {
                         topic.title,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontFamily: 'IBMPlexSansArabic',
+                          fontFamily: 'Thmanyah Sans',
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
                         ),

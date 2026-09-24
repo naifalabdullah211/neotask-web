@@ -47,13 +47,13 @@ class NeoAppBarTabs extends StatelessWidget implements PreferredSizeWidget {
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white.withValues(alpha: 0.72),
               labelStyle: const TextStyle(
-                fontFamily: 'IBMPlexSansArabic',
+                fontFamily: 'Thmanyah Sans',
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
                 height: 1.25,
               ),
               unselectedLabelStyle: const TextStyle(
-                fontFamily: 'IBMPlexSansArabic',
+                fontFamily: 'Thmanyah Sans',
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 height: 1.25,

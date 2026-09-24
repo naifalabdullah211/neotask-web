@@ -48,20 +48,18 @@ flutter:
     - assets/images/manager_profile.png
     - assets/images/manager_welcome_bg.png
     - assets/images/login_bg.jpg
+    - assets/fonts/ThmanyahSans-Light.woff2
+    - assets/fonts/ThmanyahSans-Regular.woff2
+    - assets/fonts/ThmanyahSans-Medium.woff2
+    - assets/fonts/ThmanyahSans-Bold.woff2
   fonts:
-    - family: Tajawal
+    - family: Thmanyah Sans
       fonts:
-        - asset: assets/fonts/Tajawal-Regular.ttf
+        - asset: assets/fonts/ThmanyahSans-Light.ttf
+          weight: 300
+        - asset: assets/fonts/ThmanyahSans-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Tajawal-Medium.ttf
+        - asset: assets/fonts/ThmanyahSans-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Tajawal-Bold.ttf
-          weight: 700
-    - family: IBMPlexSansArabic
-      fonts:
-        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+        - asset: assets/fonts/ThmanyahSans-Bold.ttf
           weight: 700

@@ -1,8 +1,9 @@
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/widgets.dart' show Locale;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:flutter/widgets.dart' show Locale;
 import '../l10n/app_i18n.dart';
 import '../models/task_model.dart';
 import '../models/user_model.dart';
@@ -60,17 +61,12 @@ class PdfReportService {
     final isEnglish = languageCode == 'en';
     String tr(String value) => AppI18n.translate(value, locale);
     final doc = pw.Document();
-    final font = await PdfGoogleFonts.notoSansArabicRegular();
-    final boldFont = await PdfGoogleFonts.notoSansArabicBold();
-    // Noto Sans Arabic only covers Arabic-script glyphs — it has NO Basic
-    // Latin letters and NO "/" punctuation glyph. Without a fallback, any
-    // Latin text ("NeoTask" header) or "/" date separator (see _fmtDate)
-    // has no glyph to draw and renders as a placeholder box (□). Noto Sans
-    // (plain, Latin-coverage sibling of the same type family) is added as
-    // fontFallback so those specific characters resolve correctly while
-    // Arabic text keeps using the primary Arabic font.
-    final latinFallback = await PdfGoogleFonts.notoSansRegular();
-    final latinFallbackBold = await PdfGoogleFonts.notoSansBold();
+    final font = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/ThmanyahSans-Regular.ttf'),
+    );
+    final boldFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/ThmanyahSans-Bold.ttf'),
+    );
 
     doc.addPage(
       pw.MultiPage(
@@ -79,7 +75,6 @@ class PdfReportService {
         theme: pw.ThemeData.withFont(
           base: font,
           bold: boldFont,
-          fontFallback: [latinFallback, latinFallbackBold],
         ),
         pageFormat: PdfPageFormat.a4,
         build: (context) => [
@@ -155,14 +150,10 @@ class PdfReportService {
           pw.SizedBox(height: 20),
           // NOTE: deliberately NOT a single interpolated string. Embedding the
           // Latin "NeoTask" brand name and the "/"-separated date inside one
-          // RTL paragraph triggers the `pdf` package's per-rune font-fallback
-          // splitting (see PdfGoogleFonts.notoSansArabicRegular() — it has no
-          // Latin/punctuation glyphs) combined with the bidi reordering pass,
-          // which visually reverses the embedded Latin run (observed:
-          // "NeoTask" rendered as "ksaToeN"). Isolating each Latin/digit
-          // fragment in its own pw.Text with an explicit forced
-          // TextDirection.ltr sidesteps both the bidi reordering and the
-          // fallback-splitting interaction; pw.Wrap still lays the fragments
+          // RTL paragraph can be reordered by the PDF package's bidi pass.
+          // Isolating each Latin/digit fragment in its own pw.Text with an
+          // explicit forced TextDirection.ltr preserves its visual order;
+          // pw.Wrap still lays the fragments
           // out in correct right-to-left order for the Arabic segments
           // because it honors the ambient RTL Directionality.
           pw.Wrap(

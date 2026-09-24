@@ -246,7 +246,7 @@ class _WelcomeCopy extends StatelessWidget {
   final bool saving;
   final VoidCallback onContinue;
 
-  static const _font = 'IBMPlexSansArabic';
+  static const _font = 'Thmanyah Sans';
   static const _mint = Color(0xFF35D2AA);
   static const _gold = Color(0xFFF4BE31);
 

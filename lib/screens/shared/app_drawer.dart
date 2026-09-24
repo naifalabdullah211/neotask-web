@@ -434,7 +434,7 @@ class _DrawerAccountHeader extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontFamily: 'IBMPlexSansArabic',
+                        fontFamily: 'Thmanyah Sans',
                         fontSize: 15.5,
                         fontWeight: FontWeight.w700,
                       ),
@@ -461,7 +461,7 @@ class _DrawerAccountHeader extends StatelessWidget {
                             roleLabel,
                             style: const TextStyle(
                               color: AppColors.goldLight,
-                              fontFamily: 'IBMPlexSansArabic',
+                              fontFamily: 'Thmanyah Sans',
                               fontSize: 10.5,
                               fontWeight: FontWeight.w600,
                             ),
@@ -582,7 +582,7 @@ class _DrawerManagerSummaryState extends State<_DrawerManagerSummary> {
                               'ملخص المدير',
                               style: TextStyle(
                                 color: AppColors.textPrimary,
-                                fontFamily: 'IBMPlexSansArabic',
+                                fontFamily: 'Thmanyah Sans',
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -592,7 +592,7 @@ class _DrawerManagerSummaryState extends State<_DrawerManagerSummary> {
                               'تحديث مباشر لحالة العمل',
                               style: TextStyle(
                                 color: AppColors.textSecondary,
-                                fontFamily: 'IBMPlexSansArabic',
+                                fontFamily: 'Thmanyah Sans',
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -690,7 +690,7 @@ class _DrawerManagerSummaryState extends State<_DrawerManagerSummary> {
                                       : 'ملخص اليوم',
                                   style: const TextStyle(
                                     color: AppColors.gold,
-                                    fontFamily: 'IBMPlexSansArabic',
+                                    fontFamily: 'Thmanyah Sans',
                                     fontSize: 10,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -705,7 +705,7 @@ class _DrawerManagerSummaryState extends State<_DrawerManagerSummary> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       color: AppColors.textSecondary,
-                                      fontFamily: 'IBMPlexSansArabic',
+                                      fontFamily: 'Thmanyah Sans',
                                       fontSize: 10.5,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -721,7 +721,7 @@ class _DrawerManagerSummaryState extends State<_DrawerManagerSummary> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.textPrimary,
-                              fontFamily: 'IBMPlexSansArabic',
+                              fontFamily: 'Thmanyah Sans',
                               fontSize: 11.5,
                               height: 1.55,
                             ),
@@ -796,7 +796,7 @@ class _DrawerSummaryMetric extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: AppColors.textSecondary,
-              fontFamily: 'IBMPlexSansArabic',
+              fontFamily: 'Thmanyah Sans',
               fontSize: 9.5,
               fontWeight: FontWeight.w600,
             ),
@@ -838,7 +838,7 @@ class _DrawerSection extends StatelessWidget {
                 title,
                 style: const TextStyle(
                   color: AppColors.textSecondary,
-                  fontFamily: 'IBMPlexSansArabic',
+                  fontFamily: 'Thmanyah Sans',
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
                 ),
@@ -924,7 +924,7 @@ class _DrawerNavTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: foreground,
-                        fontFamily: 'IBMPlexSansArabic',
+                        fontFamily: 'Thmanyah Sans',
                         fontSize: 13.5,
                         fontWeight: isActive
                             ? FontWeight.w700
@@ -1010,7 +1010,7 @@ class _DrawerAccountActions extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   textStyle: const TextStyle(
-                    fontFamily: 'IBMPlexSansArabic',
+                    fontFamily: 'Thmanyah Sans',
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1051,7 +1051,7 @@ class _DrawerFooterButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           textStyle: const TextStyle(
-            fontFamily: 'IBMPlexSansArabic',
+            fontFamily: 'Thmanyah Sans',
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),

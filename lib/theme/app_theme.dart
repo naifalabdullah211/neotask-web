@@ -305,7 +305,7 @@ class AppTheme {
         surface: AppColors.surface,
       ),
       scaffoldBackgroundColor: AppColors.background,
-      fontFamily: 'Roboto',
+      fontFamily: 'Thmanyah Sans',
     );
 
     return base.copyWith(

@@ -52,7 +52,7 @@ void main() {
       source,
       contains('final showManagerTools = isManager || isDesigner'),
     );
-    expect(source, contains("fontFamily: 'IBMPlexSansArabic'"));
+    expect(source, contains("fontFamily: 'Thmanyah Sans'"));
     expect(source, contains('Semantics('));
     expect(source, contains('selected: isActive'));
   });
