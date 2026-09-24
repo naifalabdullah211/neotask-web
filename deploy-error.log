@@ -1,6 +1,4 @@
-NeoTask current build diagnostic
-Commit: 16023c7b2899ce4b1b834b96e7ec93858110ace7
-Started: 2026-08-08T04:48:05Z
-Security regression check failed:
-api/agent.test.js: OpenAI-style secret
-Failed: 2026-08-08T04:48:05Z
+NeoTask deployment diagnostic
+Commit: 992367acb3d39e8c5ff3a5384480d476ee4825e5
+Started: 2026-09-24T19:46:27Z
+Failed: 2026-09-24T19:46:47Z
