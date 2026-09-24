@@ -360,6 +360,10 @@ class AppI18n {
         'Ask the NeoTask Assistant about a tab or icon',
 
     // Authentication
+    'مساحة عمل واحدة\nلإنجـــاز اوضح':
+        'One workspace.\nClearer execution.',
+    'نظم مهامك\nتابع فريقك\nو أنجز مهامك اليومية من اي مكان':
+        'Organize tasks\nFollow your team\nand complete daily work from anywhere.',
     'مساحة عمل واحدة لإنجاز أوضح': 'One workspace. Clearer execution.',
     'نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز':
         'Organize tasks, follow your team, and complete daily work from any device.',

@@ -204,6 +204,7 @@
       overflow: hidden;
       display: flex;
       align-items: center;
+      justify-content: center;
       padding: 64px;
       color: #fff;
       background:
@@ -211,6 +212,7 @@
         linear-gradient(145deg, rgba(15, 37, 71, .78) 0%, rgba(27, 58, 107, .68) 100%),
         url("assets/assets/images/login_bg.jpg?v=20260924-1") center / cover no-repeat;
       direction: rtl;
+      text-align: center;
     }
     .boot-brand-side::before {
       content: "";
@@ -218,12 +220,13 @@
       inset: 0;
       background: linear-gradient(180deg, rgba(15, 37, 71, .05), rgba(15, 37, 71, .22));
     }
-    .boot-brand-copy { position: relative; max-width: 440px; }
+    .boot-brand-copy { position: relative; width: 100%; max-width: 520px; }
     .boot-brand-copy h1 {
       margin: 0 0 14px;
-      font-size: clamp(29px, 3vw, 46px);
+      font-size: clamp(34px, 3.4vw, 54px);
       font-weight: 700;
       line-height: 1.35;
+      white-space: pre-line;
     }
     .boot-brand-copy p {
       margin: 0;
@@ -231,6 +234,7 @@
       font-size: 18px;
       font-weight: 500;
       line-height: 1.8;
+      white-space: pre-line;
     }
     #boot-status .spinner {
       width: 17px;
@@ -259,7 +263,7 @@
       .boot-shell {
         min-height: 100%;
         grid-template-columns: 1fr;
-        grid-template-rows: 210px auto;
+        grid-template-rows: 260px auto;
       }
       .boot-brand-side {
         grid-row: 1;
@@ -267,7 +271,7 @@
         padding: 30px 24px 54px;
         text-align: center;
       }
-      .boot-brand-copy h1 { font-size: 25px; }
+      .boot-brand-copy h1 { font-size: 29px; }
       .boot-brand-copy p { font-size: 13px; }
       .boot-form-side {
         grid-row: 2;
@@ -324,8 +328,11 @@
       </main>
       <aside class="boot-brand-side">
         <div class="boot-brand-copy">
-          <h1>مساحة عمل واحدة لإنجاز أوضح</h1>
-          <p>نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز</p>
+          <h1>مساحة عمل واحدة
+لإنجـــاز اوضح</h1>
+          <p>نظم مهامك
+تابع فريقك
+و أنجز مهامك اليومية من اي مكان</p>
         </div>
       </aside>
     </div>
@@ -354,10 +361,10 @@
         'label[for="boot-employee-number"]': ['الرقم الوظيفي', 'Employee ID'],
         'label[for="boot-password"]': ['الرقم السري', 'Password'],
         '.boot-secure': ['بياناتك آمنة ومشفرة بالكامل', 'Your data is secure and fully encrypted'],
-        '.boot-brand-copy h1': ['مساحة عمل واحدة لإنجاز أوضح', 'One workspace. Clearer execution.'],
+        '.boot-brand-copy h1': ['مساحة عمل واحدة\nلإنجـــاز اوضح', 'One workspace.\nClearer execution.'],
         '.boot-brand-copy p': [
-          'نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز',
-          'Organize tasks, follow your team, and complete daily work from any device',
+          'نظم مهامك\nتابع فريقك\nو أنجز مهامك اليومية من اي مكان',
+          'Organize tasks\nFollow your team\nand complete daily work from anywhere',
         ],
         '#boot-retry': ['إعادة المحاولة', 'Try again'],
       };

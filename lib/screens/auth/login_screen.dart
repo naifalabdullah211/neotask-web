@@ -199,14 +199,14 @@ class _NarrowLayout extends StatelessWidget {
         Align(
           alignment: Alignment.topCenter,
           child: _IdentityPanel(
-            height: 220,
+            height: 280,
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 54),
             child: const Center(child: _TaglineBlock(compact: true)),
           ),
         ),
         SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(18, 184, 18, 30),
+          padding: const EdgeInsets.fromLTRB(18, 244, 18, 30),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
@@ -313,18 +313,16 @@ class _TaglineBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: compact
-          ? CrossAxisAlignment.center
-          : CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'مساحة عمل واحدة لإنجاز أوضح',
-          textAlign: compact ? TextAlign.center : TextAlign.start,
+          'مساحة عمل واحدة\nلإنجـــاز اوضح',
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontFamily: 'Thmanyah Sans',
             color: Colors.white,
-            fontSize: compact ? 28 : 44,
+            fontSize: compact ? 32 : 50,
             fontWeight: FontWeight.w700,
             height: 1.25,
             letterSpacing: -0.25,
@@ -332,8 +330,8 @@ class _TaglineBlock extends StatelessWidget {
         ),
         SizedBox(height: compact ? 12 : 22),
         Text(
-          'نظم مهامك وتابع فريقك وأنجز أعمالك اليومية بسهولة من أي جهاز',
-          textAlign: compact ? TextAlign.center : TextAlign.start,
+          'نظم مهامك\nتابع فريقك\nو أنجز مهامك اليومية من اي مكان',
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontFamily: 'Thmanyah Sans',
             color: Colors.white.withValues(alpha: 0.86),
