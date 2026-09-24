@@ -160,14 +160,86 @@ class _WideLayout extends StatelessWidget {
       children: [
         Expanded(
           flex: 56,
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 430),
-                child: _LoginCard(args: args),
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Positioned(
+                top: -86,
+                left: -72,
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: 0.045,
+                    child: Image.asset(
+                      'assets/images/neotask_brand_mark.png',
+                      width: 440,
+                      height: 440,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 28,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 430),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _LoginCard(args: args),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'كل أعمالك تبدأ من هنا',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.deepBlue,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 11),
+                        const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: AppColors.mintAccent,
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(99),
+                                ),
+                              ),
+                              child: SizedBox(width: 46, height: 3),
+                            ),
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: AppColors.favoriteGold,
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(99),
+                                ),
+                              ),
+                              child: SizedBox(width: 46, height: 3),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 26),
+                        const Text(
+                          'Nay211 © 2026',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
