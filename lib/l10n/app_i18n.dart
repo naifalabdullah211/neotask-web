@@ -375,6 +375,7 @@ class AppI18n {
     'أدخل الرقم الوظيفي': 'Enter your employee ID',
     'أدخل الرقم السري': 'Enter your password',
     'بياناتك آمنة ومشفرة بالكامل': 'Your data is secure and fully encrypted',
+    'كل أعمالك تبدأ من هنا': 'All your work starts here',
     'الموظفون الجدد يسجّلون عبر رابط الدعوة المُرسل من المدير':
         'New employees register using the invitation link sent by the manager',
     'العودة لتسجيل الدخول': 'Back to sign in',
