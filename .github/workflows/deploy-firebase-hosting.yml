@@ -61,6 +61,7 @@ jobs:
       - name: Test workflow models
         run: |
           set -o pipefail
+          flutter test test/font_contract_test.dart 2>&1 | tee -a deploy-error.log
           flutter test test/workflow_features_test.dart 2>&1 | tee -a deploy-error.log
 
       - name: Test biometric integration guards
@@ -157,8 +158,21 @@ jobs:
             });
             const client = await auth.getClient();
 
+            async function requestWithRetry(options, attempts = 4) {
+              for (let attempt = 1; attempt <= attempts; attempt += 1) {
+                try {
+                  return await client.request(options);
+                } catch (error) {
+                  const status = error.response?.status;
+                  const retryable = !status || status === 429 || status >= 500;
+                  if (!retryable || attempt === attempts) throw error;
+                  await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+                }
+              }
+            }
+
             try {
-              await client.request({url: lockUrl});
+              await requestWithRetry({url: lockUrl});
               console.log('Manager already exists; setup proof not provisioned');
               return;
             } catch (error) {
@@ -167,7 +181,7 @@ jobs:
 
             const value = fs.readFileSync(process.env.MANAGER_SETUP_KEY_FILE);
             const proofHash = crypto.createHash('sha256').update(value).digest('hex');
-            await client.request({
+            await requestWithRetry({
               url: proofUrl,
               method: 'PATCH',
               data: {
